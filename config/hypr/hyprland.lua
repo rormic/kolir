@@ -10,22 +10,32 @@
 -- Please note not all available settings / options are set here.
 -- For a full list, see the wiki
 
--- You can (and should!!) split this configuration into multiple files
--- Create your files separately and then require them like this:
--- require("myColors")
-dofile(os.getenv("HOME") .. "/.config/hypr/colors.lua")
+-- This file is the shared ("generic") part of the config and is tracked
+-- in the kolir repository. Machine-specific settings live in
+-- ~/.config/hypr/user.lua and are loaded at the end of this file.
+-- ~/.config/hypr/{hyprland.lua,hyprsunset.conf,scripts} are symlinks into
+-- the repository. ~/.config/hypr/colors.lua is generated locally by
+-- matugen (see config/matugen/config.toml) and is not tracked.
+local colorsConfig = os.getenv("HOME") .. "/.config/hypr/colors.lua"
+local colorsConfigFile = io.open(colorsConfig, "r")
+if colorsConfigFile then
+	colorsConfigFile:close()
+	dofile(colorsConfig)
+end
 
 ------------------
 ---- MONITORS ----
 ------------------
 
 -- See https://wiki.hypr.land/Configuring/Basics/Monitors/
-hl.monitor({
-	output = "",
-	mode = "2560x1440@180",
-	position = "auto",
-	scale = "1",
-})
+-- Monitors are machine-specific: configure them in ~/.config/hypr/user.lua
+-- example:
+-- hl.monitor({
+-- 	output = "",
+-- 	mode = "preferred",
+-- 	position = "auto",
+-- 	scale = "1",
+-- })
 
 ---------------------
 ---- MY PROGRAMS ----
@@ -34,7 +44,7 @@ hl.monitor({
 -- Set programs that you use
 local terminal = "foot"
 local fileManager = "nautilus"
-local menu = "qs ipc call launcher toggle"
+local menu = "qs -p " .. os.getenv("HOME") .. "/.local/share/kolir/config/quickshell ipc call launcher toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
 local select_wallpaper = "sh ~/.config/hypr/scripts/select_wallpaper.sh"
 
@@ -47,11 +57,12 @@ local select_wallpaper = "sh ~/.config/hypr/scripts/select_wallpaper.sh"
 -- Autostart necessary processes (like notifications daemons, status bars, etc.)
 -- Or execute your favorite apps at launch like this:
 --
-hl.on("hyprland.start", function()
-	hl.exec_cmd("quickshell & awww-daemon & kdeconnect-indicator")
-	hl.exec_cmd("gsettings set org.gnome.desktop.interface cursor-theme 'Mocu-White-Left'")
-	hl.exec_cmd("gsettings set org.gnome.desktop.interface cursor-size 16")
-end)
+-- Autostart is machine-specific: configure it in ~/.config/hypr/user.lua
+-- example:
+-- hl.on("hyprland.start", function()
+-- 	hl.exec_cmd("quickshell -p ~/.local/share/kolir/config/quickshell")
+-- 	hl.exec_cmd("awww-daemon & kdeconnect-indicator")
+-- end)
 
 -------------------------------
 ---- ENVIRONMENT VARIABLES ----
@@ -62,8 +73,7 @@ end)
 hl.env("XCURSOR_SIZE", "16")
 hl.env("HYPRCURSOR_SIZE", "16")
 
-hl.env("XCURSOR_THEME", "Mocu-White-Left")
-hl.env("HYPRCURSOR_THEME", "Mocu-White-Left")
+-- Cursor theme is machine-specific: set it in ~/.config/hypr/user.lua
 
 -----------------------
 ----- PERMISSIONS -----
@@ -409,3 +419,16 @@ hl.layer_rule({
 	blur = true,
 	ignore_alpha = 0,
 })
+
+-------------------------------
+---- USER OVERRIDES -----------
+-------------------------------
+
+-- Machine-specific settings (monitors, autostart, personal binds, etc.).
+-- This file is NOT tracked in the repository.
+local userConfig = os.getenv("HOME") .. "/.config/hypr/user.lua"
+local userConfigFile = io.open(userConfig, "r")
+if userConfigFile then
+	userConfigFile:close()
+	dofile(userConfig)
+end
