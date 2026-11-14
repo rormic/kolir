@@ -271,11 +271,8 @@ hl.bind(mainMod .. " + SHIFT + X", hl.dsp.exec_cmd("grim - | wl-copy"))
 hl.bind(mainMod .. " + CTRL + ALT + T", hl.dsp.exec_cmd(random_wallpaper))
 hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd(select_wallpaper))
 
--- video recording --
--- hl.bind(
--- 	mainMod .. " + R",
--- 	hl.dsp.exec_cmd([[wl-screenrec -g "$(slurp)" -a -f "$HOME/Videos/rec_$(date +'%Y-%m-%d_%H-%M-%S').mp4"]])
--- )
+-- video recording toggle: first press selects a region, second press saves --
+hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh"))
 
 -- Example binds, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))

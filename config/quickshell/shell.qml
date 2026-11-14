@@ -4,12 +4,14 @@ import "launcher"
 import "corners"
 import "notification"
 import "osd"
+import "rec"
 
 ShellRoot {
     Bar {}
     Launcher {}
     Notification {}
     VolumeOsd {}
+    RecordingIndicator {}
 
     Variants {
         model: Quickshell.screens
