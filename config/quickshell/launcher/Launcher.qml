@@ -21,17 +21,100 @@ Scope {
             win.visible = true
             search.text = query
         }
+        function testSearch(query: string): void {
+            const res = root.getFilteredApplications(query)
+            console.log("TEST_SEARCH for " + query + ":")
+            for (let i = 0; i < Math.min(res.length, 5); i++) {
+                console.log("  " + (i + 1) + ". " + res[i].name + " (id: " + res[i].id + ")")
+            }
+        }
     }
 
-    // ── Автоматичний фоновий демон збереження буфера обміну ──
+    // ── Автоматичні фонові демони збереження буфера обміну ──
+    // Окремо для тексту та зображень з переміщенням дублікатів нагору списку
     Process {
-        id: clipDaemon
-        command: ["wl-paste", "--watch", "cliphist", "store"]
+        id: clipDaemonText
+        command: ["wl-paste", "--type", "text", "--watch", "/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-store.py"]
+        running: true
+    }
+
+    Process {
+        id: clipDaemonImage
+        command: ["wl-paste", "--type", "image", "--watch", "/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-store.py"]
         running: true
     }
 
     // Список записів історії буфера обміну
     property var clipboardItems: []
+
+    function getFilteredApplications(queryText) {
+        const apps = DesktopEntries.applications.values
+        if (!apps || apps.length === 0) return []
+
+        const q = (queryText || "").trim().toLowerCase()
+
+        // 1. Порожній запит: показуємо всі програми
+        if (q === "") {
+            return apps.slice()
+        }
+
+        // 2. Пошук за запитом
+        const scored = []
+        for (let i = 0; i < apps.length; i++) {
+            const app = apps[i]
+            const name = (app.name || "").toLowerCase()
+            const id = (app.id || "").toLowerCase()
+            const genericName = (app.genericName || "").toLowerCase()
+
+            let matchScore = 0
+
+            // Перевіряємо збіги за релевантністю
+            if (name === q) {
+                matchScore = 1000
+            } else if (name.startsWith(q)) {
+                matchScore = 500
+            } else {
+                const words = name.split(/[\s\-_]+/)
+                let wordPrefixMatch = false
+                for (let w = 0; w < words.length; w++) {
+                    if (words[w].startsWith(q)) {
+                        wordPrefixMatch = true
+                        break
+                    }
+                }
+
+                if (wordPrefixMatch) {
+                    matchScore = 350
+                } else if (name.includes(q)) {
+                    matchScore = 150
+                } else if (id.startsWith(q)) {
+                    matchScore = 120
+                } else if (id.includes(q)) {
+                    matchScore = 70
+                } else if (genericName.startsWith(q)) {
+                    matchScore = 90
+                } else if (genericName.includes(q)) {
+                    matchScore = 50
+                }
+            }
+
+            if (matchScore > 0) {
+                scored.push({
+                    app: app,
+                    score: matchScore,
+                    name: app.name || ""
+                })
+            }
+        }
+
+        // Сортуємо за найвищим балом; при рівності — за алфавітом
+        scored.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score
+            return a.name.localeCompare(b.name)
+        })
+
+        return scored.map(item => item.app)
+    }
 
     // Процес оновлення списку буфера обміну
     Process {
@@ -52,19 +135,68 @@ Scope {
                     if (!line) continue
                     const tabIdx = line.indexOf("\t")
                     if (tabIdx !== -1) {
+                        const itemId = line.substring(0, tabIdx)
+                        const preview = line.substring(tabIdx + 1)
+                        // Розпізнаємо будь-які зображення (B, KiB, MiB тощо)
+                        const isImage = preview.startsWith("[[ binary data") ||
+                                        preview.startsWith("\uFFFDPNG") ||
+                                        (preview.includes("PNG") && preview.includes("IHDR"))
+                        let displayPreview = preview
+                        let imageDims = ""
+                        let imageInfo = ""
+                        if (preview.startsWith("[[ binary data")) {
+                            const m = preview.match(/^\[\[ binary data\s+(.+?)\s+([a-zA-Z]+)\s+(\d+x\d+)\s*\]\]$/)
+                            if (m) {
+                                imageDims = m[3].replace("x", " × ")
+                                imageInfo = m[1] + " · " + m[2].toUpperCase()
+                                displayPreview = imageDims + " (" + imageInfo + ")"
+                            } else {
+                                displayPreview = preview.replace(/^\[\[ binary data\s*/, "").replace(/\s*\]\]$/, "")
+                                imageDims = displayPreview
+                            }
+                        }
                         items.push({
                             raw: line,
-                            id: line.substring(0, tabIdx),
-                            preview: line.substring(tabIdx + 1)
+                            id: itemId,
+                            preview: preview,
+                            displayPreview: displayPreview,
+                            imageDims: imageDims,
+                            imageInfo: imageInfo,
+                            isImage: isImage,
+                            // Шлях до кешованого превью
+                            imagePath: isImage ? ("/tmp/qs-clip-previews/" + itemId + ".png") : ""
                         })
                     } else {
                         items.push({
                             raw: line,
                             id: "",
-                            preview: line
+                            preview: line,
+                            displayPreview: line,
+                            isImage: false,
+                            imagePath: ""
                         })
                     }
                 }
+                root.clipboardItems = items
+                // Генеруємо превью для всіх зображень в одну команду
+                const imgItems = items.filter(it => it.isImage)
+                if (imgItems.length > 0) {
+                    imgPreviewProc.running = true
+                }
+            }
+        }
+    }
+
+    // Процес генерації превью для зображень з буфера обміну
+    Process {
+        id: imgPreviewProc
+        running: false
+        command: ["/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-previews.py"]
+        onRunningChanged: {
+            // Після генерації превью — оновлюємо модель щоб Image перемалювалися
+            if (!running) {
+                const items = root.clipboardItems
+                root.clipboardItems = []
                 root.clipboardItems = items
             }
         }
@@ -140,8 +272,8 @@ Scope {
         id: win
 
         visible: false
-        implicitWidth: 460
-        implicitHeight: 400
+        implicitWidth: 620
+        implicitHeight: 500
         color: Colors.surfaceContainer
 
         WlrLayershell.layer: WlrLayer.Overlay
@@ -516,9 +648,7 @@ Scope {
                                     item.preview.toLowerCase().includes(win.clipQuery)
                                 )
                             } else {
-                                return DesktopEntries.applications.values.filter(e =>
-                                    (e.name || "").toLowerCase().includes(search.text.toLowerCase())
-                                )
+                                return root.getFilteredApplications(search.text)
                             }
                         }
 
@@ -528,7 +658,7 @@ Scope {
                             required property int index
 
                             width: list.width
-                            height: 28
+                            height: (win.isClipboardMode && modelData.isImage) ? 120 : 28
                             color: ListView.isCurrentItem
                                 ? Colors.primaryContainer
                                 : (itemMouse.containsMouse ? Colors.surfaceContainerHigh : "transparent")
@@ -576,7 +706,78 @@ Scope {
                                 }
                             }
 
-                            // ── Текст (назва програми або прев'ю буфера обміну) ──
+                            // ── Рамка та велике прев'ю зображення (у стилі Aseprite) ──
+                            Rectangle {
+                                id: imgFrame
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: iconBox.right
+                                anchors.leftMargin: 8
+                                width: 160
+                                height: 104
+                                visible: win.isClipboardMode && modelData.isImage
+                                color: Colors.surfaceContainerLowest
+                                border.width: 1
+                                border.color: ListView.isCurrentItem ? Colors.primary : Colors.shadow
+
+                                Image {
+                                    id: clipImgPreview
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    cache: false
+                                    source: (win.isClipboardMode && modelData.isImage && modelData.imagePath !== "")
+                                        ? ("file://" + modelData.imagePath) : ""
+                                }
+                            }
+
+                            // ── Текст / Інформація для зображень (роздільна здатність, розмір, тип) ──
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: imgFrame.right
+                                anchors.leftMargin: 14
+                                anchors.right: parent.right
+                                anchors.rightMargin: 10
+                                visible: win.isClipboardMode && modelData.isImage
+                                spacing: 6
+
+                                Text {
+                                    width: parent.width
+                                    text: modelData.imageDims || modelData.displayPreview || "Image"
+                                    color: ListView.isCurrentItem ? Colors.onPrimaryContainer : Colors.onSurface
+                                    font.family: Typography.mainFont
+                                    font.pixelSize: 16
+                                    font.hintingPreference: Font.PreferFullHinting
+                                    renderType: Text.NativeRendering
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: modelData.imageInfo || ""
+                                    color: ListView.isCurrentItem ? Colors.onPrimaryContainer : Colors.outlineVariant
+                                    font.family: Typography.mainFont
+                                    font.pixelSize: 13
+                                    font.hintingPreference: Font.PreferFullHinting
+                                    renderType: Text.NativeRendering
+                                    visible: text !== ""
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: "[Enter] Copy Image"
+                                    color: ListView.isCurrentItem ? Colors.onPrimaryContainer : Colors.outlineVariant
+                                    font.family: Typography.mainFont
+                                    font.pixelSize: 12
+                                    font.hintingPreference: Font.PreferFullHinting
+                                    renderType: Text.NativeRendering
+                                    visible: ListView.isCurrentItem
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // ── Звичайний текст (для текстових записів буфера або програм) ──
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.verticalCenterOffset: 1
@@ -584,7 +785,10 @@ Scope {
                                 anchors.leftMargin: 8
                                 anchors.right: parent.right
                                 anchors.rightMargin: 6
-                                text: win.isClipboardMode ? modelData.preview : modelData.name
+                                visible: !win.isClipboardMode || !modelData.isImage
+                                text: win.isClipboardMode
+                                    ? (modelData.displayPreview || modelData.preview)
+                                    : modelData.name
                                 color: ListView.isCurrentItem
                                     ? Colors.onPrimaryContainer
                                     : Colors.onSurface
