@@ -1,14 +1,13 @@
 import QtQuick
 import "../../theme"
 
-// A tonal Material 3 surface: no bevels, no decorative borders.
-// Extra children are placed inside `content` so they can use the full area.
+// Neon accent surface: dark opaque base, thin accent border.
 Rectangle {
     id: root
 
     property color surfaceColor: Colors.surfaceContainerHigh
-    property color borderColor: "transparent"
-    property int borderWidth: 0
+    property color borderColor: Colors.withAlpha(Colors.outlineVariant, 0.18)
+    property int borderWidth: 1
 
     default property alias content: inner.data
 
@@ -19,10 +18,7 @@ Rectangle {
     clip: true
 
     Behavior on color {
-        ColorAnimation {
-            duration: 140
-            easing.type: Easing.OutCubic
-        }
+        ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
     }
 
     Item {

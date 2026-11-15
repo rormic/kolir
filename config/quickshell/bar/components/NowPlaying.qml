@@ -2,7 +2,7 @@ import "../../theme"
 import Quickshell.Services.Mpris
 import QtQuick
 
-// Now playing chip: music icon + "artist - title" in a tonal pill.
+// Now playing: pulsing neon music icon + track text.
 Pill {
     id: root
 
@@ -12,7 +12,7 @@ Pill {
     }
     readonly property bool hasPlayer: player !== null
     readonly property string trackText: player
-        ? ((player.trackArtist ? player.trackArtist + " - " : "") + (player.trackTitle || ""))
+        ? ((player.trackArtist ? player.trackArtist + " – " : "") + (player.trackTitle || ""))
         : ""
 
     property bool enabled: true
@@ -25,4 +25,11 @@ Pill {
     textWeight: Typography.weight.bold
     textColor: Colors.onSurface
     textMaxWidth: 150
+
+    SequentialAnimation on iconItem.opacity {
+        running: root.visible
+        loops: Animation.Infinite
+        NumberAnimation { to: 0.4; duration: 800; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+    }
 }

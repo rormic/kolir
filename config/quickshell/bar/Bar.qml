@@ -21,7 +21,33 @@ PanelWindow {
     Rectangle {
         id: background
         anchors.fill: parent
-        color: Colors.withAlpha(Colors.surfaceContainer, 0.86)
+        // Very dark, nearly opaque — neon pops on dark
+        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+
+        // Subtle top highlight
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 1
+            color: Colors.withAlpha(Colors.surfaceContainerHighest, 0.18)
+        }
+
+        // Neon bottom line — the signature accent
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 1
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0;  color: "transparent" }
+                GradientStop { position: 0.25; color: Colors.withAlpha(Colors.primary, 0.4) }
+                GradientStop { position: 0.5;  color: Colors.withAlpha(Colors.primary, 0.85) }
+                GradientStop { position: 0.75; color: Colors.withAlpha(Colors.primary, 0.4) }
+                GradientStop { position: 1.0;  color: "transparent" }
+            }
+        }
 
         // Left: active window
         ActiveWindow {
@@ -32,16 +58,14 @@ PanelWindow {
             width: Math.min(190, Math.max(120, background.width * 0.16))
         }
 
-        // Center: workspaces. The row holds ten cells, so shift the whole
-        // cluster half a cell to the right to put workspace 5 exactly in the
-        // middle of the screen.
+        // Center: workspaces
         Workspaces {
             id: workspaces
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: workspaces.cellWidth / 2
         }
 
-        // Left of center: now playing, like main
+        // Left of center: now playing
         NowPlaying {
             id: nowPlaying
             enabled: background.width >= 1100
@@ -50,7 +74,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        // Right of center: clock + language, like main
+        // Right of center: clock
         Clock {
             id: clock
             anchors.left: workspaces.right
@@ -58,28 +82,17 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        // Right edge: recording, volume, theme
+        // Right edge
         Row {
             anchors.right: parent.right
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             spacing: Dimensions.spacing.small
 
-            RecordingStatus {
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Brightness {
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Volume {
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            ThemeToggle {
-                anchors.verticalCenter: parent.verticalCenter
-            }
+            RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
+            Brightness      { anchors.verticalCenter: parent.verticalCenter }
+            Volume          { anchors.verticalCenter: parent.verticalCenter }
+            ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
         }
     }
 }

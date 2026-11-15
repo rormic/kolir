@@ -1,7 +1,7 @@
 import QtQuick
 import "../../theme"
 
-// Compact Material 3 pill: icon + label inside a fully rounded tonal surface.
+// Neon accent pill: dark base, hover gets neon border glow + subtle scale.
 Surface {
     id: root
 
@@ -21,10 +21,26 @@ Surface {
     property alias iconItem: iconLabel
     property alias textItem: textLabel
 
+    readonly property bool hovered: _hover.hovered
+
     implicitHeight: Dimensions.control.height
     implicitWidth: row.implicitWidth + horizontalPadding * 2
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
+
+    // Neon border on hover
+    borderColor: hovered
+        ? Colors.withAlpha(Colors.primary, 0.55)
+        : Colors.withAlpha(Colors.outlineVariant, 0.18)
+
+    Behavior on borderColor {
+        ColorAnimation { duration: 150 }
+    }
+
+    scale: hovered ? 1.04 : 1.0
+    Behavior on scale {
+        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+    }
 
     Row {
         id: row
@@ -35,16 +51,11 @@ Surface {
             id: iconLabel
             visible: root.icon !== ""
             text: root.icon
-            color: root.iconColor
+            color: root.hovered ? Colors.primary : root.iconColor
             font.family: Typography.iconFont
             font.pixelSize: root.iconSize
             font.weight: Font.Normal
-
-            Behavior on color {
-                ColorAnimation {
-                    duration: 140
-                }
-            }
+            Behavior on color { ColorAnimation { duration: 150 } }
         }
 
         Text {
@@ -57,12 +68,9 @@ Surface {
             font.weight: root.textWeight
             elide: Text.ElideRight
             width: root.textMaxWidth > 0 ? Math.min(implicitWidth, root.textMaxWidth) : implicitWidth
-
-            Behavior on color {
-                ColorAnimation {
-                    duration: 140
-                }
-            }
+            Behavior on color { ColorAnimation { duration: 140 } }
         }
     }
+
+    HoverHandler { id: _hover }
 }

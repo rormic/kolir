@@ -2,16 +2,13 @@ import "../../theme"
 import Quickshell.Hyprland
 import QtQuick
 
-// Active window chip: app icon + title in an M3 tonal pill.
+// Active window chip: neon left-accent bar + fade on title change.
 Surface {
     id: root
 
     readonly property var client: {
         if (Hyprland.activeToplevel)
             return Hyprland.activeToplevel;
-        // Quickshell 0.3.2 starts with activeToplevel == null until the first
-        // focus event. Fall back to the last focused window on the current
-        // workspace so the chip is populated right after startup.
         const workspace = Hyprland.focusedWorkspace?.id;
         return Hyprland.toplevels.values.find(t => t.workspace?.id === workspace && t.lastIpcObject?.focusHistoryID === 0)
             ?? Hyprland.toplevels.values.find(t => t.activated)
@@ -30,9 +27,21 @@ Surface {
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
 
+    // Neon left accent bar
+    Rectangle {
+        z: 2
+        anchors.left: parent.left
+        anchors.leftMargin: 6
+        anchors.verticalCenter: parent.verticalCenter
+        width: 2
+        height: 11
+        radius: 1
+        color: Colors.primary
+    }
+
     Row {
         anchors.fill: parent
-        anchors.leftMargin: 10
+        anchors.leftMargin: 15
         anchors.rightMargin: 12
         spacing: 6
 
@@ -45,6 +54,7 @@ Surface {
         }
 
         Text {
+            id: titleText
             width: parent.width - (appIcon.visible ? appIcon.width + parent.spacing : 0)
             anchors.verticalCenter: parent.verticalCenter
             text: root.title
@@ -53,6 +63,13 @@ Surface {
             font.pixelSize: Typography.size.labelMedium
             font.weight: Typography.weight.bold
             elide: Text.ElideRight
+
+            onTextChanged: fadeAnim.restart()
+            SequentialAnimation {
+                id: fadeAnim
+                NumberAnimation { target: titleText; property: "opacity"; to: 0.3; duration: 70 }
+                NumberAnimation { target: titleText; property: "opacity"; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+            }
         }
     }
 }
