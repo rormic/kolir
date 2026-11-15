@@ -1,23 +1,25 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import "../bar/components"
 import "../theme"
 
 Scope {
     id: root
 
+    property bool active: false
+
     Timer {
         id: hideTimer
-        interval: 1600
+        interval: 1500
         repeat: false
-        onTriggered: osdWin.visible = false
+        onTriggered: root.active = false
     }
 
     Connections {
         target: AudioService
         function onVolumeChangedManually(vol, isMuted) {
             osdWin.visible = true
+            root.active = true
             hideTimer.restart()
         }
     }
@@ -26,90 +28,142 @@ Scope {
         id: osdWin
 
         visible: false
-        color: Colors.surfaceContainer
+        color: "transparent"
 
         anchors {
             bottom: true
         }
-        margins.bottom: 70
+        margins.bottom: 60
 
-        implicitWidth: 220
-        implicitHeight: 56
+        implicitWidth: 200
+        implicitHeight: 36
 
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "volume-osd"
 
-        // ── Вікно OSD у стилі Aseprite ──
-        PixelBox {
+        Item {
+            id: container
             anchors.fill: parent
-            style: "raised"
-            bgColor: Colors.surfaceContainer
 
-            Column {
-                anchors.fill: parent
-                anchors.margins: 6
-                spacing: 6
+            opacity: root.active ? 1.0 : 0.0
+            scale: root.active ? 1.0 : 0.94
+            transformOrigin: Item.Center
 
-                // ── Заголовок: AUDIO / % ──
-                Item {
-                    width: parent.width
-                    height: 16
-
-                    Text {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: 1
-                        text: AudioService.muted ? "MUTED" : "VOLUME"
-                        font.family: Typography.mainFont
-                        font.pixelSize: 14
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
-                        color: AudioService.muted ? Colors.error : Colors.primary
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 160
+                    easing.type: Easing.OutCubic
+                    onRunningChanged: {
+                        if (!running && !root.active) {
+                            osdWin.visible = false
+                        }
                     }
+                }
+            }
+            Behavior on scale {
+                NumberAnimation {
+                    duration: 160
+                    easing.type: Easing.OutCubic
+                }
+            }
 
-                    Text {
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: 1
-                        text: AudioService.volume + "%"
-                        font.family: Typography.mainFont
-                        font.pixelSize: 14
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
-                        color: Colors.onSurface
+            // ── Compact Neon Pill ──
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.height / 2
+                color: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+
+                border.width: 1
+                border.color: AudioService.muted
+                    ? Colors.withAlpha(Colors.error, 0.5)
+                    : Colors.withAlpha(Colors.primary, 0.45)
+
+                Behavior on border.color {
+                    ColorAnimation { duration: 140 }
+                }
+
+                // Subtle neon bottom highlight
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.width * 0.6
+                    height: 1
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: "transparent" }
+                        GradientStop {
+                            position: 0.5
+                            color: AudioService.muted
+                                ? Colors.withAlpha(Colors.error, 0.7)
+                                : Colors.withAlpha(Colors.primary, 0.7)
+                        }
+                        GradientStop { position: 1.0; color: "transparent" }
                     }
                 }
 
-                // ── Піксельний сегментований прогресбар (10 ретро-блоків) ──
-                PixelBox {
-                    width: parent.width
-                    height: 18
-                    style: "sunken"
-                    bgColor: Colors.surfaceContainerLow
+                Row {
+                    anchors {
+                        fill: parent
+                        leftMargin: 12
+                        rightMargin: 12
+                    }
+                    spacing: 8
 
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 2
+                    // Volume Icon
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: AudioService.muted
+                            ? Icons.volumeOff
+                            : (AudioService.volume === 0
+                                ? Icons.volumeMute
+                                : (AudioService.volume < 50 ? Icons.volumeDown : Icons.volumeUp))
+                        font.family: Typography.iconFont
+                        font.pixelSize: 18
+                        color: AudioService.muted ? Colors.error : Colors.primary
+                        Behavior on color { ColorAnimation { duration: 140 } }
+                    }
 
-                        Repeater {
-                            model: 10
+                    // Progress Slider
+                    Rectangle {
+                        id: track
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - 18 - 8 - 36 - 8 // width minus icon, gaps, text
+                        height: 4
+                        radius: 2
+                        color: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
 
-                            delegate: Rectangle {
-                                readonly property int blockIndex: index
-                                readonly property bool isFilled: (blockIndex + 1) * 10 <= AudioService.volume || (blockIndex * 10 < AudioService.volume && (blockIndex + 1) * 10 > AudioService.volume)
+                        Rectangle {
+                            id: fill
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: Math.max(0, Math.min(track.width, track.width * (Math.min(100, Math.max(0, AudioService.volume)) / 100)))
+                            radius: 2
+                            color: AudioService.muted
+                                ? Colors.withAlpha(Colors.error, 0.85)
+                                : Colors.primary
 
-                                width: 16
-                                height: 10
-                                color: isFilled
-                                    ? (AudioService.muted ? Colors.error : Colors.primary)
-                                    : Colors.surfaceContainerHigh
-                                border.width: 1
-                                border.color: isFilled
-                                    ? Colors.shadow
-                                    : Colors.outlineVariant
+                            Behavior on width {
+                                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+                            }
+                            Behavior on color {
+                                ColorAnimation { duration: 140 }
                             }
                         }
+                    }
+
+                    // Value text
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 36
+                        horizontalAlignment: Text.AlignRight
+                        text: AudioService.muted ? "Mute" : (AudioService.volume + "%")
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelMedium
+                        font.weight: Typography.weight.bold
+                        color: AudioService.muted ? Colors.error : Colors.onSurface
+                        Behavior on color { ColorAnimation { duration: 140 } }
                     }
                 }
             }

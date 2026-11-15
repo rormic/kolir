@@ -6,7 +6,11 @@ Pill {
     id: root
 
     implicitWidth: 64
-    icon: AudioService.muted ? Icons.volumeOff : Icons.volumeUp
+    icon: AudioService.muted
+        ? Icons.volumeOff
+        : (AudioService.volume === 0
+            ? Icons.volumeMute
+            : (AudioService.volume < 50 ? Icons.volumeDown : Icons.volumeUp))
     iconColor: AudioService.muted ? Colors.error : Colors.primary
     text: AudioService.volume + "%"
     textSize: Typography.size.labelMedium
