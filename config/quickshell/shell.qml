@@ -11,7 +11,7 @@ ShellRoot {
     Launcher {}
     Notification {}
     VolumeOsd {}
-    RecordingIndicator {}
+    RecordingSetup {}
 
     Variants {
         model: Quickshell.screens

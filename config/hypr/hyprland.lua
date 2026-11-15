@@ -273,6 +273,8 @@ hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd(select_wallpaper))
 
 -- video recording toggle: first press selects a region, second press saves --
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh"))
+-- one-off recording settings: opens Quickshell menu, then starts recording --
+hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh --setup"))
 
 -- Example binds, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))

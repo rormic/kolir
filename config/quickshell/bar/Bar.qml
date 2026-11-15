@@ -60,6 +60,12 @@ PanelWindow {
                 visible: nowPlaying.hasPlayer
             }
 
+            // ── Індикатор запису ──
+            RecordingStatus {
+                id: recordingStatus
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             // ── Гучність ──
             Volume {
                 id: volumeIndicator
