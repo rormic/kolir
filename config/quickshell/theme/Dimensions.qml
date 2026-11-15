@@ -18,19 +18,39 @@ QtObject {
 
     readonly property QtObject bar: QtObject {
         readonly property int height: 30
+        readonly property int margin: 0
+        readonly property int contentHeight: 24
+    }
+
+    readonly property QtObject control: QtObject {
+        readonly property int height: 24
+        readonly property int iconButton: 24
+        readonly property int touchTarget: 30
+    }
+
+    readonly property QtObject icon: QtObject {
+        readonly property int small: 13
+        readonly property int medium: 15
+        readonly property int large: 17
+        readonly property int extraLarge: 20
     }
 
     readonly property QtObject padding: QtObject {
         readonly property int horizontal: 10
         readonly property int vertical: 4
+        readonly property int chipHorizontal: 8
+        readonly property int barContent: 8
     }
 
     readonly property QtObject spacing: QtObject {
         readonly property int none: 0
+        readonly property int extraSmall: 2
+        readonly property int small: 4
+        readonly property int medium: 8
         readonly property int large: 16
     }
 
     readonly property QtObject insideBarSize: QtObject {
-        readonly property int rectangleHight: root.bar.height - root.padding.vertical
+        readonly property int rectangleHight: root.bar.contentHeight
     }
 }

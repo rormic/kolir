@@ -3,27 +3,23 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import QtQuick
 
-// KeyboardLayout — компактний піксельний індикатор мови
-PixelBox {
+// Compact keyboard layout label, used inside the clock pill.
+Item {
     id: root
-    style: "raised"
-    bgColor: Colors.surfaceContainerHigh
 
-    implicitWidth:  32
-    implicitHeight: Dimensions.bar.height - 4
+    implicitWidth: label.implicitWidth
+    implicitHeight: label.implicitHeight
 
     property string layoutName: "EN"
 
     Text {
-        id: langText
+        id: label
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: 1
         text: root.layoutName
-        color: Colors.onSurface
-        font.family: Typography.mainFont
-        font.pixelSize: 14
-        font.hintingPreference: Font.PreferFullHinting
-        renderType: Text.NativeRendering
+        color: Colors.onSurfaceVariant
+        font.family: Typography.barFont
+        font.pixelSize: Typography.size.labelSmall
+        font.weight: Typography.weight.bold
     }
 
     Process {
@@ -32,18 +28,18 @@ PixelBox {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    const data = JSON.parse(text)
+                    const data = JSON.parse(text);
                     const kb = data.keyboards
                         ? (data.keyboards.find(k => k.main) || data.keyboards[0])
-                        : null
+                        : null;
                     if (kb && kb.active_keymap) {
-                        const raw = kb.active_keymap.trim()
+                        const raw = kb.active_keymap.trim();
                         root.layoutName = raw.length > 3
                             ? raw.substring(0, 2).toUpperCase()
-                            : raw.toUpperCase()
+                            : raw.toUpperCase();
                     }
                 } catch (e) {
-                    console.error("KeyboardLayout:", e)
+                    console.error("KeyboardLayout:", e);
                 }
             }
         }
@@ -53,10 +49,10 @@ PixelBox {
         target: Hyprland
         function onRawEvent(event) {
             if (event.name === "activelayout") {
-                const raw = event.data.split(",").slice(1).join(",").trim()
+                const raw = event.data.split(",").slice(1).join(",").trim();
                 root.layoutName = raw.length > 3
                     ? raw.substring(0, 2).toUpperCase()
-                    : raw.toUpperCase()
+                    : raw.toUpperCase();
             }
         }
     }

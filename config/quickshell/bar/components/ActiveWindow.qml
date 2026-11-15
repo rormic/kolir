@@ -2,52 +2,56 @@ import "../../theme"
 import Quickshell.Hyprland
 import QtQuick
 
-// ActiveWindow — заглиблене поле з назвою активного вікна
-PixelBox {
+// Active window chip: app icon + title in an M3 tonal pill.
+Surface {
     id: root
 
-    style: "sunken"
-    bgColor: Colors.surfaceContainerLow
+    readonly property var client: {
+        if (Hyprland.activeToplevel)
+            return Hyprland.activeToplevel;
+        // Quickshell 0.3.2 starts with activeToplevel == null until the first
+        // focus event. Fall back to the last focused window on the current
+        // workspace so the chip is populated right after startup.
+        const workspace = Hyprland.focusedWorkspace?.id;
+        return Hyprland.toplevels.values.find(t => t.workspace?.id === workspace && t.lastIpcObject?.focusHistoryID === 0)
+            ?? Hyprland.toplevels.values.find(t => t.activated)
+            ?? null;
+    }
+    readonly property string appClass: client
+        ? (client.wayland?.appId ?? client.lastIpcObject?.class ?? "")
+        : ""
+    readonly property string title: client
+        ? (client.title !== "" ? client.title : root.appClass)
+        : ""
 
-    implicitWidth: 210
-    height: Dimensions.bar.height - 4
-    visible: Hyprland.activeToplevel !== null
+    visible: client !== null
+    implicitWidth: 190
+    implicitHeight: Dimensions.control.height
+    radius: Dimensions.radius.full
+    surfaceColor: Colors.surfaceContainerHigh
 
-    Item {
+    Row {
         anchors.fill: parent
+        anchors.leftMargin: 10
+        anchors.rightMargin: 12
+        spacing: 6
 
-        Text {
-            id: arrow
-            anchors.left: parent.left
-            anchors.leftMargin: 4
+        AppIcon {
+            id: appIcon
+            appClass: root.appClass
+            iconSize: Dimensions.icon.medium
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 1
-            text: ">"
-            color: Colors.primary
-            font.family: Typography.mainFont
-            font.pixelSize: 14
-            font.hintingPreference: Font.PreferFullHinting
-            renderType: Text.NativeRendering
+            visible: ready
         }
 
         Text {
-            id: windowTitle
-            anchors.left: arrow.right
-            anchors.leftMargin: 4
-            anchors.right: parent.right
-            anchors.rightMargin: 3
+            width: parent.width - (appIcon.visible ? appIcon.width + parent.spacing : 0)
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 1
-            text: {
-                const c = Hyprland.activeToplevel
-                if (!c) return ""
-                return c.title !== "" ? c.title : (c.wayland?.appId ?? c.lastIpcObject?.class ?? "")
-            }
+            text: root.title
             color: Colors.onSurface
-            font.family: Typography.mainFont
-            font.pixelSize: 14
-            font.hintingPreference: Font.PreferFullHinting
-            renderType: Text.NativeRendering
+            font.family: Typography.barFont
+            font.pixelSize: Typography.size.labelMedium
+            font.weight: Typography.weight.bold
             elide: Text.ElideRight
         }
     }

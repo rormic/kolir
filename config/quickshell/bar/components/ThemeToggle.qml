@@ -3,50 +3,42 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// ThemeToggle — піксельна raised-кнопка зміни теми
-PixelBox {
+// Theme switch as an M3 icon button.
+IconButton {
     id: root
 
-    style: "raised"
-    pressed: mouse.pressed
-    bgColor: mouse.containsMouse
-        ? Colors.surfaceContainerHighest
-        : Colors.surfaceContainerHigh
-
-    implicitWidth:  24
-    implicitHeight: Dimensions.bar.height - 4
-
     property string currentTheme: "dark"
+
+    icon: root.currentTheme === "light" ? Icons.lightMode : Icons.darkMode
+    iconColor: Colors.onSurface
+    iconSize: Dimensions.icon.large
+
+    onCurrentThemeChanged: themePop.restart()
+
+    SequentialAnimation {
+        id: themePop
+        NumberAnimation {
+            target: root.iconItem
+            property: "scale"
+            from: 0.7
+            to: 1.0
+            duration: 180
+            easing.type: Easing.OutBack
+        }
+    }
 
     FileView {
         path: Quickshell.env("HOME") + "/.cache/current_theme"
         watchChanges: true
         onFileChanged: this.reload()
         onLoaded: {
-            const t = this.text().trim()
-            if (t === "light" || t === "dark") root.currentTheme = t
+            const t = this.text().trim();
+            if (t === "light" || t === "dark")
+                root.currentTheme = t;
         }
     }
 
-    Text {
-        anchors.centerIn: parent
-        anchors.verticalCenterOffset: 1
-        // Прості ASCII іконки: @ = "сонце" (круглий), # = "ніч" (квадратний)
-        text: root.currentTheme === "light" ? "@" : "#"
-        color: Colors.primary
-        font.family: Typography.mainFont
-        font.pixelSize: 14
-        font.hintingPreference: Font.PreferFullHinting
-        renderType: Text.NativeRendering
-    }
-
-    MouseArea {
-        id: mouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: toggleProc.running = true
-    }
+    onClicked: toggleProc.running = true
 
     Process {
         id: toggleProc

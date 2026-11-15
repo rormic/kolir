@@ -36,7 +36,7 @@ Scope {
             right: true
         }
         margins {
-            top: Dimensions.bar.height + 6
+            top: Dimensions.bar.height + Dimensions.bar.margin + 8
             right: 10
         }
 

@@ -1,116 +1,82 @@
 import "../theme"
 import "./components"
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 
 PanelWindow {
     id: bar
     WlrLayershell.namespace: "bar"
+    WlrLayershell.exclusiveZone: Dimensions.bar.height
 
-    anchors { top: true; left: true; right: true }
+    anchors {
+        top: true
+        left: true
+        right: true
+    }
+
     color: "transparent"
     implicitHeight: Dimensions.bar.height
 
-    // ── Тіло статусбара — суцільна смуга без заокруглень, як у Aseprite ──
     Rectangle {
+        id: background
         anchors.fill: parent
-        color: Colors.surfaceContainer
-        radius: 0
+        color: Colors.withAlpha(Colors.surfaceContainer, 0.86)
 
-        // ── Нижній 1px роздільник ──
-        Rectangle {
-            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-            height: 1
-            color: Colors.shadow
-        }
-
-        // ╔══════════════════════════════════════════════════════╗
-        // ║  ЛІВИЙ БЛОК: ActiveWindow                           ║
-        // ╚══════════════════════════════════════════════════════╝
+        // Left: active window
         ActiveWindow {
             id: activeWindow
             anchors.left: parent.left
-            anchors.leftMargin: 4
+            anchors.leftMargin: Dimensions.padding.barContent
             anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(190, Math.max(120, background.width * 0.16))
         }
 
-        // ╔══════════════════════════════════════════════════════╗
-        // ║  ЦЕНТР: Workspaces                                  ║
-        // ╚══════════════════════════════════════════════════════╝
+        // Center: workspaces. The row holds ten cells, so shift the whole
+        // cluster half a cell to the right to put workspace 5 exactly in the
+        // middle of the screen.
         Workspaces {
             id: workspaces
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: workspaces.cellWidth / 2
         }
 
-        // ╔══════════════════════════════════════════════════════╗
-        // ║  ПРАВИЙ БЛОК: NowPlaying + Clock + Lang + Theme     ║
-        // ╚══════════════════════════════════════════════════════╝
+        // Left of center: now playing, like main
+        NowPlaying {
+            id: nowPlaying
+            enabled: background.width >= 1100
+            anchors.right: workspaces.left
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // Right of center: clock + language, like main
+        Clock {
+            id: clock
+            anchors.left: workspaces.right
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // Right edge: recording, volume, theme
         Row {
             anchors.right: parent.right
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 4
+            spacing: Dimensions.spacing.small
 
-            // ── NowPlaying ──
-            NowPlaying {
-                id: nowPlaying
-                anchors.verticalCenter: parent.verticalCenter
-                visible: nowPlaying.hasPlayer
-            }
-
-            // ── Індикатор запису ──
             RecordingStatus {
-                id: recordingStatus
                 anchors.verticalCenter: parent.verticalCenter
             }
 
-            // ── Гучність ──
+            Brightness {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Volume {
-                id: volumeIndicator
                 anchors.verticalCenter: parent.verticalCenter
             }
 
-            // ── Годинник + мова: sunken field (фіксована ширина проти стрибків) ──
-            PixelBox {
-                style: "sunken"
-                bgColor: Colors.surfaceContainerLow
-                height: Dimensions.bar.height - 4
-                width: 254
-                anchors.verticalCenter: parent.verticalCenter
-
-                SystemClock {
-                    id: sysClock
-                    precision: SystemClock.Seconds
-                }
-
-                Row {
-                    id: clockInner
-                    anchors.centerIn: parent
-                    spacing: 8
-                    height: parent.height
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: 1
-                        width: 194
-                        horizontalAlignment: Text.AlignHCenter
-                        color: Colors.onSurface
-                        font.family: Typography.mainFont
-                        font.pixelSize: 14
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
-                        text: Qt.formatDateTime(sysClock.date, "ddd, dd MMM  HH:mm:ss")
-                    }
-
-                    KeyboardLayout {
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-            }
-
-            // ── Кнопка теми ──
             ThemeToggle {
                 anchors.verticalCenter: parent.verticalCenter
             }
