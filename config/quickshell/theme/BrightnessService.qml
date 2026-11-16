@@ -11,7 +11,11 @@ QtObject {
     property int rawValue: 100
     property int rawMax: 100
     property bool available: false
+    property bool ready: false
     readonly property int value: rawMax > 0 ? Math.round(rawValue / rawMax * 100) : 0
+
+    // Сигнал для OSD: значення яскравості змінилось (від користувача або монітора)
+    signal brightnessChangedManually(int val)
 
     // Latest requested raw value while a ddcutil write is in flight.
     property int pendingRaw: -1
@@ -38,6 +42,8 @@ QtObject {
 
         if (!writeProc.running)
             root.writePending();
+
+        root.brightnessChangedManually(root.value);
     }
 
     function writePending() {
@@ -67,10 +73,14 @@ QtObject {
 
                 const localChangeIsRecent = Date.now() - root.lastLocalChange < 1500;
                 if (!writeProc.running && root.pendingRaw < 0 && !localChangeIsRecent) {
+                    const previousValue = root.value;
                     root.rawMax = max;
                     root.rawValue = current;
+                    if (root.ready && root.value !== previousValue)
+                        root.brightnessChangedManually(root.value);
                 }
                 root.available = true;
+                root.ready = true;
             }
         }
     }

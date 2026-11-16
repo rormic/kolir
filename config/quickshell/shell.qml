@@ -11,6 +11,7 @@ ShellRoot {
     Launcher {}
     Notification {}
     VolumeOsd {}
+    BrightnessOsd {}
     RecordingSetup {}
 
     Variants {
