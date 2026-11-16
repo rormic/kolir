@@ -22,7 +22,11 @@ QtObject {
     readonly property string brightnessHigh: "brightness_6"
 
     readonly property string search: "search"
+    readonly property string searchOff: "search_off"
     readonly property string close: "close"
+    readonly property string contentPaste: "content_paste"
+    readonly property string calculate: "calculate"
+    readonly property string keyboardReturn: "keyboard_return"
     readonly property string chevronLeft: "chevron_left"
     readonly property string chevronRight: "chevron_right"
     readonly property string check: "check"
