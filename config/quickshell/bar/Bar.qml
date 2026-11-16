@@ -89,6 +89,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Dimensions.spacing.small
 
+            Tray            { anchors.verticalCenter: parent.verticalCenter }
             RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
             Brightness      { anchors.verticalCenter: parent.verticalCenter }
             Volume          { anchors.verticalCenter: parent.verticalCenter }

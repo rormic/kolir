@@ -30,4 +30,8 @@ QtObject {
     readonly property string chevronLeft: "chevron_left"
     readonly property string chevronRight: "chevron_right"
     readonly property string check: "check"
+    readonly property string remove: "remove"
+    readonly property string radioChecked: "radio_button_checked"
+    readonly property string radioUnchecked: "radio_button_unchecked"
+    readonly property string apps: "apps"
 }
