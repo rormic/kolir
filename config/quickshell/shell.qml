@@ -3,11 +3,16 @@ import "bar"
 import "launcher"
 import "corners"
 import "notification"
+import "osd"
+import "rec"
 
 ShellRoot {
     Bar {}
     Launcher {}
     Notification {}
+    VolumeOsd {}
+    BrightnessOsd {}
+    RecordingSetup {}
 
     Variants {
         model: Quickshell.screens
@@ -15,14 +20,8 @@ ShellRoot {
         delegate: Scope {
             required property var modelData
 
-            Corner {
-                screen: modelData
-                pos: 0
-            }
-            Corner {
-                screen: modelData
-                pos: 1
-            }
+            // The bar spans the full top edge, so the screen-corner masks are
+            // only needed at the bottom.
             Corner {
                 screen: modelData
                 pos: 2

@@ -82,6 +82,15 @@ QtObject {
         });
     }
 
+    // Material 3 state layers and translucent surfaces.
+    function withAlpha(color, opacity) {
+        return Qt.rgba(color.r, color.g, color.b, opacity);
+    }
+
+    function stateLayer(color, opacity) {
+        return withAlpha(color, opacity);
+    }
+
     property FileView _fileView: FileView {
         path: root.home + "/.config/quickshell/colors.json"
         watchChanges: true

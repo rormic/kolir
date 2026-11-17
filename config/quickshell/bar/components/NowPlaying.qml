@@ -2,29 +2,34 @@ import "../../theme"
 import Quickshell.Services.Mpris
 import QtQuick
 
-Item {
+// Now playing: pulsing neon music icon + track text.
+Pill {
     id: root
 
-    // активний плеєр: той, що грає, інакше перший зі списку
     readonly property var player: {
         const list = Mpris.players.values;
         return list.find(p => p.isPlaying) ?? list[0] ?? null;
     }
+    readonly property bool hasPlayer: player !== null
+    readonly property string trackText: player
+        ? ((player.trackArtist ? player.trackArtist + " – " : "") + (player.trackTitle || ""))
+        : ""
 
-    visible: player !== null
-    implicitWidth: 200
-    implicitHeight: 28
+    property bool enabled: true
+    visible: enabled && hasPlayer && trackText !== ""
 
-    Text {
-        id: label
-        anchors.centerIn: parent
-        color: Colors.onSurface
-        font.family: "Google Sans"
-        font.pixelSize: 16
-        font.styleName: "Bold"
-        elide: Text.ElideRight
-        width: Math.min(implicitWidth, 190)
+    icon: Icons.musicNote
+    iconColor: Colors.primary
+    text: root.trackText
+    textSize: Typography.size.labelMedium
+    textWeight: Typography.weight.bold
+    textColor: Colors.onSurface
+    textMaxWidth: 150
 
-        text: root.player ? (root.player.trackArtist ? root.player.trackArtist + " - " : "") + root.player.trackTitle : ""
+    SequentialAnimation on iconItem.opacity {
+        running: root.visible
+        loops: Animation.Infinite
+        NumberAnimation { to: 0.4; duration: 800; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
     }
 }

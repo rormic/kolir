@@ -1,0 +1,69 @@
+pragma Singleton
+import QtQuick
+
+// Material Symbols names. Qt renders them as ligatures with the icon font.
+QtObject {
+    id: root
+
+    readonly property string lightMode: "light_mode"
+    readonly property string darkMode: "dark_mode"
+
+    readonly property string volumeUp: "volume_up"
+    readonly property string volumeDown: "volume_down"
+    readonly property string volumeOff: "volume_off"
+    readonly property string volumeMute: "volume_mute"
+
+    readonly property string musicNote: "music_note"
+    readonly property string record: "fiber_manual_record"
+    readonly property string stop: "stop_circle"
+
+    readonly property string brightnessLow: "brightness_4"
+    readonly property string brightnessMedium: "brightness_5"
+    readonly property string brightnessHigh: "brightness_6"
+
+    readonly property string search: "search"
+    readonly property string searchOff: "search_off"
+    readonly property string close: "close"
+    readonly property string contentPaste: "content_paste"
+    readonly property string calculate: "calculate"
+    readonly property string keyboardReturn: "keyboard_return"
+    readonly property string chevronLeft: "chevron_left"
+    readonly property string chevronRight: "chevron_right"
+    readonly property string check: "check"
+    readonly property string remove: "remove"
+    readonly property string radioChecked: "radio_button_checked"
+    readonly property string radioUnchecked: "radio_button_unchecked"
+    readonly property string apps: "apps"
+
+    readonly property string settings: "settings"
+    readonly property string bluetooth: "bluetooth"
+    readonly property string bluetoothDisabled: "bluetooth_disabled"
+
+    readonly property string wifi: "wifi"
+    readonly property string wifiOff: "wifi_off"
+    readonly property string wifiLock: "wifi_lock"
+    readonly property string ethernet: "settings_ethernet"
+    readonly property string lock: "lock"
+    readonly property string visibility: "visibility"
+    readonly property string visibilityOff: "visibility_off"
+    readonly property string signalWifi0: "signal_wifi_0_bar"
+    readonly property string signalWifi1: "network_wifi_1_bar"
+    readonly property string signalWifi2: "network_wifi_2_bar"
+    readonly property string signalWifi3: "network_wifi_3_bar"
+    readonly property string signalWifi4: "signal_wifi_4_bar"
+    readonly property string add: "add"
+    readonly property string mic: "mic"
+    readonly property string headphones: "headphones"
+    readonly property string keyboard: "keyboard"
+    readonly property string mouse: "mouse"
+    readonly property string smartphone: "smartphone"
+    readonly property string laptop: "laptop"
+    readonly property string watch: "watch"
+    readonly property string devices: "devices"
+
+    readonly property string arrowBack: "arrow_back"
+    readonly property string refresh: "refresh"
+    readonly property string trash: "delete"
+    readonly property string batteryFull: "battery_full"
+    readonly property string batteryLow: "battery_low"
+}

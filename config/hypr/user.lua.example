@@ -1,0 +1,68 @@
+-- Приклад локальних (машинно-специфічних) налаштувань Hyprland.
+--
+-- Скопіюйте цей файл у ~/.config/hypr/user.lua і змініть під свою машину.
+-- Він НЕ зберігається в репозиторії: спільна частина лежить у
+-- ~/.local/share/kolir/config/hypr/hyprland.lua, а user.lua підключається
+-- в кінці неї. Через те, що user.lua завантажується останнім, його
+-- налаштування перекривають спільні.
+
+local home = os.getenv("HOME")
+local repo = home .. "/.local/share/kolir"
+
+------------------
+---- MONITORS ----
+------------------
+
+hl.monitor({
+	output = "",
+	mode = "preferred",
+	position = "auto",
+	scale = "1",
+})
+
+-------------------
+---- AUTOSTART ----
+-------------------
+
+hl.on("hyprland.start", function()
+	hl.exec_cmd("quickshell -p " .. repo .. "/config/quickshell")
+	hl.exec_cmd("awww-daemon & kdeconnect-indicator")
+end)
+
+-------------------------------
+---- ENVIRONMENT VARIABLES ----
+-------------------------------
+
+hl.env("XCURSOR_THEME", "Mocu-White-Left")
+hl.env("HYPRCURSOR_THEME", "Mocu-White-Left")
+
+----------------------
+---- LOOK AND FEEL ----
+----------------------
+
+hl.config({
+	decoration = {
+		rounding = 9,
+		rounding_power = 2.0,
+	},
+})
+
+---------------------
+---- KEYBINDINGS ----
+---------------------
+
+local mainMod = "SUPER"
+
+-- volume step 2% (overrides the shared 5% bindings)
+hl.unbind("XF86AudioRaiseVolume")
+hl.unbind("XF86AudioLowerVolume")
+hl.bind(
+	"XF86AudioRaiseVolume",
+	hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 2%+"),
+	{ locked = true, repeating = true }
+)
+hl.bind(
+	"XF86AudioLowerVolume",
+	hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
+	{ locked = true, repeating = true }
+)
