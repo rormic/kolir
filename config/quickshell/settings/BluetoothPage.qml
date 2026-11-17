@@ -113,19 +113,6 @@ Item {
             font.pixelSize: Typography.size.titleSmall
             font.weight: Typography.weight.bold
         }
-
-        IconButton {
-            id: closeButton
-
-            anchors {
-                right: parent.right
-                rightMargin: 8
-                verticalCenter: parent.verticalCenter
-            }
-            icon: Icons.close
-            iconSize: Dimensions.icon.medium
-            onClicked: root.close()
-        }
     }
 
     // ── No adapter ─────────────────────────────────────────────────────────

@@ -253,6 +253,17 @@ Item {
         color: "transparent"
         grabFocus: false
 
+        Shortcut {
+            sequence: "Escape"
+            enabled: root.opened
+            onActivated: {
+                if (root.page === "bluetooth" || root.page === "internet")
+                    root.navigate("main");
+                else
+                    root.close();
+            }
+        }
+
         // Anchor to the full-height settings item, not the icon button: the
         // button is shorter than the bar, so its bottom edge sits inside the
         // bar and would make the popup overlap the bar's last pixels.
