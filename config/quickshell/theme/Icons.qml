@@ -34,4 +34,24 @@ QtObject {
     readonly property string radioChecked: "radio_button_checked"
     readonly property string radioUnchecked: "radio_button_unchecked"
     readonly property string apps: "apps"
+
+    readonly property string settings: "settings"
+    readonly property string bluetooth: "bluetooth"
+    readonly property string bluetoothDisabled: "bluetooth_disabled"
+
+    readonly property string wifi: "wifi"
+    readonly property string mic: "mic"
+    readonly property string headphones: "headphones"
+    readonly property string keyboard: "keyboard"
+    readonly property string mouse: "mouse"
+    readonly property string smartphone: "smartphone"
+    readonly property string laptop: "laptop"
+    readonly property string watch: "watch"
+    readonly property string devices: "devices"
+
+    readonly property string arrowBack: "arrow_back"
+    readonly property string refresh: "refresh"
+    readonly property string trash: "delete"
+    readonly property string batteryFull: "battery_full"
+    readonly property string batteryLow: "battery_low"
 }

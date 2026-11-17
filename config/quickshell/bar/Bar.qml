@@ -1,4 +1,5 @@
 import "../theme"
+import "../settings"
 import "./components"
 import Quickshell
 import Quickshell.Wayland
@@ -49,11 +50,19 @@ PanelWindow {
             }
         }
 
+        // Far left: settings launcher
+        SettingsMenu {
+            id: settingsMenu
+            anchors.left: parent.left
+            anchors.leftMargin: Dimensions.padding.barContent
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
         // Left: active window
         ActiveWindow {
             id: activeWindow
-            anchors.left: parent.left
-            anchors.leftMargin: Dimensions.padding.barContent
+            anchors.left: settingsMenu.right
+            anchors.leftMargin: Dimensions.spacing.small
             anchors.verticalCenter: parent.verticalCenter
             width: Math.min(190, Math.max(120, background.width * 0.16))
         }
