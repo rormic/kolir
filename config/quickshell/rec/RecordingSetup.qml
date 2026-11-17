@@ -5,14 +5,14 @@ import Quickshell.Wayland
 import "../bar/components"
 import "../theme"
 
-// Одноразові налаштування запису екрана.
+// One-shot screen recording options.
 //
-// Панель не зберігає вибір нікуди: після Enter значення передаються
-// аргументами в screen-record.sh і діють лише на цей запис.
+// The panel does not persist choices: after Enter, values are passed to
+// screen-record.sh as arguments and apply only to that recording.
 Scope {
     id: root
 
-    // ── Доступні значення ────────────────────────────────────────────────
+    // ── Available values ─────────────────────────────────────────────────
     readonly property var fpsKeys: ["auto", "30", "60", "120", "180"]
     readonly property var fpsLabels: ["Auto (native)", "30", "60", "120", "180"]
 
@@ -28,7 +28,7 @@ Scope {
     readonly property var areaKeys: ["region", "full"]
     readonly property var areaLabels: ["Region", "Full screen"]
 
-    // ── Поточний вибір (тільки в пам'яті, до першого Enter/Esc) ──────────
+    // ── Current selection (in-memory only, until Enter/Esc) ──────────────
     property int fpsIndex: 0
     property int qualityIndex: 1
     property int codecIndex: 0
@@ -37,7 +37,7 @@ Scope {
     property int selectedRow: 0
 
     function wrapIndex(index, length, direction) {
-        return (index + direction + length) % length
+        return (index + direction + length) % length;
     }
 
     function cycleFps(direction) {
@@ -96,7 +96,7 @@ Scope {
     }
 
     function startRecording() {
-        // Спочатку ховаємо панель, щоб вона не потрапила у slurp/відео.
+        // Hide the panel first so it does not appear in slurp/video.
         win.visible = false;
         launchTimer.restart();
     }
@@ -138,7 +138,7 @@ Scope {
         }
     }
 
-    // ── Рядок налаштування ───────────────────────────────────────────────
+    // ── Option row ───────────────────────────────────────────────────────
     component OptionRow: Item {
         id: optionRow
 
@@ -151,14 +151,41 @@ Scope {
         signal activated()
 
         width: parent ? parent.width : 0
-        height: 36
+        height: 40
 
         Rectangle {
+            id: rowBg
             anchors.fill: parent
-            color: optionRow.active ? Colors.primaryContainer : "transparent"
+            anchors.margins: 2
+            radius: Dimensions.radius.medium
+            color: optionRow.active
+                ? Colors.withAlpha(Colors.primaryContainer, 0.55)
+                : rowMouse.containsMouse
+                    ? Colors.stateLayer(Colors.onSurface, 0.06)
+                    : "transparent"
+            border.width: optionRow.active ? 1 : 0
+            border.color: Colors.withAlpha(Colors.primary, 0.35)
+
+            Behavior on color {
+                ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+            }
+        }
+
+        Rectangle {
+            anchors {
+                left: parent.left
+                leftMargin: 6
+                verticalCenter: parent.verticalCenter
+            }
+            width: 2
+            height: 16
+            radius: 1
+            visible: optionRow.active
+            color: Colors.primary
         }
 
         MouseArea {
+            id: rowMouse
             anchors.fill: parent
             hoverEnabled: true
             onClicked: optionRow.activated()
@@ -166,129 +193,141 @@ Scope {
 
         Text {
             anchors.left: parent.left
-            anchors.leftMargin: 8
+            anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 1
             text: optionRow.title
-            color: optionRow.active ? Colors.onPrimaryContainer : Colors.onSurface
-            font.family: Typography.mainFont
-            font.pixelSize: 14
-            font.hintingPreference: Font.PreferFullHinting
-            renderType: Text.NativeRendering
+            color: optionRow.active ? Colors.onSurface : Colors.onSurface
+            font.family: Typography.barFont
+            font.pixelSize: Typography.size.bodyMedium
+            font.weight: optionRow.active ? Typography.weight.medium : Typography.weight.regular
         }
 
-        PixelBox {
-            id: nextButton
+        Row {
+            id: valueControl
             anchors.right: parent.right
-            anchors.rightMargin: 6
+            anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
-            width: 22
-            height: 22
-            style: "raised"
-            pressed: nextMouse.pressed
-            bgColor: Colors.surfaceContainerHigh
+            spacing: 4
 
-            Text {
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: 1
-                text: ">"
-                color: Colors.onSurface
-                font.family: Typography.mainFont
-                font.pixelSize: 14
-                font.hintingPreference: Font.PreferFullHinting
-                renderType: Text.NativeRendering
-            }
+            Rectangle {
+                id: prevButton
+                width: 28
+                height: 28
+                radius: Dimensions.radius.small
+                color: prevMouse.containsMouse
+                    ? Colors.stateLayer(Colors.onSurface, 0.10)
+                    : Colors.withAlpha(Colors.surfaceContainerHigh, 0.9)
+                border.width: 1
+                border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-            MouseArea {
-                id: nextMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    optionRow.activated();
-                    optionRow.next();
+                Behavior on color {
+                    ColorAnimation { duration: 120 }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: Icons.chevronLeft
+                    color: Colors.onSurfaceVariant
+                    font.family: Typography.iconFont
+                    font.pixelSize: 18
+                }
+
+                MouseArea {
+                    id: prevMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        optionRow.activated();
+                        optionRow.previous();
+                    }
                 }
             }
-        }
 
-        PixelBox {
-            id: valueBox
-            anchors.right: nextButton.left
-            anchors.rightMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 190
-            height: 22
-            style: "sunken"
-            bgColor: Colors.surfaceContainerLow
+            Rectangle {
+                id: valueChip
+                width: 190
+                height: 28
+                radius: Dimensions.radius.small
+                color: valueMouse.containsMouse
+                    ? Colors.withAlpha(Colors.surfaceContainerHighest, 0.95)
+                    : Colors.withAlpha(Colors.surfaceContainerHigh, 0.7)
+                border.width: 1
+                border.color: Colors.withAlpha(Colors.outlineVariant, 0.30)
 
-            Text {
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: 1
-                width: parent.width - 10
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-                text: optionRow.value
-                color: Colors.onSurface
-                font.family: Typography.mainFont
-                font.pixelSize: 14
-                font.hintingPreference: Font.PreferFullHinting
-                renderType: Text.NativeRendering
-            }
+                Behavior on color {
+                    ColorAnimation { duration: 120 }
+                }
 
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    optionRow.activated();
-                    optionRow.next();
+                Text {
+                    anchors.centerIn: parent
+                    width: parent.width - 12
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                    text: optionRow.value
+                    color: Colors.onSurface
+                    font.family: Typography.barFont
+                    font.pixelSize: Typography.size.labelLarge
+                    font.weight: Typography.weight.medium
+                }
+
+                MouseArea {
+                    id: valueMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        optionRow.activated();
+                        optionRow.next();
+                    }
                 }
             }
-        }
 
-        PixelBox {
-            id: prevButton
-            anchors.right: valueBox.left
-            anchors.rightMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 22
-            height: 22
-            style: "raised"
-            pressed: prevMouse.pressed
-            bgColor: Colors.surfaceContainerHigh
+            Rectangle {
+                id: nextButton
+                width: 28
+                height: 28
+                radius: Dimensions.radius.small
+                color: nextMouse.containsMouse
+                    ? Colors.stateLayer(Colors.onSurface, 0.10)
+                    : Colors.withAlpha(Colors.surfaceContainerHigh, 0.9)
+                border.width: 1
+                border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-            Text {
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: 1
-                text: "<"
-                color: Colors.onSurface
-                font.family: Typography.mainFont
-                font.pixelSize: 14
-                font.hintingPreference: Font.PreferFullHinting
-                renderType: Text.NativeRendering
-            }
+                Behavior on color {
+                    ColorAnimation { duration: 120 }
+                }
 
-            MouseArea {
-                id: prevMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    optionRow.activated();
-                    optionRow.previous();
+                Text {
+                    anchors.centerIn: parent
+                    text: Icons.chevronRight
+                    color: Colors.onSurfaceVariant
+                    font.family: Typography.iconFont
+                    font.pixelSize: 18
+                }
+
+                MouseArea {
+                    id: nextMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        optionRow.activated();
+                        optionRow.next();
+                    }
                 }
             }
         }
     }
 
-    // ── Вікно налаштувань ────────────────────────────────────────────────
+    // ── Settings window ──────────────────────────────────────────────────
     PanelWindow {
         id: win
 
         visible: false
-        implicitWidth: 540
-        implicitHeight: 284
-        color: Colors.surfaceContainer
+        implicitWidth: 520
+        implicitHeight: 360
+        color: "transparent"
 
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -296,126 +335,115 @@ Scope {
 
         onVisibleChanged: if (visible) keyCatcher.forceActiveFocus()
 
-        PixelBox {
+        Surface {
+            id: panel
             anchors.fill: parent
-            style: "raised"
-            bgColor: Colors.surfaceContainer
+            radius: Dimensions.radius.extraLarge
+            surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
+            borderWidth: 2
+            borderColor: Colors.primary
 
             Item {
                 anchors.fill: parent
+                anchors.margins: 16
 
-                // ── Заголовок ──
-                Rectangle {
-                    id: titleBar
+                // ── Header ──
+                Item {
+                    id: header
                     anchors {
                         top: parent.top
                         left: parent.left
                         right: parent.right
                     }
-                    height: 24
-                    color: Colors.surfaceContainerHigh
+                    height: 32
 
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 1
-                        color: Colors.shadow
+                    Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Icons.record
+                        color: Colors.primary
+                        font.family: Typography.iconFont
+                        font.pixelSize: 20
                     }
 
                     Text {
                         anchors.left: parent.left
-                        anchors.leftMargin: 8
+                        anchors.leftMargin: 28
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: 1
                         text: "Recording Setup"
-                        color: Colors.primary
-                        font.family: Typography.mainFont
-                        font.pixelSize: 14
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
-                    }
-
-                    PixelBox {
-                        anchors.right: parent.right
-                        anchors.rightMargin: 4
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 16
-                        height: 16
-                        style: "raised"
-                        pressed: closeMouse.pressed
-                        bgColor: closeMouse.containsMouse ? Colors.errorContainer : Colors.surfaceContainerHigh
-
-                        Text {
-                            anchors.centerIn: parent
-                            anchors.verticalCenterOffset: 1
-                            text: "x"
-                            color: closeMouse.containsMouse ? Colors.onErrorContainer : Colors.onSurface
-                            font.family: Typography.mainFont
-                            font.pixelSize: 14
-                            font.hintingPreference: Font.PreferFullHinting
-                            renderType: Text.NativeRendering
-                        }
-
-                        MouseArea {
-                            id: closeMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.close()
-                        }
+                        color: Colors.onSurface
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.titleSmall
+                        font.weight: Typography.weight.bold
                     }
                 }
 
-                // ── Футер ──
-                Rectangle {
+                // ── Footer ──
+                Item {
                     id: footer
                     anchors {
                         bottom: parent.bottom
                         left: parent.left
                         right: parent.right
                     }
-                    height: 34
-                    color: Colors.surfaceContainerHigh
+                    height: 36
 
                     Rectangle {
-                        anchors.top: parent.top
-                        width: parent.width
+                        anchors {
+                            top: parent.top
+                            left: parent.left
+                            right: parent.right
+                        }
                         height: 1
-                        color: Colors.shadow
+                        color: Colors.withAlpha(Colors.outlineVariant, 0.35)
                     }
 
                     Text {
                         anchors.left: parent.left
-                        anchors.leftMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: 1
                         text: "[Up/Down] Row  [Left/Right] Change  [Esc] Cancel"
-                        color: Colors.outlineVariant
-                        font.family: Typography.mainFont
-                        font.pixelSize: 12
-                        font.hintingPreference: Font.PreferFullHinting
-                        renderType: Text.NativeRendering
+                        color: Colors.onSurfaceVariant
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelSmall
                     }
 
-                    PixelBox {
+                    Rectangle {
+                        id: startButton
                         anchors.right: parent.right
-                        anchors.rightMargin: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 86
-                        height: 24
-                        style: "raised"
-                        pressed: startMouse.pressed
-                        bgColor: startMouse.containsMouse ? Colors.primary : Colors.primaryContainer
+                        width: 96
+                        height: 30
+                        radius: Dimensions.radius.medium
+                        color: startMouse.containsMouse
+                            ? Colors.primary
+                            : Colors.primaryContainer
+                        border.width: 1
+                        border.color: Colors.withAlpha(Colors.primary, 0.35)
 
-                        Text {
+                        Behavior on color {
+                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                        }
+
+                        Row {
                             anchors.centerIn: parent
-                            anchors.verticalCenterOffset: 1
-                            text: "START"
-                            color: startMouse.containsMouse ? Colors.onPrimary : Colors.onPrimaryContainer
-                            font.family: Typography.mainFont
-                            font.pixelSize: 14
-                            font.hintingPreference: Font.PreferFullHinting
-                            renderType: Text.NativeRendering
+                            spacing: 6
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: Icons.record
+                                color: startMouse.containsMouse ? Colors.onPrimary : Colors.onPrimaryContainer
+                                font.family: Typography.iconFont
+                                font.pixelSize: 16
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "START"
+                                color: startMouse.containsMouse ? Colors.onPrimary : Colors.onPrimaryContainer
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelLarge
+                                font.weight: Typography.weight.bold
+                            }
                         }
 
                         MouseArea {
@@ -428,25 +456,26 @@ Scope {
                     }
                 }
 
-                // ── Список опцій ──
-                PixelBox {
+                // ── Options list ──
+                Rectangle {
+                    id: listCard
                     anchors {
-                        top: titleBar.bottom
-                        topMargin: 8
+                        top: header.bottom
+                        topMargin: 12
                         left: parent.left
-                        leftMargin: 8
                         right: parent.right
-                        rightMargin: 8
                         bottom: footer.top
-                        bottomMargin: 8
+                        bottomMargin: 12
                     }
-                    style: "sunken"
-                    bgColor: Colors.surfaceContainerLowest
+                    radius: Dimensions.radius.large
+                    color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.55)
+                    border.width: 1
+                    border.color: Colors.withAlpha(Colors.outlineVariant, 0.20)
 
                     Column {
                         anchors.fill: parent
-                        anchors.margins: 4
-                        spacing: 2
+                        anchors.margins: 8
+                        spacing: 4
 
                         OptionRow {
                             title: "FPS"
@@ -497,7 +526,7 @@ Scope {
             }
         }
 
-        // Перехоплювач клавіатури поверх усього вікна.
+        // Keyboard focus catcher over the whole window.
         Item {
             id: keyCatcher
             anchors.fill: parent

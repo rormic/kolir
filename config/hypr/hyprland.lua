@@ -419,6 +419,13 @@ hl.layer_rule({
 	ignore_alpha = 0,
 })
 
+hl.layer_rule({
+	name = "recording-setup-blur",
+	match = { namespace = "recording-setup" },
+	blur = true,
+	ignore_alpha = 0,
+})
+
 -------------------------------
 ---- USER OVERRIDES -----------
 -------------------------------
