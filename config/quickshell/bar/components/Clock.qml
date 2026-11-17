@@ -16,9 +16,10 @@ Surface {
     Row {
         id: row
         anchors.centerIn: parent
-        spacing: 7
+        spacing: 8
 
         Text {
+            id: dateLabel
             anchors.verticalCenter: parent.verticalCenter
             text: Qt.formatDateTime(sysClock.date, "ddd, dd MMM")
             color: Colors.onSurfaceVariant
@@ -27,21 +28,19 @@ Surface {
             font.weight: Typography.weight.medium
         }
 
-        // Neon separator
+        // Separator
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 1
-            height: 10
+            implicitWidth: 1
+            height: 12
             radius: 0.5
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.5; color: Colors.withAlpha(Colors.primary, 0.6) }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
+            color: Colors.withAlpha(Colors.outlineVariant, 0.5)
         }
 
         // Neon time
         Text {
+            id: timeLabel
             anchors.verticalCenter: parent.verticalCenter
             text: Qt.formatDateTime(sysClock.date, "HH:mm:ss")
             color: Colors.primary
@@ -53,13 +52,10 @@ Surface {
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 1
-            height: 10
+            implicitWidth: 1
+            height: 12
             radius: 0.5
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.5; color: Colors.withAlpha(Colors.outlineVariant, 0.5) }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
+            color: Colors.withAlpha(Colors.outlineVariant, 0.5)
         }
 
         KeyboardLayout { anchors.verticalCenter: parent.verticalCenter }
