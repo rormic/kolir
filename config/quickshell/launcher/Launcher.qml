@@ -8,7 +8,7 @@ import "../theme"
 Scope {
     id: root
 
-    // Компактна підказка клавіші у стилі нового бару.
+    // Компактна підказка клавіші у стилі налаштувань.
     component KeyHint: Row {
         id: keyHint
 
@@ -312,7 +312,7 @@ Scope {
 
         visible: false
         implicitWidth: 620
-        implicitHeight: 500
+        implicitHeight: 520
         color: "transparent"
 
         WlrLayershell.layer: WlrLayer.Overlay
@@ -330,13 +330,14 @@ Scope {
             search.forceActiveFocus()
         }
 
-        // ── Головна картка у стилі нового бару ──
+        // ── Головна картка у стилі налаштувань ──
         Surface {
             id: card
             anchors.fill: parent
             radius: Dimensions.radius.extraLarge
             surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
-            borderColor: Colors.withAlpha(Colors.outlineVariant, 0.18)
+            borderWidth: 2
+            borderColor: Colors.primary
 
             opacity: win.visible ? 1 : 0
             scale: win.visible ? 1 : 0.97
@@ -349,72 +350,35 @@ Scope {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
 
-            // Верхній highlight, як у Bar.qml
-            Rectangle {
-                z: 10
-                anchors {
-                    top: parent.top
-                    left: parent.left
-                    right: parent.right
-                }
-                height: 1
-                color: Colors.withAlpha(Colors.surfaceContainerHighest, 0.18)
-            }
-
-            // Фірмова неонова лінія знизу
-            Rectangle {
-                z: 10
-                anchors {
-                    bottom: parent.bottom
-                    left: parent.left
-                    right: parent.right
-                }
-                height: 1
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: "transparent" }
-                    GradientStop { position: 0.2; color: Colors.withAlpha(Colors.primary, 0.35) }
-                    GradientStop { position: 0.5; color: Colors.withAlpha(Colors.primary, 0.85) }
-                    GradientStop { position: 0.8; color: Colors.withAlpha(Colors.primary, 0.35) }
-                    GradientStop { position: 1.0; color: "transparent" }
-                }
-            }
-
             Item {
                 id: content
                 anchors.fill: parent
-                anchors.margins: 14
 
-                // ══════════════════════════════════════════════════════
-                // 1. Рядок пошуку
-                // ══════════════════════════════════════════════════════
                 Item {
-                    id: header
+                    id: body
                     anchors {
-                        top: parent.top
-                        left: parent.left
-                        right: parent.right
+                        fill: parent
+                        margins: 14
                     }
-                    height: 44
 
+                    // ══════════════════════════════════════════════════════
+                    // 2. Рядок пошуку
+                    // ══════════════════════════════════════════════════════
                     Rectangle {
                         id: searchField
                         anchors {
                             top: parent.top
-                            bottom: parent.bottom
                             left: parent.left
                             right: parent.right
                         }
-                        radius: height / 2
+                        height: 40
+                        radius: Dimensions.radius.full
                         color: Colors.surfaceContainerHigh
                         border.width: 1
                         border.color: search.activeFocus
                             ? Colors.withAlpha(Colors.primary, 0.55)
-                            : Colors.withAlpha(Colors.outlineVariant, 0.20)
+                            : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-                        Behavior on color {
-                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
-                        }
                         Behavior on border.color {
                             ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
                         }
@@ -429,9 +393,9 @@ Scope {
                             text: win.isClipboardMode
                                 ? Icons.contentPaste
                                 : (win.mathResult !== null ? Icons.calculate : Icons.search)
-                            color: Colors.primary
+                            color: search.activeFocus ? Colors.primary : Colors.onSurfaceVariant
                             font.family: Typography.iconFont
-                            font.pixelSize: 19
+                            font.pixelSize: 18
                             font.weight: Font.Normal
 
                             Behavior on color {
@@ -539,473 +503,454 @@ Scope {
                             }
                         }
                     }
-                }
 
-                // ══════════════════════════════════════════════════════
-                // 2. Результат калькулятора
-                // ══════════════════════════════════════════════════════
-                Rectangle {
-                    id: calcCard
-                    anchors {
-                        top: header.bottom
-                        topMargin: 10
-                        left: parent.left
-                        right: parent.right
-                    }
-                    height: 44
-                    visible: win.mathResult !== null
-                    radius: Dimensions.radius.large
-                    color: calcMouse.containsMouse
-                        ? Colors.surfaceContainerHighest
-                        : Colors.surfaceContainerHigh
-                    border.width: 1
-                    border.color: calcMouse.containsMouse
-                        ? Colors.withAlpha(Colors.primary, 0.55)
-                        : Colors.withAlpha(Colors.outlineVariant, 0.20)
-
-                    Behavior on color {
-                        ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
-                    }
-                    Behavior on border.color {
-                        ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
-                    }
-
-                    Row {
+                    // ══════════════════════════════════════════════════════
+                    // 3. Результат калькулятора
+                    // ══════════════════════════════════════════════════════
+                    Rectangle {
+                        id: calcCard
                         anchors {
+                            top: searchField.bottom
+                            topMargin: 10
                             left: parent.left
-                            leftMargin: 14
-                            verticalCenter: parent.verticalCenter
-                        }
-                        spacing: 8
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: Icons.calculate
-                            color: Colors.primary
-                            font.family: Typography.iconFont
-                            font.pixelSize: 19
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: win.mathResult ? ("= " + win.mathResult.result) : ""
-                            color: Colors.primary
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.titleSmall
-                            font.weight: Typography.weight.bold
-                        }
-                    }
-
-                    KeyHint {
-                        anchors {
                             right: parent.right
-                            rightMargin: 12
-                            verticalCenter: parent.verticalCenter
                         }
-                        key: "Enter"
-                        label: "Copy"
-                    }
+                        height: 44
+                        visible: win.mathResult !== null
+                        radius: Dimensions.radius.medium
+                        color: calcMouse.containsMouse
+                            ? Colors.stateLayer(Colors.primary, 0.12)
+                            : Colors.surfaceContainerHigh
+                        border.width: 1
+                        border.color: calcMouse.containsMouse
+                            ? Colors.withAlpha(Colors.primary, 0.45)
+                            : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-                    MouseArea {
-                        id: calcMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        Behavior on color {
+                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on border.color {
+                            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                        }
 
-                        onClicked: {
-                            if (win.mathResult) {
-                                directCopyProc.command = ["wl-copy", win.mathResult.result]
-                                directCopyProc.running = true
-                                Quickshell.clipboardText = win.mathResult.result
-                                win.visible = false
+                        Row {
+                            anchors {
+                                left: parent.left
+                                leftMargin: 14
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 8
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: Icons.calculate
+                                color: Colors.primary
+                                font.family: Typography.iconFont
+                                font.pixelSize: 18
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: win.mathResult ? ("= " + win.mathResult.result) : ""
+                                color: Colors.primary
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.titleSmall
+                                font.weight: Typography.weight.bold
+                            }
+                        }
+
+                        KeyHint {
+                            anchors {
+                                right: parent.right
+                                rightMargin: 12
+                                verticalCenter: parent.verticalCenter
+                            }
+                            key: "Enter"
+                            label: "Copy"
+                        }
+
+                        MouseArea {
+                            id: calcMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+
+                            onClicked: {
+                                if (win.mathResult) {
+                                    directCopyProc.command = ["wl-copy", win.mathResult.result]
+                                    directCopyProc.running = true
+                                    Quickshell.clipboardText = win.mathResult.result
+                                    win.visible = false
+                                }
                             }
                         }
                     }
-                }
 
-                // ══════════════════════════════════════════════════════
-                // 3. Список програм / буфера обміну
-                // ══════════════════════════════════════════════════════
-                Rectangle {
-                    id: listCard
-                    anchors {
-                        top: calcCard.visible ? calcCard.bottom : header.bottom
-                        topMargin: calcCard.visible ? 8 : 10
-                        bottom: footer.top
-                        bottomMargin: 8
-                        left: parent.left
-                        right: parent.right
-                    }
-                    radius: Dimensions.radius.large
-                    color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.55)
-                    border.width: 1
-                    border.color: Colors.withAlpha(Colors.outlineVariant, 0.14)
-                    clip: true
-
-                    ListView {
-                        id: list
-                        anchors.fill: parent
-                        anchors.margins: 6
+                    // ══════════════════════════════════════════════════════
+                    // 4. Список програм / буфера обміну
+                    // ══════════════════════════════════════════════════════
+                    Rectangle {
+                        id: listCard
+                        anchors {
+                            top: calcCard.visible ? calcCard.bottom : searchField.bottom
+                            topMargin: 10
+                            bottom: footer.top
+                            bottomMargin: 8
+                            left: parent.left
+                            right: parent.right
+                        }
+                        radius: Dimensions.radius.medium
+                        color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.5)
+                        border.width: 1
+                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.14)
                         clip: true
-                        currentIndex: 0
-                        boundsBehavior: Flickable.StopAtBounds
 
-                        // Модель динамічно перемикається між буфером обміну та програмами
-                        model: {
-                            if (win.isClipboardMode) {
-                                if (win.clipQuery === "") {
-                                    return root.clipboardItems
-                                }
-                                return root.clipboardItems.filter(item =>
-                                    item.preview.toLowerCase().includes(win.clipQuery)
-                                )
-                            } else {
-                                return root.getFilteredApplications(search.text)
-                            }
-                        }
+                        ListView {
+                            id: list
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            clip: true
+                            currentIndex: 0
+                            boundsBehavior: Flickable.StopAtBounds
+                            spacing: 2
 
-                        delegate: Item {
-                            id: delegateRoot
-                            required property var modelData
-                            required property int index
-
-                            readonly property bool isSelected: ListView.isCurrentItem
-                            readonly property bool isImageClip: win.isClipboardMode && modelData.isImage
-
-                            width: list.width
-                            height: delegateRoot.isImageClip ? 124 : 38
-
-                            Rectangle {
-                                id: rowBackground
-                                anchors.fill: parent
-                                anchors.margins: 2
-                                radius: Dimensions.radius.medium
-                                color: delegateRoot.isSelected
-                                    ? Colors.withAlpha(Colors.primaryContainer, 0.88)
-                                    : itemMouse.containsMouse
-                                        ? Colors.stateLayer(Colors.onSurface, 0.06)
-                                        : "transparent"
-                                border.width: delegateRoot.isSelected ? 1 : 0
-                                border.color: Colors.withAlpha(Colors.onPrimaryContainer, 0.28)
-
-                                Behavior on color {
-                                    ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
-                                }
-                                Behavior on border.color {
-                                    ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            // Модель динамічно перемикається між буфером обміну та програмами
+                            model: {
+                                if (win.isClipboardMode) {
+                                    if (win.clipQuery === "") {
+                                        return root.clipboardItems
+                                    }
+                                    return root.clipboardItems.filter(item =>
+                                        item.preview.toLowerCase().includes(win.clipQuery)
+                                    )
+                                } else {
+                                    return root.getFilteredApplications(search.text)
                                 }
                             }
 
-                            // Неоновий акцент вибраного рядка
-                            Rectangle {
-                                anchors {
-                                    left: parent.left
-                                    leftMargin: 6
-                                    verticalCenter: parent.verticalCenter
-                                }
-                                width: 2
-                                height: 16
-                                radius: 1
-                                visible: delegateRoot.isSelected
-                                color: Colors.onPrimaryContainer
+                            delegate: Item {
+                                id: delegateRoot
+                                required property var modelData
+                                required property int index
 
-                                Behavior on opacity {
-                                    NumberAnimation { duration: 140 }
-                                }
-                            }
+                                readonly property bool isSelected: ListView.isCurrentItem
+                                readonly property bool isImageClip: win.isClipboardMode && modelData.isImage
 
-                            Item {
-                                id: leading
-                                anchors {
-                                    left: parent.left
-                                    leftMargin: 14
-                                    verticalCenter: parent.verticalCenter
-                                }
-                                width: 22
-                                height: 22
-
-                                Image {
-                                    anchors.fill: parent
-                                    visible: !win.isClipboardMode
-                                    sourceSize: Qt.size(20, 20)
-                                    source: !win.isClipboardMode
-                                        ? Quickshell.iconPath(modelData.icon, "application-x-executable")
-                                        : ""
-                                    smooth: true
-                                }
+                                width: list.width
+                                height: delegateRoot.isImageClip ? 124 : 40
 
                                 Rectangle {
+                                    id: rowBackground
                                     anchors.fill: parent
-                                    visible: win.isClipboardMode
-                                    radius: Dimensions.radius.small
+                                    anchors.margins: 2
+                                    radius: Dimensions.radius.medium
                                     color: delegateRoot.isSelected
-                                        ? Colors.withAlpha(Colors.onPrimaryContainer, 0.14)
-                                        : Colors.surfaceContainerHigh
-                                    border.width: delegateRoot.isSelected ? 0 : 1
-                                    border.color: Colors.withAlpha(Colors.outlineVariant, 0.18)
+                                        ? Colors.stateLayer(Colors.primary, 0.16)
+                                        : itemMouse.containsMouse
+                                            ? Colors.stateLayer(Colors.onSurface, 0.06)
+                                            : "transparent"
+                                    border.width: delegateRoot.isSelected ? 1 : 0
+                                    border.color: Colors.withAlpha(Colors.primary, 0.35)
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                                    }
+                                }
+
+                                // Акцент вибраного рядка
+                                Rectangle {
+                                    anchors {
+                                        left: parent.left
+                                        leftMargin: 6
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    width: 2
+                                    height: 18
+                                    radius: 1
+                                    visible: delegateRoot.isSelected
+                                    color: Colors.primary
+                                }
+
+                                Item {
+                                    id: leading
+                                    anchors {
+                                        left: parent.left
+                                        leftMargin: 14
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    width: 22
+                                    height: 22
+
+                                    Image {
+                                        anchors.fill: parent
+                                        visible: !win.isClipboardMode
+                                        sourceSize: Qt.size(20, 20)
+                                        source: !win.isClipboardMode
+                                            ? Quickshell.iconPath(modelData.icon, "application-x-executable")
+                                            : ""
+                                        smooth: true
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        visible: win.isClipboardMode
+                                        radius: Dimensions.radius.small
+                                        color: delegateRoot.isSelected
+                                            ? Colors.primaryContainer
+                                            : Colors.surfaceContainerHigh
+                                        border.width: delegateRoot.isSelected ? 0 : 1
+                                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.18)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: delegateRoot.index + 1
+                                            color: delegateRoot.isSelected
+                                                ? Colors.onPrimaryContainer
+                                                : Colors.primary
+                                            font.family: Typography.barFont
+                                            font.pixelSize: Typography.size.labelSmall
+                                            font.weight: Typography.weight.bold
+                                        }
+                                    }
+                                }
+
+                                // Прев'ю зображення з буфера обміну
+                                Rectangle {
+                                    id: imageFrame
+                                    anchors {
+                                        left: leading.right
+                                        leftMargin: 10
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    width: 152
+                                    height: 100
+                                    radius: Dimensions.radius.medium
+                                    visible: delegateRoot.isImageClip
+                                    color: Colors.surfaceContainerLow
+                                    border.width: 1
+                                    border.color: delegateRoot.isSelected
+                                        ? Colors.withAlpha(Colors.primary, 0.35)
+                                        : Colors.withAlpha(Colors.outlineVariant, 0.30)
+                                    clip: true
+
+                                    Image {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                        cache: false
+                                        source: (delegateRoot.isImageClip && modelData.imagePath !== "")
+                                            ? ("file://" + modelData.imagePath) : ""
+                                    }
+                                }
+
+                                // Метадані зображення
+                                Column {
+                                    anchors {
+                                        left: imageFrame.right
+                                        leftMargin: 14
+                                        right: parent.right
+                                        rightMargin: 14
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    visible: delegateRoot.isImageClip
+                                    spacing: 4
 
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: delegateRoot.index + 1
-                                        color: delegateRoot.isSelected
-                                            ? Colors.onPrimaryContainer
-                                            : Colors.primary
+                                        width: parent.width
+                                        text: modelData.imageDims || modelData.displayPreview || "Image"
+                                        color: Colors.onSurface
+                                        font.family: Typography.barFont
+                                        font.pixelSize: Typography.size.titleSmall
+                                        font.weight: delegateRoot.isSelected ? Typography.weight.bold : Typography.weight.medium
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        width: parent.width
+                                        visible: text !== ""
+                                        text: modelData.imageInfo || ""
+                                        color: Colors.onSurfaceVariant
                                         font.family: Typography.barFont
                                         font.pixelSize: Typography.size.labelSmall
-                                        font.weight: Typography.weight.bold
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        width: parent.width
+                                        visible: delegateRoot.isSelected
+                                        text: "Enter to copy"
+                                        color: Colors.primary
+                                        font.family: Typography.barFont
+                                        font.pixelSize: Typography.size.labelSmall
+                                        elide: Text.ElideRight
                                     }
                                 }
-                            }
 
-                            // Прев'ю зображення з буфера обміну
-                            Rectangle {
-                                id: imageFrame
-                                anchors {
-                                    left: leading.right
-                                    leftMargin: 10
-                                    verticalCenter: parent.verticalCenter
+                                // Назва програми або текст із буфера
+                                Text {
+                                    anchors {
+                                        left: leading.right
+                                        leftMargin: 10
+                                        right: enterHint.visible ? enterHint.left : parent.right
+                                        rightMargin: enterHint.visible ? 8 : 14
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    visible: !delegateRoot.isImageClip
+                                    text: win.isClipboardMode
+                                        ? (modelData.displayPreview || modelData.preview)
+                                        : modelData.name
+                                    color: Colors.onSurface
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.bodyMedium
+                                    font.weight: delegateRoot.isSelected ? Typography.weight.bold : Typography.weight.medium
+                                    elide: Text.ElideRight
                                 }
-                                width: 152
-                                height: 100
-                                radius: Dimensions.radius.medium
-                                visible: delegateRoot.isImageClip
-                                color: Colors.surfaceContainerLow
-                                border.width: 1
-                                border.color: delegateRoot.isSelected
-                                    ? Colors.withAlpha(Colors.onPrimaryContainer, 0.35)
-                                    : Colors.withAlpha(Colors.outlineVariant, 0.30)
-                                clip: true
 
-                                Image {
+                                Text {
+                                    id: enterHint
+                                    anchors {
+                                        right: parent.right
+                                        rightMargin: 14
+                                        verticalCenter: parent.verticalCenter
+                                    }
+                                    visible: delegateRoot.isSelected && !delegateRoot.isImageClip
+                                    text: Icons.keyboardReturn
+                                    color: Colors.primary
+                                    font.family: Typography.iconFont
+                                    font.pixelSize: 16
+                                }
+
+                                MouseArea {
+                                    id: itemMouse
                                     anchors.fill: parent
-                                    anchors.margins: 6
-                                    fillMode: Image.PreserveAspectFit
-                                    smooth: true
-                                    cache: false
-                                    source: (delegateRoot.isImageClip && modelData.imagePath !== "")
-                                        ? ("file://" + modelData.imagePath) : ""
-                                }
-                            }
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
 
-                            // Метадані зображення
-                            Column {
-                                anchors {
-                                    left: imageFrame.right
-                                    leftMargin: 14
-                                    right: parent.right
-                                    rightMargin: 14
-                                    verticalCenter: parent.verticalCenter
-                                }
-                                visible: delegateRoot.isImageClip
-                                spacing: 4
-
-                                Text {
-                                    width: parent.width
-                                    text: modelData.imageDims || modelData.displayPreview || "Image"
-                                    color: delegateRoot.isSelected
-                                        ? Colors.onPrimaryContainer
-                                        : Colors.onSurface
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.titleSmall
-                                    font.weight: Typography.weight.medium
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    visible: text !== ""
-                                    text: modelData.imageInfo || ""
-                                    color: delegateRoot.isSelected
-                                        ? Colors.withAlpha(Colors.onPrimaryContainer, 0.8)
-                                        : Colors.onSurfaceVariant
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.labelSmall
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    visible: delegateRoot.isSelected
-                                    text: "Enter to copy"
-                                    color: Colors.onPrimaryContainer
-                                    opacity: 0.9
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.labelSmall
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            // Назва програми або текст із буфера
-                            Text {
-                                anchors {
-                                    left: leading.right
-                                    leftMargin: 10
-                                    right: enterHint.visible ? enterHint.left : parent.right
-                                    rightMargin: enterHint.visible ? 8 : 14
-                                    verticalCenter: parent.verticalCenter
-                                }
-                                visible: !delegateRoot.isImageClip
-                                text: win.isClipboardMode
-                                    ? (modelData.displayPreview || modelData.preview)
-                                    : modelData.name
-                                color: delegateRoot.isSelected
-                                    ? Colors.onPrimaryContainer
-                                    : Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                font.weight: Typography.weight.medium
-                                elide: Text.ElideRight
-
-                                Behavior on color {
-                                    ColorAnimation { duration: 140 }
-                                }
-                            }
-
-                            Text {
-                                id: enterHint
-                                anchors {
-                                    right: parent.right
-                                    rightMargin: 14
-                                    verticalCenter: parent.verticalCenter
-                                }
-                                visible: delegateRoot.isSelected && !delegateRoot.isImageClip
-                                text: Icons.keyboardReturn
-                                color: Colors.onPrimaryContainer
-                                font.family: Typography.iconFont
-                                font.pixelSize: 16
-                            }
-
-                            MouseArea {
-                                id: itemMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-
-                                onClicked: {
-                                    list.currentIndex = delegateRoot.index
-                                    if (win.isClipboardMode) {
-                                        if (modelData && modelData.raw) {
-                                            copyProc.command = ["sh", "-c", "echo -n \"$1\" | cliphist decode | wl-copy", "_", modelData.raw]
-                                            copyProc.running = true
+                                    onClicked: {
+                                        list.currentIndex = delegateRoot.index
+                                        if (win.isClipboardMode) {
+                                            if (modelData && modelData.raw) {
+                                                copyProc.command = ["sh", "-c", "echo -n \"$1\" | cliphist decode | wl-copy", "_", modelData.raw]
+                                                copyProc.running = true
+                                                win.visible = false
+                                            }
+                                        } else {
+                                            modelData.execute()
                                             win.visible = false
                                         }
-                                    } else {
-                                        modelData.execute()
-                                        win.visible = false
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Порожній стан
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 8
-                        visible: list.count === 0
+                        // Порожній стан
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 8
+                            visible: list.count === 0
 
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: win.isClipboardMode ? Icons.contentPaste : Icons.searchOff
-                            color: Colors.withAlpha(Colors.onSurfaceVariant, 0.55)
-                            font.family: Typography.iconFont
-                            font.pixelSize: 28
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: win.isClipboardMode ? Icons.contentPaste : Icons.searchOff
+                                color: Colors.withAlpha(Colors.onSurfaceVariant, 0.55)
+                                font.family: Typography.iconFont
+                                font.pixelSize: 28
+                            }
+
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: win.isClipboardMode ? "Clipboard is empty" : "No apps found"
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelMedium
+                            }
                         }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: win.isClipboardMode ? "Clipboard is empty" : "No apps found"
-                            color: Colors.onSurfaceVariant
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelMedium
-                        }
                     }
-                }
 
-                // ══════════════════════════════════════════════════════
-                // 4. Футер
-                // ══════════════════════════════════════════════════════
-                Item {
-                    id: footer
-                    anchors {
-                        bottom: parent.bottom
-                        left: parent.left
-                        right: parent.right
-                    }
-                    height: 34
-
-                    Rectangle {
+                    // ══════════════════════════════════════════════════════
+                    // 5. Футер
+                    // ══════════════════════════════════════════════════════
+                    Item {
+                        id: footer
                         anchors {
-                            top: parent.top
+                            bottom: parent.bottom
                             left: parent.left
                             right: parent.right
                         }
-                        height: 1
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-                            GradientStop { position: 0.0; color: "transparent" }
-                            GradientStop { position: 0.5; color: Colors.withAlpha(Colors.outlineVariant, 0.35) }
-                            GradientStop { position: 1.0; color: "transparent" }
-                        }
-                    }
-
-                    Row {
-                        anchors {
-                            left: parent.left
-                            verticalCenter: parent.verticalCenter
-                        }
-                        spacing: 6
+                        height: 34
 
                         Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 5
-                            height: 5
-                            radius: 2.5
-                            color: Colors.primary
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: {
-                                if (win.isClipboardMode) {
-                                    if (list.count === 0) return "0 clips"
-                                    return (list.currentIndex + 1) + " of " + list.count + " clips"
-                                }
-                                return list.count + (list.count === 1 ? " app" : " apps")
+                            anchors {
+                                top: parent.top
+                                left: parent.left
+                                right: parent.right
                             }
-                            color: Colors.onSurfaceVariant
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelSmall
-                            font.weight: Typography.weight.medium
+                            height: 1
+                            color: Colors.withAlpha(Colors.outlineVariant, 0.25)
                         }
-                    }
 
-                    Row {
-                        anchors {
-                            right: parent.right
-                            verticalCenter: parent.verticalCenter
-                        }
-                        spacing: 12
+                        Row {
+                            anchors {
+                                left: parent.left
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 6
 
-                        KeyHint {
-                            key: "Enter"
-                            label: win.isClipboardMode
-                                ? "Copy"
-                                : (win.mathResult ? "Copy result" : "Run")
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 5
+                                height: 5
+                                radius: 2.5
+                                color: Colors.primary
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: {
+                                    if (win.isClipboardMode) {
+                                        if (list.count === 0) return "0 clips"
+                                        return (list.currentIndex + 1) + " of " + list.count + " clips"
+                                    }
+                                    return list.count + (list.count === 1 ? " app" : " apps")
+                                }
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                font.weight: Typography.weight.medium
+                            }
                         }
-                        KeyHint {
-                            visible: win.isClipboardMode
-                            key: "Del"
-                            label: "Delete"
-                        }
-                        KeyHint {
-                            visible: !win.isClipboardMode && !win.mathResult
-                            key: ";"
-                            label: "Clips"
-                        }
-                        KeyHint {
-                            key: "Esc"
-                            label: "Close"
+
+                        Row {
+                            anchors {
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 12
+
+                            KeyHint {
+                                key: "Enter"
+                                label: win.isClipboardMode
+                                    ? "Copy"
+                                    : (win.mathResult ? "Copy result" : "Run")
+                            }
+                            KeyHint {
+                                visible: win.isClipboardMode
+                                key: "Del"
+                                label: "Delete"
+                            }
+                            KeyHint {
+                                visible: !win.isClipboardMode && !win.mathResult
+                                key: ";"
+                                label: "Clips"
+                            }
+                            KeyHint {
+                                key: "Esc"
+                                label: "Close"
+                            }
                         }
                     }
                 }
