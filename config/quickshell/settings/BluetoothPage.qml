@@ -301,12 +301,23 @@ Item {
 
         // Pair a new device
         Rectangle {
+            id: addDevice
+
+            property bool hovered: false
+
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             radius: Dimensions.radius.full
-            color: Colors.surfaceContainerHigh
+            color: addDevice.hovered
+                ? Colors.stateLayer(Colors.primary, 0.16)
+                : Colors.surfaceContainerHigh
             border.width: 1
-            border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
+            border.color: addDevice.hovered
+                ? Colors.withAlpha(Colors.primary, 0.6)
+                : Colors.withAlpha(Colors.outlineVariant, 0.22)
+
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
 
             Row {
                 anchors.centerIn: parent
@@ -334,10 +345,12 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.scanning ? "Scanning for devices…" : "Add device"
-                    color: Colors.onSurface
+                    color: addDevice.hovered ? Colors.primary : Colors.onSurface
                     font.family: Typography.barFont
                     font.pixelSize: Typography.size.labelMedium
                     font.weight: Typography.weight.medium
+
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
 
@@ -345,6 +358,7 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                onContainsMouseChanged: addDevice.hovered = containsMouse
                 onClicked: {
                     if (!root.adapter)
                         return;
@@ -397,6 +411,33 @@ Item {
                 spacing: 2
                 boundsBehavior: Flickable.StopAtBounds
                 model: root.adapter ? root.adapter.devices : []
+
+                add: Transition {
+                    NumberAnimation {
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
+                }
+
+                remove: Transition {
+                    NumberAnimation {
+                        property: "opacity"
+                        to: 0
+                        duration: 140
+                        easing.type: Easing.InCubic
+                    }
+                }
+
+                displaced: Transition {
+                    NumberAnimation {
+                        properties: "x,y"
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 delegate: Item {
                     id: row

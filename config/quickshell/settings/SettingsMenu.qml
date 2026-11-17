@@ -15,28 +15,187 @@ Item {
     implicitHeight: Dimensions.bar.height
 
     property string page: "main"
+    property string pendingPage: "main"
+    property bool opened: false
+
+    // 0 = tucked into the bar, 1 = fully revealed. The panel unrolls downward
+    // instead of appearing instantly.
+    property real reveal: 0
+    property int revealTick: 0
+
+    // The first frames of a freshly mapped Wayland surface are not presented,
+    // so the reveal waits for the popup's first real frame instead of running
+    // while the window is still being created.
+    property bool pendingReveal: false
 
     readonly property int popupWidth: 380
     readonly property int mainHeight: 164
     readonly property int bluetoothHeight: 520
 
+    readonly property real targetHeight: page === "main" ? mainHeight : bluetoothHeight
+
+    // Height of the visible panel itself, independent of the reveal wipe.
+    // Animated when moving between pages so the popup grows/shrinks smoothly.
+    property real panelHeight: mainHeight
+
+    // Keep the window large enough while the panel animates.
+    readonly property int windowHeight: Math.ceil(Math.max(panelHeight, targetHeight))
+
     function open(page) {
-        root.page = page ?? "main";
-        popup.visible = true;
-        grab.active = true;
+        const target = page ?? "main";
+
+        if (!root.opened) {
+            fadeOutAnim.stop();
+            fadeInAnim.stop();
+            panelHeightAnim.stop();
+            pages.opacity = 1;
+            root.pendingPage = target;
+            root.page = target;
+            root.panelHeight = root.targetHeight;
+            root.opened = true;
+            root.pendingReveal = true;
+            popup.visible = true;
+            grab.active = true;
+            revealFallback.restart();
+        } else {
+            root.navigate(target);
+        }
     }
 
     function close() {
-        popup.visible = false;
+        if (!root.opened)
+            return;
+
+        root.opened = false;
+        root.pendingReveal = false;
+        revealFallback.stop();
         grab.active = false;
-        root.page = "main";
+        root.animateReveal(0, 190, Easing.InCubic);
+    }
+
+    // Called on the popup's first rendered frame, or by the fallback timer if
+    // the compositor never reports one.
+    function startReveal() {
+        if (!root.pendingReveal)
+            return;
+
+        root.pendingReveal = false;
+        revealFallback.stop();
+        root.revealTick++;
+        root.animateReveal(1, 280, Easing.OutCubic);
     }
 
     function toggle() {
-        if (popup.visible)
+        if (root.opened)
             root.close();
         else
             root.open("main");
+    }
+
+    // Page-to-page navigation, like changing pages on a website: the current
+    // page fades away, then the new one fades in while the panel resizes.
+    function navigate(page) {
+        if (root.page === page || root.pendingPage === page)
+            return;
+
+        root.pendingPage = page;
+        fadeInAnim.stop();
+        fadeOutAnim.restart();
+    }
+
+    function animateReveal(to, duration, easing) {
+        revealAnim.stop();
+        revealAnim.to = to;
+        revealAnim.duration = duration;
+        revealAnim.easing.type = easing;
+        revealAnim.start();
+    }
+
+    function reset() {
+        fadeOutAnim.stop();
+        fadeInAnim.stop();
+        panelHeightAnim.stop();
+        pages.opacity = 1;
+        root.panelHeight = root.mainHeight;
+        root.page = "main";
+        root.pendingPage = "main";
+        root.reveal = 0;
+    }
+
+    NumberAnimation {
+        id: revealAnim
+
+        target: root
+        property: "reveal"
+        duration: 260
+        easing.type: Easing.OutCubic
+        onFinished: if (!root.opened) popup.visible = false
+    }
+
+    // Fade-through: old page out, swap, new page in, panel resizes alongside.
+    NumberAnimation {
+        id: fadeOutAnim
+
+        target: pages
+        property: "opacity"
+        to: 0
+        duration: 70
+        easing.type: Easing.InCubic
+
+        onFinished: {
+            if (!root.opened || root.page === root.pendingPage)
+                return;
+
+            root.page = root.pendingPage;
+            panelHeightAnim.stop();
+            panelHeightAnim.to = root.targetHeight;
+            panelHeightAnim.start();
+            fadeInAnim.restart();
+        }
+    }
+
+    NumberAnimation {
+        id: fadeInAnim
+
+        target: pages
+        property: "opacity"
+        to: 1
+        duration: 140
+        easing.type: Easing.OutCubic
+    }
+
+    NumberAnimation {
+        id: panelHeightAnim
+
+        target: root
+        property: "panelHeight"
+        duration: 200
+        easing.type: Easing.OutCubic
+    }
+
+    // The backing window only exists once the popup is mapped; attach to it
+    // there so the reveal starts exactly on the first presented frame.
+    QtObject {
+        id: frameProxy
+
+        signal frameSwapped()
+    }
+
+    Connections {
+        id: frameWatcher
+
+        target: frameProxy
+
+        function onFrameSwapped() {
+            root.startReveal();
+        }
+    }
+
+    Timer {
+        id: revealFallback
+
+        interval: 300
+        onTriggered: root.startReveal()
     }
 
     IpcHandler {
@@ -65,8 +224,15 @@ Item {
         anchors.centerIn: parent
         icon: Icons.settings
         iconSize: Dimensions.icon.large
-        active: popup.visible
+        iconOffsetX: -0.5
+        iconOffsetY: 1
+        active: root.opened
+        rotation: root.opened ? 90 : 0
         onClicked: root.toggle()
+
+        Behavior on rotation {
+            NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
+        }
     }
 
     PopupWindow {
@@ -82,49 +248,80 @@ Item {
         anchor.adjustment: PopupAdjustment.Slide
 
         implicitWidth: root.popupWidth
-        implicitHeight: root.page === "main" ? root.mainHeight : root.bluetoothHeight
+        implicitHeight: root.windowHeight
 
-        onVisibleChanged: if (!visible) root.page = "main"
+        onVisibleChanged: if (!visible) root.reset()
 
-        Surface {
-            anchors.fill: parent
-            radius: Dimensions.radius.extraLarge
-            surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
-            borderColor: Colors.withAlpha(Colors.outlineVariant, 0.18)
+        onBackingWindowVisibleChanged: {
+            frameWatcher.target = backingWindowVisible
+                ? popup._backingWindow
+                : frameProxy;
         }
 
-        // Signature neon line, same as the bar and tray menus.
-        Rectangle {
+        // Viewport that unrolls from under the bar. The panel keeps its full
+        // size inside and is simply clipped by the viewport while revealing.
+        Item {
+            id: viewport
+
             anchors {
-                bottom: parent.bottom
+                top: parent.top
                 left: parent.left
                 right: parent.right
             }
-            height: 1
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.2; color: Colors.withAlpha(Colors.primary, 0.35) }
-                GradientStop { position: 0.5; color: Colors.withAlpha(Colors.primary, 0.85) }
-                GradientStop { position: 0.8; color: Colors.withAlpha(Colors.primary, 0.35) }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
-        }
+            height: root.panelHeight * root.reveal
+            clip: true
 
-        Item {
-            anchors.fill: parent
+            Item {
+                id: panel
 
-            MainPage {
-                anchors.fill: parent
-                visible: root.page === "main"
-                onOpen: page => root.page = page
-            }
+                anchors.top: parent.top
+                width: parent.width
+                height: root.panelHeight
 
-            BluetoothPage {
-                anchors.fill: parent
-                visible: root.page === "bluetooth"
-                onBack: root.page = "main"
-                onClose: root.close()
+                Surface {
+                    anchors.fill: parent
+                    radius: Dimensions.radius.extraLarge
+                    surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
+                    borderColor: Colors.withAlpha(Colors.outlineVariant, 0.18)
+                }
+
+                // Signature neon line, same as the bar and tray menus.
+                Rectangle {
+                    anchors {
+                        bottom: parent.bottom
+                        left: parent.left
+                        right: parent.right
+                    }
+                    height: 1
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: "transparent" }
+                        GradientStop { position: 0.2; color: Colors.withAlpha(Colors.primary, 0.35) }
+                        GradientStop { position: 0.5; color: Colors.withAlpha(Colors.primary, 0.85) }
+                        GradientStop { position: 0.8; color: Colors.withAlpha(Colors.primary, 0.35) }
+                        GradientStop { position: 1.0; color: "transparent" }
+                    }
+                }
+
+                Item {
+                    id: pages
+
+                    anchors.fill: parent
+
+                    MainPage {
+                        anchors.fill: parent
+                        revealTick: root.revealTick
+                        visible: root.page === "main"
+                        onOpen: page => root.navigate(page)
+                    }
+
+                    BluetoothPage {
+                        anchors.fill: parent
+                        visible: root.page === "bluetooth"
+                        onBack: root.navigate("main")
+                        onClose: root.close()
+                    }
+                }
             }
         }
     }
@@ -138,10 +335,10 @@ Item {
 
     Shortcut {
         sequence: "Escape"
-        enabled: popup.visible
+        enabled: root.opened
         onActivated: {
             if (root.page === "bluetooth")
-                root.page = "main";
+                root.navigate("main");
             else
                 root.close();
         }
@@ -153,6 +350,8 @@ Item {
         id: mainPage
 
         signal open(string page)
+
+        property int revealTick: 0
 
         implicitWidth: 380
         implicitHeight: 164
@@ -202,23 +401,69 @@ Item {
                         id: tile
 
                         required property var modelData
+                        required property int index
+
                         readonly property bool soon: modelData.soon
+                        readonly property bool hovered: tileMouse.containsMouse && !tile.soon
+
+                        property real appear: 0
 
                         width: 108
                         height: 96
 
+                        opacity: tile.appear * (tile.soon ? 0.7 : 1.0)
+                        scale: tileMouse.pressed && !tile.soon
+                            ? 0.96
+                            : tile.hovered ? 1.03 : 1.0
+
+                        transform: Translate { y: (1.0 - tile.appear) * 10 }
+
+                        Behavior on scale {
+                            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                        }
+
+                        SequentialAnimation {
+                            id: enterAnim
+
+                            PauseAnimation { duration: 40 + tile.index * 40 }
+                            NumberAnimation {
+                                target: tile
+                                property: "appear"
+                                to: 1
+                                duration: 240
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        Connections {
+                            target: mainPage
+
+                            function onRevealTickChanged() {
+                                tile.appear = 0;
+                                enterAnim.restart();
+                            }
+                        }
+
+                        Component.onCompleted: {
+                            if (mainPage.revealTick > 0)
+                                enterAnim.start();
+                        }
+
                         Rectangle {
                             anchors.fill: parent
                             radius: Dimensions.radius.medium
-                            color: tileMouse.containsMouse && !tile.soon
-                                ? Colors.stateLayer(Colors.onSurface, 0.07)
-                                : Colors.surfaceContainerHigh
-                            border.width: (tile.soon || tileMouse.containsMouse) ? 1 : 0
+                            color: tile.soon
+                                ? Colors.surfaceContainerHigh
+                                : tile.hovered
+                                    ? Colors.stateLayer(Colors.primary, 0.16)
+                                    : Colors.withAlpha(Colors.primary, 0.07)
+                            border.width: 1
                             border.color: tile.soon
-                                ? Colors.withAlpha(Colors.outlineVariant, 0.45)
-                                : Colors.withAlpha(Colors.primary, 0.6)
+                                ? Colors.withAlpha(Colors.outlineVariant, 0.4)
+                                : Colors.withAlpha(Colors.primary, tile.hovered ? 0.7 : 0.28)
 
-                            Behavior on color { ColorAnimation { duration: 130 } }
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
 
                         Column {
@@ -226,17 +471,28 @@ Item {
                             spacing: 4
 
                             Text {
+                                id: tileIcon
+
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: tile.modelData.icon
-                                color: tile.soon ? Colors.onSurfaceVariant : Colors.primary
+                                color: tile.soon
+                                    ? Colors.withAlpha(Colors.onSurfaceVariant, 0.6)
+                                    : Colors.primary
                                 font.family: Typography.iconFont
                                 font.pixelSize: Dimensions.icon.extraLarge
+                                scale: tile.hovered ? 1.14 : 1.0
+
+                                Behavior on scale {
+                                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                                }
                             }
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: tile.modelData.title
-                                color: Colors.onSurface
+                                color: tile.soon
+                                    ? Colors.withAlpha(Colors.onSurface, 0.7)
+                                    : Colors.onSurface
                                 font.family: Typography.barFont
                                 font.pixelSize: Typography.size.labelMedium
                                 font.weight: Typography.weight.medium

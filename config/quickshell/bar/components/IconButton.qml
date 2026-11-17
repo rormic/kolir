@@ -11,6 +11,11 @@ Item {
     property color containerColor: "transparent"
     property bool active: false
 
+    // Optical fine-tuning: Material Symbols glyphs do not sit perfectly in the
+    // middle of their line box, so icons can be nudged for a centered look.
+    property real iconOffsetX: 0
+    property real iconOffsetY: 0
+
     signal clicked()
 
     implicitWidth: Dimensions.control.iconButton
@@ -45,6 +50,8 @@ Item {
     Text {
         id: iconLabel
         anchors.centerIn: parent
+        anchors.horizontalCenterOffset: root.iconOffsetX
+        anchors.verticalCenterOffset: root.iconOffsetY
         text: root.icon
         color: root.active ? Colors.onPrimary : (root.hovered ? Colors.primary : root.iconColor)
         font.family: Typography.iconFont
