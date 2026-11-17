@@ -242,7 +242,10 @@ Item {
         color: "transparent"
         grabFocus: false
 
-        anchor.item: button
+        // Anchor to the full-height settings item, not the icon button: the
+        // button is shorter than the bar, so its bottom edge sits inside the
+        // bar and would make the popup overlap the bar's last pixels.
+        anchor.item: root
         anchor.edges: Edges.Bottom | Edges.Left
         anchor.gravity: Edges.Bottom | Edges.Right
         anchor.adjustment: PopupAdjustment.Slide
@@ -282,25 +285,10 @@ Item {
                     anchors.fill: parent
                     radius: Dimensions.radius.extraLarge
                     surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
-                    borderColor: Colors.withAlpha(Colors.outlineVariant, 0.18)
-                }
-
-                // Signature neon line, same as the bar and tray menus.
-                Rectangle {
-                    anchors {
-                        bottom: parent.bottom
-                        left: parent.left
-                        right: parent.right
-                    }
-                    height: 1
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: "transparent" }
-                        GradientStop { position: 0.2; color: Colors.withAlpha(Colors.primary, 0.35) }
-                        GradientStop { position: 0.5; color: Colors.withAlpha(Colors.primary, 0.85) }
-                        GradientStop { position: 0.8; color: Colors.withAlpha(Colors.primary, 0.35) }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
+                    // Match Hyprland's focused window border: 2px in the
+                    // active border color.
+                    borderWidth: 2
+                    borderColor: Colors.primary
                 }
 
                 Item {

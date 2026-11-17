@@ -46,8 +46,8 @@ PopupWindow {
     anchor.gravity: Edges.Bottom | Edges.Left
     anchor.adjustment: PopupAdjustment.Slide
 
-    implicitWidth: menuRow.implicitWidth + 2
-    implicitHeight: menuRow.implicitHeight + 2
+    implicitWidth: menuRow.implicitWidth + 4
+    implicitHeight: menuRow.implicitHeight + 4
 
     onVisibleChanged: {
         if (!visible) {
@@ -74,14 +74,16 @@ PopupWindow {
         anchors.fill: parent
         radius: Dimensions.radius.medium
         surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
-        borderColor: Colors.withAlpha(Colors.outlineVariant, 0.25)
+        // Match Hyprland's focused window border: 2px in the active border color.
+        borderWidth: 2
+        borderColor: Colors.primary
     }
 
     Row {
         id: menuRow
 
         anchors.fill: parent
-        anchors.margins: 1
+        anchors.margins: 2
         layoutDirection: Qt.RightToLeft
         spacing: 0
 
@@ -106,22 +108,6 @@ PopupWindow {
                 onEntryHovered: entry => root.expand(index, entry)
                 onEntryActivated: Qt.callLater(root.closeMenu)
             }
-        }
-    }
-
-    // Signature neon accent, same as the bar and launcher.
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 1
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: "transparent" }
-            GradientStop { position: 0.2; color: Colors.withAlpha(Colors.primary, 0.35) }
-            GradientStop { position: 0.5; color: Colors.withAlpha(Colors.primary, 0.85) }
-            GradientStop { position: 0.8; color: Colors.withAlpha(Colors.primary, 0.35) }
-            GradientStop { position: 1.0; color: "transparent" }
         }
     }
 }
