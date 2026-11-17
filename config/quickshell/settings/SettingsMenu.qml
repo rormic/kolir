@@ -31,8 +31,15 @@ Item {
     readonly property int popupWidth: 380
     readonly property int mainHeight: 164
     readonly property int bluetoothHeight: 520
+    readonly property int internetHeight: 520
 
-    readonly property real targetHeight: page === "main" ? mainHeight : bluetoothHeight
+    readonly property real targetHeight: {
+        if (page === "bluetooth")
+            return bluetoothHeight;
+        if (page === "internet")
+            return internetHeight;
+        return mainHeight;
+    }
 
     // Height of the visible panel itself, independent of the reveal wipe.
     // Animated when moving between pages so the popup grows/shrinks smoothly.
@@ -213,6 +220,10 @@ Item {
             root.open("bluetooth");
         }
 
+        function openInternet(): void {
+            root.open("internet");
+        }
+
         function close(): void {
             root.close();
         }
@@ -309,6 +320,13 @@ Item {
                         onBack: root.navigate("main")
                         onClose: root.close()
                     }
+
+                    InternetPage {
+                        anchors.fill: parent
+                        visible: root.page === "internet"
+                        onBack: root.navigate("main")
+                        onClose: root.close()
+                    }
                 }
             }
         }
@@ -325,7 +343,7 @@ Item {
         sequence: "Escape"
         enabled: root.opened
         onActivated: {
-            if (root.page === "bluetooth")
+            if (root.page === "bluetooth" || root.page === "internet")
                 root.navigate("main");
             else
                 root.close();
@@ -354,9 +372,10 @@ Item {
             },
             {
                 icon: Icons.wifi,
-                title: "Wi-Fi",
-                subtitle: "Soon",
-                soon: true,
+                title: "Internet",
+                subtitle: "Networks & Ethernet",
+                soon: false,
+                page: "internet",
             },
             {
                 icon: Icons.volumeUp,
