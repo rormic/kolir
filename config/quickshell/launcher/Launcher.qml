@@ -8,45 +8,6 @@ import "../theme"
 Scope {
     id: root
 
-    // Компактна підказка клавіші у стилі налаштувань.
-    component KeyHint: Row {
-        id: keyHint
-
-        property string key: ""
-        property string label: ""
-
-        height: 18
-        spacing: 5
-
-        Rectangle {
-            width: keyLabel.implicitWidth + 10
-            height: 18
-            radius: Dimensions.radius.extraSmall + 2
-            color: Colors.surfaceContainerHigh
-            border.width: 1
-            border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
-
-            Text {
-                id: keyLabel
-                anchors.centerIn: parent
-                text: keyHint.key
-                color: Colors.onSurfaceVariant
-                font.family: Typography.barFont
-                font.pixelSize: Typography.size.labelSmall
-                font.weight: Typography.weight.medium
-            }
-        }
-
-        Text {
-            height: 18
-            verticalAlignment: Text.AlignVCenter
-            text: keyHint.label
-            color: Colors.onSurfaceVariant
-            font.family: Typography.barFont
-            font.pixelSize: Typography.size.labelSmall
-        }
-    }
-
     IpcHandler {
         target: "launcher"
         function toggle(): void {
@@ -310,44 +271,118 @@ Scope {
     PanelWindow {
         id: win
 
+        readonly property int compactHeight: 40
+        readonly property int expandedHeight: 520
+        readonly property int calcCardHeight: 44
+
+        // Відступи всередині панелі: зверху під рядком пошуку і знизу під списком
+        readonly property int contentGap: 10
+        readonly property int contentBottom: 14
+        readonly property int emptyListHeight: 140
+        readonly property int appRowHeight: 40
+        readonly property int imageRowHeight: 124
+
+        // Порожній запит — показуємо лише рядок пошуку
+        property bool searching: false
+
+        // Висота списку за кількістю знайдених елементів (з обмеженням, далі скрол)
+        readonly property int maxListHeight: expandedHeight - compactHeight - contentGap - contentBottom
+        readonly property int listHeight: {
+            const items = list.model
+            if (!items || items.length === 0) return 0
+            let total = 8 // відступи ListView зверху/знизу
+            for (let i = 0; i < items.length; i++)
+                total += win.rowHeightFor(items[i])
+            total += Math.max(0, items.length - 1) * list.spacing
+            return Math.min(total, maxListHeight)
+        }
+
+        // Калькулятор не потребує списку — тримаємо панель компактною
+        readonly property int targetHeight: !searching
+            ? compactHeight
+            : (mathResult !== null
+                ? compactHeight + contentGap + calcCardHeight + contentBottom
+                : compactHeight + contentGap
+                    + Math.max(listHeight, emptyListHeight) + contentBottom)
+
+        function rowHeightFor(item) {
+            return (isClipboardMode && item && item.isImage) ? imageRowHeight : appRowHeight
+        }
+
         visible: false
         implicitWidth: 620
-        implicitHeight: 520
+        // Вікно завжди розгорнутого розміру: анімуємо картку, а не Wayland-поверхню,
+        // інакше композитор масштабує старий буфер і анімація виглядає рваною.
+        implicitHeight: expandedHeight
         color: "transparent"
+
+        anchors.top: true
+        margins.top: win.screen
+            ? Math.max(8, Math.min(
+                (win.screen.height - Dimensions.bar.height - compactHeight) / 2,
+                win.screen.height - Dimensions.bar.height - expandedHeight - 8))
+            : 0
 
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
         WlrLayershell.namespace: "launcher"
+        WlrLayershell.exclusiveZone: 0
 
         readonly property bool isClipboardMode: search.text.startsWith(";")
         readonly property string clipQuery: isClipboardMode ? search.text.substring(1).trim().toLowerCase() : ""
         readonly property var mathResult: !isClipboardMode ? root.evalMath(search.text) : null
 
-        onVisibleChanged: if (visible) {
-            search.text = ""
-            list.currentIndex = 0
-            clipListProc.running = true
-            search.forceActiveFocus()
+        onVisibleChanged: {
+            if (visible) {
+                search.text = ""
+                searching = false
+                list.currentIndex = 0
+                clipListProc.running = true
+                search.forceActiveFocus()
+            } else {
+                // Згортаємо одразу, поки вікно приховане — без видимого стрибка
+                searching = false
+            }
+        }
+
+        // Клік повз картку закриває лаунчер
+        MouseArea {
+            anchors.fill: parent
+            onClicked: win.visible = false
         }
 
         // ── Головна картка у стилі налаштувань ──
         Surface {
             id: card
-            anchors.fill: parent
-            radius: Dimensions.radius.extraLarge
-            surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+            }
+            height: win.targetHeight
+            radius: Dimensions.radius.largeIncreased
+            surfaceColor: Colors.surfaceContainerHigh
             borderWidth: 2
             borderColor: Colors.primary
 
             opacity: win.visible ? 1 : 0
             scale: win.visible ? 1 : 0.97
-            transformOrigin: Item.Center
+            transformOrigin: Item.Top
 
+            Behavior on height {
+                enabled: win.visible
+                NumberAnimation { duration: 450; easing.type: Easing.OutCubic }
+            }
             Behavior on opacity {
-                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
             }
             Behavior on scale {
-                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+            }
+
+            // Поглинаємо кліки всередині картки, щоб вони не закривали лаунчер
+            MouseArea {
+                anchors.fill: parent
             }
 
             Item {
@@ -356,10 +391,7 @@ Scope {
 
                 Item {
                     id: body
-                    anchors {
-                        fill: parent
-                        margins: 14
-                    }
+                    anchors.fill: parent
 
                     // ══════════════════════════════════════════════════════
                     // 2. Рядок пошуку
@@ -371,17 +403,10 @@ Scope {
                             left: parent.left
                             right: parent.right
                         }
-                        height: 40
-                        radius: Dimensions.radius.full
-                        color: Colors.surfaceContainerHigh
-                        border.width: 1
-                        border.color: search.activeFocus
-                            ? Colors.withAlpha(Colors.primary, 0.55)
-                            : Colors.withAlpha(Colors.outlineVariant, 0.22)
-
-                        Behavior on border.color {
-                            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
-                        }
+                        height: win.compactHeight
+                        radius: Dimensions.radius.largeIncreased
+                        color: "transparent"
+                        border.width: 0
 
                         Text {
                             id: searchIcon
@@ -496,6 +521,7 @@ Scope {
                             }
 
                             onTextChanged: {
+                                win.searching = search.text.trim() !== ""
                                 list.currentIndex = 0
                                 if (search.text.startsWith(";")) {
                                     clipListProc.running = true
@@ -511,11 +537,13 @@ Scope {
                         id: calcCard
                         anchors {
                             top: searchField.bottom
-                            topMargin: 10
+                            topMargin: win.contentGap
                             left: parent.left
+                            leftMargin: 14
                             right: parent.right
+                            rightMargin: 14
                         }
-                        height: 44
+                        height: win.calcCardHeight
                         visible: win.mathResult !== null
                         radius: Dimensions.radius.medium
                         color: calcMouse.containsMouse
@@ -559,16 +587,6 @@ Scope {
                             }
                         }
 
-                        KeyHint {
-                            anchors {
-                                right: parent.right
-                                rightMargin: 12
-                                verticalCenter: parent.verticalCenter
-                            }
-                            key: "Enter"
-                            label: "Copy"
-                        }
-
                         MouseArea {
                             id: calcMouse
                             anchors.fill: parent
@@ -593,17 +611,17 @@ Scope {
                         id: listCard
                         anchors {
                             top: calcCard.visible ? calcCard.bottom : searchField.bottom
-                            topMargin: 10
-                            bottom: footer.top
-                            bottomMargin: 8
+                            topMargin: win.contentGap
                             left: parent.left
+                            leftMargin: 14
                             right: parent.right
+                            rightMargin: 14
                         }
-                        radius: Dimensions.radius.medium
-                        color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.5)
-                        border.width: 1
-                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.14)
+                        height: Math.max(win.listHeight, win.emptyListHeight)
+                        color: "transparent"
+                        border.width: 0
                         clip: true
+                        visible: win.mathResult === null
 
                         ListView {
                             id: list
@@ -624,6 +642,7 @@ Scope {
                                         item.preview.toLowerCase().includes(win.clipQuery)
                                     )
                                 } else {
+                                    if (search.text.trim() === "") return []
                                     return root.getFilteredApplications(search.text)
                                 }
                             }
@@ -637,7 +656,7 @@ Scope {
                                 readonly property bool isImageClip: win.isClipboardMode && modelData.isImage
 
                                 width: list.width
-                                height: delegateRoot.isImageClip ? 124 : 40
+                                height: delegateRoot.isImageClip ? win.imageRowHeight : win.appRowHeight
 
                                 Rectangle {
                                     id: rowBackground
@@ -851,7 +870,7 @@ Scope {
                         Column {
                             anchors.centerIn: parent
                             spacing: 8
-                            visible: list.count === 0
+                            visible: list.count === 0 && win.searching
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -871,88 +890,6 @@ Scope {
                         }
                     }
 
-                    // ══════════════════════════════════════════════════════
-                    // 5. Футер
-                    // ══════════════════════════════════════════════════════
-                    Item {
-                        id: footer
-                        anchors {
-                            bottom: parent.bottom
-                            left: parent.left
-                            right: parent.right
-                        }
-                        height: 34
-
-                        Rectangle {
-                            anchors {
-                                top: parent.top
-                                left: parent.left
-                                right: parent.right
-                            }
-                            height: 1
-                            color: Colors.withAlpha(Colors.outlineVariant, 0.25)
-                        }
-
-                        Row {
-                            anchors {
-                                left: parent.left
-                                verticalCenter: parent.verticalCenter
-                            }
-                            spacing: 6
-
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 5
-                                height: 5
-                                radius: 2.5
-                                color: Colors.primary
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: {
-                                    if (win.isClipboardMode) {
-                                        if (list.count === 0) return "0 clips"
-                                        return (list.currentIndex + 1) + " of " + list.count + " clips"
-                                    }
-                                    return list.count + (list.count === 1 ? " app" : " apps")
-                                }
-                                color: Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                font.weight: Typography.weight.medium
-                            }
-                        }
-
-                        Row {
-                            anchors {
-                                right: parent.right
-                                verticalCenter: parent.verticalCenter
-                            }
-                            spacing: 12
-
-                            KeyHint {
-                                key: "Enter"
-                                label: win.isClipboardMode
-                                    ? "Copy"
-                                    : (win.mathResult ? "Copy result" : "Run")
-                            }
-                            KeyHint {
-                                visible: win.isClipboardMode
-                                key: "Del"
-                                label: "Delete"
-                            }
-                            KeyHint {
-                                visible: !win.isClipboardMode && !win.mathResult
-                                key: ";"
-                                label: "Clips"
-                            }
-                            KeyHint {
-                                key: "Esc"
-                                label: "Close"
-                            }
-                        }
-                    }
                 }
             }
         }
