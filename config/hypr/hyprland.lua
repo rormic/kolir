@@ -426,6 +426,13 @@ hl.layer_rule({
 	ignore_alpha = 0,
 })
 
+hl.layer_rule({
+	name = "launcher-blur",
+	match = { namespace = "launcher" },
+	blur = true,
+	ignore_alpha = 0,
+})
+
 -------------------------------
 ---- USER OVERRIDES -----------
 -------------------------------

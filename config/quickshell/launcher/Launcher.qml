@@ -361,7 +361,9 @@ Scope {
             }
             height: win.targetHeight
             radius: Dimensions.radius.largeIncreased
-            surfaceColor: Colors.surfaceContainerHigh
+            // Напівпрозора панель, як вікна Hyprland: крізь неї видно шпалери
+            // та вміст вікон, а композитор додає blur (layer_rule "launcher-blur")
+            surfaceColor: Colors.withAlpha(Colors.surfaceContainerHigh, 0.8)
             borderWidth: 2
             borderColor: Colors.primary
 
@@ -548,7 +550,7 @@ Scope {
                         radius: Dimensions.radius.medium
                         color: calcMouse.containsMouse
                             ? Colors.stateLayer(Colors.primary, 0.12)
-                            : Colors.surfaceContainerHigh
+                            : "transparent"
                         border.width: 1
                         border.color: calcMouse.containsMouse
                             ? Colors.withAlpha(Colors.primary, 0.45)
@@ -748,7 +750,7 @@ Scope {
                                     height: 100
                                     radius: Dimensions.radius.medium
                                     visible: delegateRoot.isImageClip
-                                    color: Colors.surfaceContainerLow
+                                    color: Colors.withAlpha(Colors.surfaceContainerLow, 0.55)
                                     border.width: 1
                                     border.color: delegateRoot.isSelected
                                         ? Colors.withAlpha(Colors.primary, 0.35)
