@@ -18,9 +18,15 @@ Item {
     property string pendingPage: "main"
     property bool opened: false
 
-    // 0 = tucked into the bar, 1 = fully revealed. The panel unrolls downward
-    // instead of appearing instantly.
+    // 0 = hidden, 1 = fully visible. Drives opacity + a small slide instead
+    // of animating the panel's height/clip: opacity/transform stay cheap and
+    // avoid re-laying out the whole page tree on every frame.
     property real reveal: 0
+
+    // Opacity of the page tree. Page switches fade it out, morph the empty
+    // panel background to the new size, then fade the new page back in.
+    // Page layout itself is never animated.
+    property real contentOpacity: 1
     property int revealTick: 0
 
     // The first frames of a freshly mapped Wayland surface are not presented,
@@ -32,21 +38,28 @@ Item {
     readonly property int mainHeight: 164
     readonly property int bluetoothHeight: 520
     readonly property int internetHeight: 520
+    readonly property int maxPanelHeight: Math.max(mainHeight, bluetoothHeight, internetHeight)
 
-    readonly property real targetHeight: {
-        if (page === "bluetooth")
+    readonly property real targetHeight: heightForPage(page)
+
+    function heightForPage(name) {
+        if (name === "bluetooth")
             return bluetoothHeight;
-        if (page === "internet")
+        if (name === "internet")
             return internetHeight;
         return mainHeight;
     }
 
-    // Height of the visible panel itself, independent of the reveal wipe.
-    // Animated when moving between pages so the popup grows/shrinks smoothly.
+    // Height of the visible panel itself. The panel background morphs between
+    // pages while the page content is faded out, so no layout animation is
+    // visible and no Wayland surface resize happens (the popup window is
+    // always allocated at maxPanelHeight).
     property real panelHeight: mainHeight
 
-    // Keep the window large enough while the panel animates.
-    readonly property int windowHeight: Math.ceil(Math.max(panelHeight, targetHeight))
+    // Constant backing-window size. Resizing a Wayland surface during a
+    // transition is the main source of stutter, so the popup is mapped once
+    // at the tallest page size and the panel inside it changes height.
+    readonly property int windowHeight: maxPanelHeight
 
     function open(page) {
         const target = page ?? "main";
@@ -55,10 +68,12 @@ Item {
             fadeOutAnim.stop();
             fadeInAnim.stop();
             panelHeightAnim.stop();
-            pages.opacity = 1;
+            revealAnim.stop();
+            root.contentOpacity = 1;
             root.pendingPage = target;
             root.page = target;
-            root.panelHeight = root.targetHeight;
+            root.panelHeight = root.heightForPage(target);
+            root.reveal = 0;
             root.opened = true;
             root.pendingReveal = true;
             popup.visible = true;
@@ -76,8 +91,16 @@ Item {
         root.opened = false;
         root.pendingReveal = false;
         revealFallback.stop();
+        panelHeightAnim.stop();
         grab.active = false;
-        root.animateReveal(0, 190, Easing.InCubic);
+
+        if (root.reveal <= 0.01) {
+            root.reveal = 0;
+            popup.visible = false;
+            return;
+        }
+
+        root.animateReveal(0, 160, Easing.InCubic);
     }
 
     // Called on the popup's first rendered frame, or by the fallback timer if
@@ -89,7 +112,7 @@ Item {
         root.pendingReveal = false;
         revealFallback.stop();
         root.revealTick++;
-        root.animateReveal(1, 280, Easing.OutCubic);
+        root.animateReveal(1, 220, Easing.OutCubic);
     }
 
     function toggle() {
@@ -99,14 +122,28 @@ Item {
             root.open("main");
     }
 
-    // Page-to-page navigation, like changing pages on a website: the current
-    // page fades away, then the new one fades in while the panel resizes.
+    // Page-to-page navigation: fade the old content out, morph the empty
+    // panel background to the new size, then fade the new page in.
     function navigate(page) {
-        if (root.page === page || root.pendingPage === page)
+        if (root.page === page) {
+            if (root.pendingPage === page)
+                return;
+
+            // A transition away from this page is still running; cancel it
+            // and fade the current page back in.
+            root.pendingPage = page;
+            fadeOutAnim.stop();
+            panelHeightAnim.stop();
+            fadeInAnim.restart();
+            return;
+        }
+
+        if (root.pendingPage === page)
             return;
 
         root.pendingPage = page;
         fadeInAnim.stop();
+        panelHeightAnim.stop();
         fadeOutAnim.restart();
     }
 
@@ -122,7 +159,7 @@ Item {
         fadeOutAnim.stop();
         fadeInAnim.stop();
         panelHeightAnim.stop();
-        pages.opacity = 1;
+        root.contentOpacity = 1;
         root.panelHeight = root.mainHeight;
         root.page = "main";
         root.pendingPage = "main";
@@ -134,43 +171,54 @@ Item {
 
         target: root
         property: "reveal"
-        duration: 260
+        duration: 220
         easing.type: Easing.OutCubic
         onFinished: if (!root.opened) popup.visible = false
     }
 
-    // Fade-through: old page out, swap, new page in, panel resizes alongside.
+    // Fade-through: old page out, morph the empty panel background to the
+    // new size, then fade the new page in. Pagination itself never animates
+    // layout because the content is invisible while `page` changes.
     NumberAnimation {
         id: fadeOutAnim
 
-        target: pages
-        property: "opacity"
+        target: root
+        property: "contentOpacity"
         to: 0
-        duration: 70
-        easing.type: Easing.InCubic
+        duration: 80
+        easing.type: Easing.OutCubic
 
         onFinished: {
             if (!root.opened || root.page === root.pendingPage)
                 return;
 
             root.page = root.pendingPage;
+
+            const target = root.heightForPage(root.page);
+            if (Math.abs(root.panelHeight - target) < 0.5) {
+                root.panelHeight = target;
+                fadeInAnim.restart();
+                return;
+            }
+
             panelHeightAnim.stop();
-            panelHeightAnim.to = root.targetHeight;
+            panelHeightAnim.to = target;
             panelHeightAnim.start();
-            fadeInAnim.restart();
         }
     }
 
     NumberAnimation {
         id: fadeInAnim
 
-        target: pages
-        property: "opacity"
+        target: root
+        property: "contentOpacity"
         to: 1
         duration: 140
         easing.type: Easing.OutCubic
     }
 
+    // Only the empty rounded panel is visible while this runs, so this is a
+    // cheap geometry animation with no page layout inside it.
     NumberAnimation {
         id: panelHeightAnim
 
@@ -178,6 +226,11 @@ Item {
         property: "panelHeight"
         duration: 200
         easing.type: Easing.OutCubic
+
+        onFinished: {
+            if (root.opened && root.page === root.pendingPage)
+                fadeInAnim.restart();
+        }
     }
 
     // The backing window only exists once the popup is mapped; attach to it
@@ -201,7 +254,9 @@ Item {
     Timer {
         id: revealFallback
 
-        interval: 300
+        // Short safety net: a long fallback makes the popup feel late even
+        // when the compositor never emits a frame signal.
+        interval: 80
         onTriggered: root.startReveal()
     }
 
@@ -283,8 +338,9 @@ Item {
                 : frameProxy;
         }
 
-        // Viewport that unrolls from under the bar. The panel keeps its full
-        // size inside and is simply clipped by the viewport while revealing.
+        // Panel viewport. During page navigation only the empty panel
+        // background morphs inside it; the page tree is laid out at its final
+        // size and stays hidden until the morph finishes.
         Item {
             id: viewport
 
@@ -293,8 +349,7 @@ Item {
                 left: parent.left
                 right: parent.right
             }
-            height: root.panelHeight * root.reveal
-            clip: true
+            height: root.panelHeight
 
             Item {
                 id: panel
@@ -302,6 +357,8 @@ Item {
                 anchors.top: parent.top
                 width: parent.width
                 height: root.panelHeight
+                opacity: root.reveal
+                transform: Translate { y: -(1.0 - root.reveal) * 8 }
 
                 Surface {
                     anchors.fill: parent
@@ -313,33 +370,62 @@ Item {
                     borderColor: Colors.primary
                 }
 
+                // Page tree fades away during navigation while the panel
+                // background stays visible and morphs to the new size.
                 Item {
-                    id: pages
+                    id: content
 
                     anchors.fill: parent
+                    opacity: root.contentOpacity
 
-                    MainPage {
-                        anchors.fill: parent
-                        revealTick: root.revealTick
-                        visible: root.page === "main"
-                        onOpen: page => root.navigate(page)
-                    }
+                    Item {
+                        id: pages
 
-                    BluetoothPage {
-                        anchors.fill: parent
-                        visible: root.page === "bluetooth"
-                        onBack: root.navigate("main")
-                        onClose: root.close()
-                    }
+                        // Pages are laid out at their final size immediately.
+                        // The background panel morphs around them while the
+                        // content is hidden, so no page layout is animated.
+                        anchors {
+                            top: parent.top
+                            left: parent.left
+                            right: parent.right
+                        }
+                        height: root.targetHeight
 
-                    InternetPage {
-                        anchors.fill: parent
-                        visible: root.page === "internet"
-                        onBack: root.navigate("main")
-                        onClose: root.close()
+                        MainPage {
+                            anchors.fill: parent
+                            revealTick: root.revealTick
+                            visible: root.page === "main"
+                            onOpen: page => root.navigate(page)
+                        }
+
+                        BluetoothPage {
+                            anchors.fill: parent
+                            visible: root.page === "bluetooth"
+                            onBack: root.navigate("main")
+                            onClose: root.close()
+                        }
+
+                        InternetPage {
+                            anchors.fill: parent
+                            visible: root.page === "internet"
+                            onBack: root.navigate("main")
+                            onClose: root.close()
+                        }
                     }
                 }
             }
+        }
+
+        // The backing window is always maxPanelHeight. Clicks in the empty
+        // area below a shorter panel behave like clicks outside the popup.
+        MouseArea {
+            anchors {
+                top: viewport.bottom
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
+            }
+            onClicked: root.close()
         }
     }
 
@@ -443,12 +529,12 @@ Item {
                         SequentialAnimation {
                             id: enterAnim
 
-                            PauseAnimation { duration: 40 + tile.index * 40 }
+                            PauseAnimation { duration: 20 + tile.index * 25 }
                             NumberAnimation {
                                 target: tile
                                 property: "appear"
                                 to: 1
-                                duration: 240
+                                duration: 180
                                 easing.type: Easing.OutCubic
                             }
                         }

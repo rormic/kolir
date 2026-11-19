@@ -204,7 +204,22 @@ Item {
     }
 
     Component.onCompleted: refreshAll(false)
-    onVisibleChanged: if (visible) refreshAll(false); else resetForms()
+    onVisibleChanged: {
+        if (visible) {
+            refreshDelay.restart();
+        } else {
+            refreshDelay.stop();
+            resetForms();
+        }
+    }
+
+    // Defer the first nmcli refresh until the page transition has finished,
+    // so process startup doesn't compete with animation frames.
+    Timer {
+        id: refreshDelay
+        interval: 200
+        onTriggered: if (root.visible) root.refreshAll(false)
+    }
 
     Timer {
         interval: 10000
@@ -608,14 +623,14 @@ Item {
                         Text { visible: root.ethernetIp6 !== ""; text: "IPv6"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
                         Text { visible: root.ethernetIp6 !== ""; Layout.fillWidth: true; text: root.ethernetIp6; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
                     }
+                }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        z: -1
-                        enabled: root.ethernetState === "Connected"
-                        cursorShape: root.ethernetState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: root.ethernetDetailsExpanded = !root.ethernetDetailsExpanded
-                    }
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    enabled: root.ethernetState === "Connected"
+                    cursorShape: root.ethernetState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: root.ethernetDetailsExpanded = !root.ethernetDetailsExpanded
                 }
             }
 
