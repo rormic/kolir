@@ -54,7 +54,7 @@ Theme Switch (Bar ThemeToggle.qml)                 -->  scripts/toggle-theme.sh 
 - **Shared Components**: Reusable UI primitives live in `config/quickshell/bar/components/` (`Pill.qml`, `Island.qml`, `Surface.qml`, `IconButton.qml`, `AppIcon.qml`, `PixelBox.qml`) and `config/quickshell/Button.qml`.
 - **Singletons**: Global services and style registries live in `config/quickshell/theme/` and are registered in `qmldir`. Import `../theme` or `../../theme` to access `Colors`, `Dimensions`, `Typography`, `Icons`, `AudioService`, or `BrightnessService`.
 - **Styling**: Always use `Colors.<role>` (Material Design 3 tokens) with `Colors.withAlpha(color, opacity)` or `Colors.stateLayer(color, opacity)`. Dimension tokens belong in `Dimensions.*`, fonts and weights in `Typography.*`, and icon ligatures in `Icons.*`. Never hardcode colors.
-- **IPC Handlers**: Modules expose actions via `IpcHandler { target: "<name>" }` (e.g. `launcher`, `brightness`, `settings`, `nowPlaying`, `recording`, `recordingSetup`). Trigger them via `qs -p <config_dir> ipc call <target> <method> [args]`.
+- **IPC Handlers**: Modules expose actions via `IpcHandler { target: "<name>" }` (e.g. `launcher`, `brightness`, `volume`, `settings`, `nowPlaying`, `recording`, `recordingSetup`). Trigger them via `qs -p <config_dir> ipc call <target> <method> [args]`.
 - **Adding a Module/Widget**:
   1. For top-bar widgets, add `<Widget>.qml` in `config/quickshell/bar/components/` and instantiate it inside `config/quickshell/bar/Bar.qml`.
   2. For standalone overlay panels or windows, place them in their own directory under `config/quickshell/<name>/` and instantiate them inside `ShellRoot` in `config/quickshell/shell.qml`.

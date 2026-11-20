@@ -17,16 +17,25 @@ Pill {
     textColor: Colors.onSurface
     surfaceColor: Colors.surfaceContainerHigh
     spacing: 4
+    active: popup.visible
 
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: AudioService.toggleMute()
+        onClicked: mouse => {
+            if (mouse.button === Qt.LeftButton)
+                popup.toggle();
+        }
         onWheel: wheel => {
             if (wheel.angleDelta.y > 0) AudioService.volumeUp();
             else if (wheel.angleDelta.y < 0) AudioService.volumeDown();
         }
+    }
+
+    VolumePopup {
+        id: popup
+        anchorItem: root
     }
 
     // Neon progress bar

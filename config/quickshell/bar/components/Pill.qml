@@ -21,6 +21,9 @@ Surface {
     property alias iconItem: iconLabel
     property alias textItem: textLabel
 
+    // Persistent accent state for a pill whose popup is open.
+    property bool active: false
+
     readonly property bool hovered: _hover.hovered
 
     implicitHeight: Dimensions.control.height
@@ -28,8 +31,8 @@ Surface {
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
 
-    // Neon border on hover
-    borderColor: hovered
+    // Neon border on hover, kept while the pill's popup is open.
+    borderColor: hovered || active
         ? Colors.withAlpha(Colors.primary, 0.55)
         : Colors.withAlpha(Colors.outlineVariant, 0.18)
 

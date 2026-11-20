@@ -1,5 +1,5 @@
 import QtQuick
-import "../theme"
+import "../../theme"
 
 // Material 3 Expressive slider: a thick capsule track split by a vertical
 // handle, with a stop indicator dot at the end of the inactive track.

@@ -1,18 +1,11 @@
 import QtQuick
 import QtQuick.Layouts
-import "../theme"
-import "../bar/components"
+import "../../theme"
 
-// Sound page inside the settings popup. Shows output/input volume, mute and
-// device selection for PipeWire via AudioService (pactl under the hood).
+// Output/input volume, mute and device selection for PipeWire via
+// AudioService (pactl under the hood), hosted by the bar volume popup.
 Item {
     id: root
-
-    signal back()
-    signal close()
-
-    implicitWidth: 380
-    implicitHeight: 570
 
     // Local slider position while dragging, so the track doesn't fight the
     // service state mid-drag. After release we keep the local value briefly
@@ -113,79 +106,25 @@ Item {
         return labels[raw.toLowerCase()] || raw.toUpperCase();
     }
 
-    // Refresh shortly after opening so the first frame isn't blocked by pactl.
-    onVisibleChanged: {
-        if (visible) {
-            flick.contentY = 0;
-            refreshDelay.restart();
-        } else {
-            refreshDelay.stop();
-        }
+    // Called when the popup opens: the controls stay alive while the popup
+    // window is hidden, so visibility changes are not enough to detect this.
+    function refresh() {
+        flick.contentY = 0;
+        refreshDelay.restart();
     }
 
     Timer {
         id: refreshDelay
         interval: 120
         repeat: false
-        onTriggered: if (root.visible) AudioService.refresh()
-    }
-
-    // ── Header ─────────────────────────────────────────────────────────────
-    Item {
-        id: header
-
-        anchors {
-            top: parent.top
-            left: parent.left
-            right: parent.right
-        }
-        height: 46
-
-        Rectangle {
-            anchors {
-                bottom: parent.bottom
-                left: parent.left
-                right: parent.right
-            }
-            height: 1
-            color: Colors.withAlpha(Colors.outlineVariant, 0.25)
-        }
-
-        IconButton {
-            id: backButton
-
-            anchors {
-                left: parent.left
-                leftMargin: 8
-                verticalCenter: parent.verticalCenter
-            }
-            icon: Icons.arrowBack
-            iconSize: Dimensions.icon.medium
-            onClicked: root.back()
-        }
-
-        Text {
-            anchors {
-                left: backButton.right
-                leftMargin: 2
-                verticalCenter: parent.verticalCenter
-            }
-            text: "Sound"
-            color: Colors.onSurface
-            font.family: Typography.barFont
-            font.pixelSize: Typography.size.titleSmall
-            font.weight: Typography.weight.bold
-        }
+        onTriggered: AudioService.refresh()
     }
 
     Flickable {
         id: flick
 
         anchors {
-            top: header.bottom
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
+            fill: parent
             margins: 14
         }
         contentWidth: width

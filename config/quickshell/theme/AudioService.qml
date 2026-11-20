@@ -12,7 +12,7 @@ QtObject {
     property bool ready: false
     signal volumeChangedManually(int vol, bool isMuted)
 
-    // Full device state used by the settings sound page.
+    // Full device state used by the bar volume popup.
     property string defaultSinkName: ""
     property string defaultSourceName: ""
     property var sinks: []     // { index, name, description, icon, channels, muted, isDefault }
