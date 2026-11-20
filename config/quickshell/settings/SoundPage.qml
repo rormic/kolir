@@ -46,6 +46,15 @@ Item {
     readonly property int displayOutputVolume: root.draggingOutput ? Math.round(root.dragOutputValue) : root.outVolume
     readonly property int displayInputVolume: root.draggingInput ? Math.round(root.dragInputValue) : root.inVolume
 
+    // Codec switching only applies to the A2DP profiles of a Bluetooth sink.
+    readonly property var btCard: root.out ? AudioService.cardForSink(root.out.name) : null
+    readonly property var codecProfiles: {
+        if (!root.btCard || !Array.isArray(root.btCard.profiles))
+            return [];
+        return root.btCard.profiles.filter(p => (p.name || "").startsWith("a2dp-sink"));
+    }
+    readonly property bool showCodec: root.codecProfiles.length > 0
+
     function iconFor(kind, device) {
         const muted = kind === "out" ? (root.out ? root.out.muted : AudioService.muted)
                                     : (root.inp ? root.inp.muted : false);
@@ -69,6 +78,39 @@ Item {
         if (!device || !device.description)
             return fallback;
         return device.description;
+    }
+
+    // PipeWire puts the actual codec in the profile description
+    // ("... (A2DP Sink, codec AAC)"); the bare "a2dp-sink" profile is AAC,
+    // not a generic auto mode. Fall back to the profile-name suffix.
+    function codecLabel(profile) {
+        const labels = {
+            "": "Auto",
+            "sbc": "SBC",
+            "sbc_xq": "SBC-XQ",
+            "sbc-xq": "SBC-XQ",
+            "aac": "AAC",
+            "ldac": "LDAC",
+            "aptx": "aptX",
+            "aptx_hd": "aptX HD",
+            "aptx-hd": "aptX HD",
+            "aptx_ll": "aptX LL",
+            "aptx_ll_duplex": "aptX LL",
+            "aptx_adaptive": "aptX Adaptive",
+            "faststream": "FastStream",
+            "faststream_duplex": "FastStream",
+            "opus_05": "Opus",
+            "opus_05_pro": "Opus Pro",
+            "lc3plus_h3": "LC3plus",
+            "lc3": "LC3",
+            "cvsd": "CVSD",
+            "msbc": "mSBC"
+        };
+        const desc = String(profile && profile.description || "");
+        const match = desc.match(/codec\s+([\w.+-]+)/i);
+        const raw = match ? match[1]
+                          : String(profile && profile.name || "").replace(/^a2dp-sink-?/, "");
+        return labels[raw.toLowerCase()] || raw.toUpperCase();
     }
 
     // Refresh shortly after opening so the first frame isn't blocked by pactl.
@@ -300,6 +342,84 @@ Item {
                             root.dragOutputValue = value;
                             AudioService.setOutputVolume(value);
                             outputSettleTimer.restart();
+                        }
+                    }
+
+                    // ── Bluetooth codec chips ─────────────────────────────
+                    // Only the A2DP profiles the headset advertises are listed.
+                    // PipeWire exposes one profile per codec; the bare
+                    // "a2dp-sink" profile carries AAC.
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        visible: root.showCodec
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Bluetooth codec"
+                            color: Colors.onSurfaceVariant
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.labelSmall
+                            font.weight: Typography.weight.medium
+                        }
+
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Repeater {
+                                model: root.codecProfiles
+
+                                delegate: Rectangle {
+                                    id: codecChip
+
+                                    required property var modelData
+
+                                    readonly property bool active: root.btCard
+                                        && root.btCard.activeProfile === modelData.name
+                                    readonly property bool hovered: codecHover.hovered
+
+                                    width: codecText.implicitWidth + 20
+                                    height: 26
+                                    radius: Dimensions.radius.full
+                                    color: codecChip.active
+                                        ? Colors.primaryContainer
+                                        : codecChip.hovered
+                                            ? Colors.stateLayer(Colors.primary, 0.12)
+                                            : Colors.surfaceContainerLowest
+                                    border.width: 1
+                                    border.color: codecChip.active
+                                        ? Colors.withAlpha(Colors.primary, 0.7)
+                                        : Colors.withAlpha(Colors.outlineVariant, 0.35)
+
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                                    HoverHandler { id: codecHover }
+
+                                    Text {
+                                        id: codecText
+                                        anchors.centerIn: parent
+                                        text: root.codecLabel(codecChip.modelData)
+                                        color: codecChip.active
+                                            ? Colors.onPrimaryContainer
+                                            : Colors.onSurfaceVariant
+                                        font.family: Typography.barFont
+                                        font.pixelSize: Typography.size.labelSmall
+                                        font.weight: codecChip.active
+                                            ? Typography.weight.bold
+                                            : Typography.weight.medium
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        enabled: !codecChip.active
+                                        onClicked: AudioService.setCardProfile(root.btCard.name,
+                                                                               codecChip.modelData.name)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

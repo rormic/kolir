@@ -17,6 +17,11 @@ QtObject {
     property string defaultSourceName: ""
     property var sinks: []     // { index, name, description, icon, channels, muted, isDefault }
     property var sources: []   // { index, name, description, icon, channels, muted, isDefault }
+    // Bluetooth cards only: { name, activeProfile, address, profiles[] }.
+    // Profiles are PipeWire card profiles. A2DP codecs are exposed as
+    // "a2dp-sink-<codec>" (plus a bare "a2dp-sink" for AAC) and can be
+    // switched with pactl set-card-profile.
+    property var cards: []
 
     readonly property var activeSink: root.sinks.find(s => s.isDefault)
     readonly property var activeSource: root.sources.find(s => s.isDefault)
@@ -142,6 +147,8 @@ QtObject {
             icon: root.deviceIcon(entry),
             channels: root.channelList(entry.volume),
             muted: !!entry.mute,
+            // Negotiated Bluetooth codec (empty for non-Bluetooth devices).
+            codec: entry.properties?.["api.bluez5.codec"] || "",
             isDefault: false
         }));
 
@@ -153,6 +160,67 @@ QtObject {
             );
         }
         return devices;
+    }
+
+    function parseCards(text) {
+        let parsed;
+        try {
+            parsed = JSON.parse(text.trim());
+        } catch (err) {
+            console.warn("AudioService: failed to parse cards", err);
+            return [];
+        }
+        if (!Array.isArray(parsed))
+            return [];
+
+        const cards = [];
+        for (let i = 0; i < parsed.length; i++) {
+            const entry = parsed[i];
+            const name = entry.name || "";
+            // Only BlueZ cards carry switchable A2DP codec profiles.
+            if (!name.startsWith("bluez_card."))
+                continue;
+
+            const profiles = [];
+            const raw = entry.profiles;
+            // pactl -f json list cards returns profiles as an object keyed by
+            // profile name; some versions use an array instead.
+            if (Array.isArray(raw)) {
+                for (const p of raw) {
+                    if (p && p.name && p.available !== false)
+                        profiles.push({ name: p.name, description: p.description || p.name });
+                }
+            } else if (raw && typeof raw === "object") {
+                for (const key of Object.keys(raw)) {
+                    const p = raw[key];
+                    if (p && p.available !== false)
+                        profiles.push({ name: key, description: (p && p.description) || key });
+                }
+            }
+
+            cards.push({
+                name: name,
+                activeProfile: entry.active_profile || "",
+                address: entry.properties?.["api.bluez5.address"] || "",
+                profiles: profiles
+            });
+        }
+        return cards;
+    }
+
+    // bluez_output.98_80_BB_41_CF_2D.1 -> bluez_card.98_80_BB_41_CF_2D
+    function cardNameForSink(sinkName) {
+        if (!sinkName || !sinkName.startsWith("bluez_output."))
+            return "";
+        const mac = sinkName.slice("bluez_output.".length).split(".")[0];
+        return mac ? "bluez_card." + mac : "";
+    }
+
+    function cardForSink(sinkName) {
+        const name = root.cardNameForSink(sinkName);
+        if (!name)
+            return null;
+        return root.cards.find(c => c.name === name) || null;
     }
 
     function markDefaults() {
@@ -248,6 +316,8 @@ QtObject {
             sourceProc.running = true;
         if (!defaultProc.running)
             defaultProc.running = true;
+        if (!cardProc.running)
+            cardProc.running = true;
     }
 
     function enqueueCommand(command, description) {
@@ -298,6 +368,14 @@ QtObject {
         if (!name)
             return;
         root.enqueueCommand(["pactl", "set-default-source", name], "default-source");
+    }
+
+    // Switch the active Bluetooth codec by selecting its card profile
+    // (e.g. "a2dp-sink-ldac"). The brief audio dropout is expected.
+    function setCardProfile(cardName, profileName) {
+        if (!cardName || !profileName)
+            return;
+        root.enqueueCommand(["pactl", "set-card-profile", cardName, profileName], "card-profile");
     }
 
     // These are throttled: every slider move updates the pending value, and
@@ -389,6 +467,14 @@ QtObject {
                 root.sources = root.parseDevices(text, "source");
                 root.markDefaults();
             }
+        }
+    }
+
+    property Process cardProc: Process {
+        command: ["pactl", "-f", "json", "list", "cards"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: root.cards = root.parseCards(text)
         }
     }
 
