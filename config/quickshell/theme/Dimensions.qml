@@ -57,6 +57,15 @@ QtObject {
         readonly property int barContent: 12
     }
 
+    // Material 3 linear progress indicator metrics.
+    readonly property QtObject progress: QtObject {
+        readonly property int thickness: 4
+        readonly property int gap: 4
+        readonly property int stopIndicator: 4
+        readonly property int waveAmplitude: 3
+        readonly property int wavelength: 40
+    }
+
     readonly property QtObject spacing: QtObject {
         readonly property int none: 0
         readonly property int extraSmall: 2

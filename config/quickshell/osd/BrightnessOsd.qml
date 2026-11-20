@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import "../bar/components"
 import "../theme"
 
 Scope {
@@ -120,31 +121,17 @@ Scope {
                         Behavior on color { ColorAnimation { duration: 140 } }
                     }
 
-                    // Progress Slider
-                    Rectangle {
-                        id: track
+                    // Material 3 linear progress indicator: wavy while the OSD
+                    // is visible, flat track with a gap and a stop dot.
+                    ProgressIndicator {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - 18 - 8 - 36 - 8 // width minus icon, gaps, text
-                        height: 4
-                        radius: 2
-                        color: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
-
-                        Rectangle {
-                            id: fill
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: Math.max(0, Math.min(track.width, track.width * (Math.min(100, Math.max(0, BrightnessService.value)) / 100)))
-                            radius: 2
-                            color: Colors.primary
-
-                            Behavior on width {
-                                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
-                            }
-                            Behavior on color {
-                                ColorAnimation { duration: 140 }
-                            }
-                        }
+                        height: implicitHeight
+                        value: BrightnessService.value
+                        indicatorColor: Colors.primary
+                        trackColor: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
+                        wavy: true
+                        playing: root.active
                     }
 
                     // Value text

@@ -30,15 +30,19 @@ Pill {
         }
     }
 
-    // Neon progress bar
-    Rectangle {
-        x: 6
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 2
-        width: (parent.width - 12) * BrightnessService.value / 100
-        height: 2
-        radius: 1
-        color: Colors.withAlpha(Colors.primary, 0.75)
-        Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+    // Material 3 linear progress indicator along the bottom edge.
+    ProgressIndicator {
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            leftMargin: 6
+            rightMargin: 6
+            bottomMargin: 2
+        }
+        height: implicitHeight
+        value: BrightnessService.value
+        indicatorColor: Colors.primary
+        trackColor: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
     }
 }
