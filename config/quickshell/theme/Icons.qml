@@ -15,6 +15,10 @@ QtObject {
     readonly property string micOff: "mic_off"
 
     readonly property string musicNote: "music_note"
+    readonly property string playArrow: "play_arrow"
+    readonly property string pause: "pause"
+    readonly property string skipNext: "skip_next"
+    readonly property string skipPrevious: "skip_previous"
     readonly property string record: "fiber_manual_record"
     readonly property string stop: "stop_circle"
 
