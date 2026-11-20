@@ -319,8 +319,8 @@ Scope {
         anchors.top: true
         margins.top: win.screen
             ? Math.max(8, Math.min(
-                (win.screen.height - Dimensions.bar.height - compactHeight) / 2,
-                win.screen.height - Dimensions.bar.height - expandedHeight - 8))
+                (win.screen.height - Dimensions.bar.height - Dimensions.bar.margin - compactHeight) / 2,
+                win.screen.height - Dimensions.bar.height - Dimensions.bar.margin - expandedHeight - 8))
             : 0
 
         WlrLayershell.layer: WlrLayer.Overlay

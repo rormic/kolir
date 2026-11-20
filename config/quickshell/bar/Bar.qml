@@ -8,7 +8,7 @@ import QtQuick
 PanelWindow {
     id: bar
     WlrLayershell.namespace: "bar"
-    WlrLayershell.exclusiveZone: Dimensions.bar.height
+    WlrLayershell.exclusiveZone: Dimensions.bar.height + Dimensions.bar.margin
 
     anchors {
         top: true
@@ -17,28 +17,54 @@ PanelWindow {
     }
 
     color: "transparent"
-    implicitHeight: Dimensions.bar.height
+    implicitHeight: Dimensions.bar.height + Dimensions.bar.margin
+
+    // The window spans the full top edge so the exclusive zone stays flush,
+    // while the visible surface floats inside it with an equal gap on every
+    // side. The mask follows the surface so the gaps stay click-through.
+    mask: Region {
+        x: Dimensions.bar.sideMargin
+        y: Dimensions.bar.margin
+        width: bar.width - Dimensions.bar.sideMargin * 2
+        height: Dimensions.bar.height
+        radius: Dimensions.bar.radius
+    }
 
     Rectangle {
         id: background
-        anchors.fill: parent
+        anchors {
+            top: parent.top
+            topMargin: Dimensions.bar.margin
+            left: parent.left
+            right: parent.right
+            leftMargin: Dimensions.bar.sideMargin
+            rightMargin: Dimensions.bar.sideMargin
+        }
+        height: Dimensions.bar.height
         // Very dark, nearly opaque — neon pops on dark
         color: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+        radius: Dimensions.bar.radius
 
         // Subtle top highlight
         Rectangle {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.leftMargin: Dimensions.bar.radius
+            anchors.rightMargin: Dimensions.bar.radius
             height: 1
             color: Colors.withAlpha(Colors.surfaceContainerHighest, 0.18)
         }
 
-        // Neon bottom line — the signature accent
+        // Neon bottom line — the signature accent. Inset by the corner radius
+        // so it stays on the flat part of the bottom edge instead of cutting
+        // across the rounded corners.
         Rectangle {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.leftMargin: Dimensions.bar.radius
+            anchors.rightMargin: Dimensions.bar.radius
             height: 1
             gradient: Gradient {
                 orientation: Gradient.Horizontal
@@ -94,7 +120,7 @@ PanelWindow {
         // Right edge
         Row {
             anchors.right: parent.right
-            anchors.rightMargin: 4
+            anchors.rightMargin: Dimensions.padding.barContent
             anchors.verticalCenter: parent.verticalCenter
             spacing: Dimensions.spacing.small
 

@@ -18,7 +18,13 @@ QtObject {
 
     readonly property QtObject bar: QtObject {
         readonly property int height: 30
-        readonly property int margin: 0
+        // Floating gap above the bar (also used as the notification offset).
+        readonly property int margin: 8
+        // Side inset of the bar surface (matches Hyprland's gaps_out), so the
+        // bar edges line up with the window columns.
+        readonly property int sideMargin: 8
+        // The surface floats away from every screen edge.
+        readonly property int radius: 12
         readonly property int contentHeight: 24
     }
 
@@ -39,7 +45,7 @@ QtObject {
         readonly property int horizontal: 10
         readonly property int vertical: 4
         readonly property int chipHorizontal: 8
-        readonly property int barContent: 8
+        readonly property int barContent: 12
     }
 
     readonly property QtObject spacing: QtObject {
