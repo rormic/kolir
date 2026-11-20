@@ -42,7 +42,10 @@ hl.env("HYPRCURSOR_THEME", "Mocu-White-Left")
 
 hl.config({
 	decoration = {
-		rounding = 9,
+		-- Dimensions.frame.radius must stay equal to this value: a mismatch
+		-- leaves a gap or makes the frame clip the window border at the
+		-- corners.
+		rounding = 28,
 		rounding_power = 2.0,
 	},
 })

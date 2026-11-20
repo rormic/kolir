@@ -18,14 +18,23 @@ QtObject {
 
     readonly property QtObject bar: QtObject {
         readonly property int height: 30
-        // Floating gap above the bar (also used as the notification offset).
-        readonly property int margin: 8
-        // Side inset of the bar surface (matches Hyprland's gaps_out), so the
-        // bar edges line up with the window columns.
-        readonly property int sideMargin: 8
-        // The surface floats away from every screen edge.
-        readonly property int radius: 12
+        // No offset from the screen edges: the bar is docked flush. Kept as a
+        // token because popups offset themselves from it.
+        readonly property int margin: 0
         readonly property int contentHeight: 24
+    }
+
+    // Screen frame drawn around the desktop, caelestia style: the bar surface
+    // fills the window gaps so the desktop is a single rounded cut-out.
+    // `thickness` must match Hyprland's gaps_out or the frame will either
+    // leave a seam or slide under the windows.
+    readonly property QtObject frame: QtObject {
+        readonly property int thickness: 4
+        // Must equal decoration.rounding + border_size: that is the curve the
+        // window border actually renders. A smaller radius leaves a dark gap
+        // at the corners; a larger one makes the two arcs cross and clips the
+        // border into crooked slivers.
+        readonly property int radius: 30
     }
 
     readonly property QtObject control: QtObject {

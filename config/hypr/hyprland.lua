@@ -101,7 +101,7 @@ hl.env("HYPRCURSOR_SIZE", "16")
 hl.config({
 	general = {
 		gaps_in = 4,
-		gaps_out = 8,
+		gaps_out = 4,
 
 		border_size = 2,
 
@@ -115,7 +115,10 @@ hl.config({
 	},
 
 	decoration = {
-		rounding = 12,
+		-- Dimensions.frame.radius must stay equal to this value: a mismatch
+		-- leaves a gap or makes the frame clip the window border at the
+		-- corners.
+		rounding = 28,
 		rounding_power = 2,
 
 		-- Change transparency of focused and unfocused windows
