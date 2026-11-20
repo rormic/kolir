@@ -5,50 +5,491 @@ import Quickshell.Io
 QtObject {
     id: root
 
+    // Legacy / compatibility surface: state of the *default output*.
+    // Kept intact for Volume.qml and VolumeOsd.qml.
     property int volume: 0
     property bool muted: false
     property bool ready: false
     signal volumeChangedManually(int vol, bool isMuted)
 
-    // Процес зчитування поточного рівня гучності через wpctl
-    property Process getProc: Process {
-        command: ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const raw = text.trim()
-                if (!raw) return
-                // raw: "Volume: 0.28" або "Volume: 0.28 [MUTED]"
-                const parts = raw.split(/\s+/)
-                if (parts.length >= 2) {
-                    const val = Math.round(parseFloat(parts[1]) * 100)
-                    const isMuted = raw.includes("[MUTED]")
+    // Full device state used by the settings sound page.
+    property string defaultSinkName: ""
+    property string defaultSourceName: ""
+    property var sinks: []     // { index, name, description, icon, channels, muted, isDefault }
+    property var sources: []   // { index, name, description, icon, channels, muted, isDefault }
 
-                    if (root.ready && (root.volume !== val || root.muted !== isMuted)) {
-                        root.volumeChangedManually(val, isMuted)
-                    }
-                    root.volume = val
-                    root.muted = isMuted
-                    root.ready = true
-                }
+    readonly property var activeSink: root.sinks.find(s => s.isDefault)
+    readonly property var activeSource: root.sources.find(s => s.isDefault)
+
+    // How long to coalesce pactl subscribe bursts before refreshing.
+    property Timer debounce: Timer {
+        interval: 150
+        repeat: false
+        onTriggered: root.refresh()
+    }
+
+    // Live volume edits are coalesced: the slider reports every pointer move,
+    // but pactl only gets the latest value on a short timer. A small queue
+    // serializes them with device switches so nothing overlaps.
+    property real pendingOutputVolume: -1
+    property string pendingOutputSink: ""
+    property real pendingInputVolume: -1
+    property string pendingInputSource: ""
+    property var actionQueue: []
+
+    property Timer outputVolumeTimer: Timer {
+        id: outputVolumeTimer
+        interval: 40
+        repeat: true
+        onTriggered: {
+            if (root.pendingOutputVolume < 0) {
+                outputVolumeTimer.running = false;
+                return;
             }
+            const value = root.pendingOutputVolume;
+            const name = root.pendingOutputSink;
+            root.pendingOutputVolume = -1;
+            root.pendingOutputSink = "";
+            if (name)
+                root.applyVolumeToDevice("sink", name, value);
         }
     }
 
-    // Слухач подій Pipewire/PulseAudio в реальному часі через pactl subscribe
+    property Timer inputVolumeTimer: Timer {
+        id: inputVolumeTimer
+        interval: 40
+        repeat: true
+        onTriggered: {
+            if (root.pendingInputVolume < 0) {
+                inputVolumeTimer.running = false;
+                return;
+            }
+            const value = root.pendingInputVolume;
+            const name = root.pendingInputSource;
+            root.pendingInputVolume = -1;
+            root.pendingInputSource = "";
+            if (name)
+                root.applyVolumeToDevice("source", name, value);
+        }
+    }
+
+    function clampPercent(value) {
+        return Math.max(0, Math.min(100, Math.round(value)))
+    }
+
+    function volumePercent(device) {
+        if (!device || !Array.isArray(device.channels))
+            return 0;
+        const values = device.channels.map(ch => parseInt(String(ch.value_percent ?? "0").replace("%", ""), 10));
+        if (values.length === 0 || values.some(isNaN))
+            return 0;
+        return root.clampPercent(values.reduce((a, b) => a + b, 0) / values.length);
+    }
+
+    function channelList(volume) {
+        if (!volume)
+            return [];
+        if (Array.isArray(volume))
+            return volume;
+        const out = [];
+        for (const key of Object.keys(volume)) {
+            if (volume[key] && typeof volume[key] === "object")
+                out.push(volume[key]);
+        }
+        return out;
+    }
+
+    function describeDevice(entry) {
+        return entry.description
+            || entry.properties?.["device.nick"]
+            || entry.name
+            || "";
+    }
+
+    function deviceIcon(entry) {
+        const mediaClass = entry.properties?.["media.class"] || "";
+        const icon = entry.properties?.["device.icon_name"] || "";
+
+        if (mediaClass === "Audio/Source" && /microphone|mic/i.test(icon))
+            return "audio-input-microphone";
+
+        if (/headset|headphone/i.test(icon))
+            return "audio-headset";
+        if (/speaker/i.test(icon))
+            return "speaker";
+        if (/hdmi|displayport/i.test(icon))
+            return "video-display";
+        if (/microphone|mic/i.test(icon))
+            return "audio-input-microphone";
+        return mediaClass === "Audio/Source" ? "audio-input-microphone" : "audio-card-analog";
+    }
+
+    function parseDevices(text, kind) {
+        let parsed;
+        try {
+            parsed = JSON.parse(text.trim());
+        } catch (err) {
+            console.warn("AudioService: failed to parse", kind, err);
+            return [];
+        }
+        if (!Array.isArray(parsed))
+            return [];
+
+        const devices = parsed.map(entry => ({
+            index: entry.index,
+            name: entry.name,
+            description: root.describeDevice(entry),
+            icon: root.deviceIcon(entry),
+            channels: root.channelList(entry.volume),
+            muted: !!entry.mute,
+            isDefault: false
+        }));
+
+        // Hide monitor sources from the microphone picker (they mirror a sink).
+        if (kind === "source") {
+            return devices.filter(d =>
+                !d.name.endsWith(".monitor")
+                && d.channels.length > 0
+            );
+        }
+        return devices;
+    }
+
+    function markDefaults() {
+        const nextSinks = [];
+        for (let i = 0; i < root.sinks.length; i++) {
+            const sink = root.sinks[i];
+            sink.isDefault = sink.name === root.defaultSinkName;
+            nextSinks.push(sink);
+        }
+        root.sinks = nextSinks;
+
+        const nextSources = [];
+        for (let j = 0; j < root.sources.length; j++) {
+            const source = root.sources[j];
+            source.isDefault = source.name === root.defaultSourceName;
+            nextSources.push(source);
+        }
+        root.sources = nextSources;
+
+        // A default endpoint can disappear from `pactl list` (e.g. a BlueZ
+        // device). Keep it selectable by querying it directly once per refresh.
+        const missingSink = root.defaultSinkName && !root.sinks.some(s => s.name === root.defaultSinkName);
+        const missingSource = root.defaultSourceName && !root.sources.some(s => s.name === root.defaultSourceName);
+        if ((missingSink || missingSource) && !root.detailProc.running) {
+            root.detailProc.command = [
+                "sh", "-c",
+                (missingSink
+                    ? 'echo SINK:$(pactl get-default-sink 2>/dev/null); pactl get-sink-volume "$(pactl get-default-sink 2>/dev/null)" 2>/dev/null; pactl get-sink-mute "$(pactl get-default-sink 2>/dev/null)" 2>/dev/null;'
+                    : "")
+                + (missingSource
+                    ? 'echo SOURCE:$(pactl get-default-source 2>/dev/null); pactl get-source-volume "$(pactl get-default-source 2>/dev/null)" 2>/dev/null; pactl get-source-mute "$(pactl get-default-source 2>/dev/null)" 2>/dev/null;'
+                    : "")
+            ];
+            root.detailProc.buffer = "";
+            root.detailProc.running = true;
+            return;
+        }
+
+        root.ensureLegacyVolume();
+    }
+
+    function ensureLegacyVolume() {
+        const out = root.activeSink;
+        if (!out)
+            return;
+
+        const vol = root.volumePercent(out);
+        const wasReady = root.ready;
+        if (wasReady && (root.volume !== vol || root.muted !== out.muted))
+            root.volumeChangedManually(vol, out.muted);
+        root.volume = vol;
+        root.muted = out.muted;
+        root.ready = true;
+    }
+
+    // Insert/update a default endpoint that pactl's list didn't contain.
+    function applyFallback(kind, name, percent, muted) {
+        if (!name)
+            return;
+
+        const devices = kind === "sink" ? root.sinks : root.sources;
+        const channels = [{ value_percent: Math.max(0, Math.min(100, Math.round(percent))) + "%" }];
+        let found = null;
+        for (let i = 0; i < devices.length; i++) {
+            if (devices[i].name === name) {
+                found = devices[i];
+                break;
+            }
+        }
+
+        if (found) {
+            found.channels = channels;
+            found.muted = muted;
+        } else {
+            devices.push({
+                index: -1,
+                name: name,
+                description: name,
+                icon: kind === "sink" ? "audio-card-analog" : "audio-input-microphone",
+                channels: channels,
+                muted: muted,
+                isDefault: true
+            });
+        }
+
+        root.ensureLegacyVolume();
+    }
+
+    function refresh() {
+        if (!sinkProc.running)
+            sinkProc.running = true;
+        if (!sourceProc.running)
+            sourceProc.running = true;
+        if (!defaultProc.running)
+            defaultProc.running = true;
+    }
+
+    function enqueueCommand(command, description) {
+        root.actionQueue.push({
+            command: command,
+            description: description || ""
+        });
+        root.runNextAction();
+    }
+
+    function runNextAction() {
+        if (root.actionProc.running || root.actionQueue.length === 0)
+            return;
+        const next = root.actionQueue.shift();
+        root.actionProc.buffer = "";
+        root.actionProc.command = next.command;
+        root.actionProc.running = true;
+    }
+
+    function applyVolumeToDevice(kind, name, percent) {
+        const target = root.clampPercent(percent);
+        if (kind === "sink")
+            root.enqueueCommand(["pactl", "set-sink-volume", name, target + "%"], "volume");
+        else
+            root.enqueueCommand(["pactl", "set-source-volume", name, target + "%"], "volume");
+    }
+
+    function toggleMuteForDevice(kind, name) {
+        const command = kind === "sink"
+            ? ["pactl", "set-sink-mute", name, "toggle"]
+            : ["pactl", "set-source-mute", name, "toggle"];
+        root.enqueueCommand(command, "mute");
+    }
+
+    // ── Public controls (settings page) ─────────────────────────────────────
+    function setDefaultSink(name) {
+        if (!name)
+            return;
+        // Set the default and move existing playback streams so the audio
+        // follows the device the user just picked.
+        const script = 'pactl set-default-sink "$1" && pactl list short sink-inputs'
+            + ' | awk \'{print $1}\' | while read -r id; do'
+            + ' pactl move-sink-input "$id" "$1" >/dev/null 2>&1; done';
+        root.enqueueCommand(["sh", "-c", script, "sh", name], "default-sink");
+    }
+
+    function setDefaultSource(name) {
+        if (!name)
+            return;
+        root.enqueueCommand(["pactl", "set-default-source", name], "default-source");
+    }
+
+    // These are throttled: every slider move updates the pending value, and
+    // the timers above flush it to pactl a few times per second.
+    function setOutputVolume(percent) {
+        const sink = root.activeSink;
+        if (!sink)
+            return;
+        const value = root.clampPercent(percent);
+        root.pendingOutputVolume = value;
+        root.pendingOutputSink = sink.name;
+        if (!outputVolumeTimer.running)
+            outputVolumeTimer.running = true;
+    }
+
+    function setInputVolume(percent) {
+        const source = root.activeSource;
+        if (!source)
+            return;
+        const value = root.clampPercent(percent);
+        root.pendingInputVolume = value;
+        root.pendingInputSource = source.name;
+        if (!inputVolumeTimer.running)
+            inputVolumeTimer.running = true;
+    }
+
+    function toggleOutputMute() {
+        const sink = root.activeSink;
+        if (sink)
+            root.toggleMuteForDevice("sink", sink.name);
+    }
+
+    function toggleInputMute() {
+        const source = root.activeSource;
+        if (source)
+            root.toggleMuteForDevice("source", source.name);
+    }
+
+    // Keep the old API working (bar scroll / shortcuts). It still targets the
+    // default sink with a 5% step, matching previous behavior.
+    function toggleMute() {
+        root.toggleOutputMute();
+    }
+
+    function volumeUp() {
+        root.setOutputVolume(root.volume + 2);
+    }
+
+    function volumeDown() {
+        root.setOutputVolume(root.volume - 2);
+    }
+
+    // ── Processes ───────────────────────────────────────────────────────────
+
+    // Live PipeWire/PulseAudio events. Any relevant object change schedules a
+    // coalesced refresh; we don't spawn a process per event.
     property Process subProc: Process {
         command: ["pactl", "subscribe"]
         running: true
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                if (data.includes("sink") || data.includes("card")) {
-                    if (!root.getProc.running) {
-                        root.getProc.running = true
-                    }
+                if (data.includes("sink")
+                    || data.includes("source")
+                    || data.includes("server")
+                    || data.includes("card")) {
+                    root.debounce.restart();
                 }
             }
         }
+    }
+
+    property Process sinkProc: Process {
+        command: ["pactl", "-f", "json", "list", "sinks"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.sinks = root.parseDevices(text, "sink");
+                root.markDefaults();
+            }
+        }
+    }
+
+    property Process sourceProc: Process {
+        command: ["pactl", "-f", "json", "list", "sources"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.sources = root.parseDevices(text, "source");
+                root.markDefaults();
+            }
+        }
+    }
+
+    property Process defaultProc: Process {
+        command: [
+            "sh", "-c",
+            "echo SINK:$(pactl get-default-sink 2>/dev/null); echo SOURCE:$(pactl get-default-source 2>/dev/null)"
+        ]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.split("\n");
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line.startsWith("SINK:"))
+                        root.defaultSinkName = line.slice(5).trim();
+                    else if (line.startsWith("SOURCE:"))
+                        root.defaultSourceName = line.slice(7).trim();
+                }
+                root.markDefaults();
+            }
+        }
+    }
+
+    // Detail lookup for endpoints that vanished from pactl's main list.
+    property Process detailProc: Process {
+        running: false
+        property string buffer: ""
+        stdout: SplitParser { onRead: line => detailProc.buffer += line + "\n" }
+        stderr: SplitParser { onRead: line => detailProc.buffer += line + "\n" }
+
+        function parseFallback(text) {
+            const lines = text.split("\n");
+            let kind = "";
+            let name = "";
+            let volPercent = 0;
+            let muted = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const raw = lines[i].trim();
+                if (!raw)
+                    continue;
+
+                if (raw.startsWith("SINK:")) {
+                    if (kind && name)
+                        root.applyFallback(kind, name, volPercent, muted);
+                    kind = "sink";
+                    name = raw.slice(5).trim();
+                    volPercent = 0;
+                    muted = false;
+                } else if (raw.startsWith("SOURCE:")) {
+                    if (kind && name)
+                        root.applyFallback(kind, name, volPercent, muted);
+                    kind = "source";
+                    name = raw.slice(7).trim();
+                    volPercent = 0;
+                    muted = false;
+                } else if (raw.includes("[MUTED]")) {
+                    muted = true;
+                } else if (raw.indexOf("Volume:") === 0) {
+                    const percents = raw.match(/\d+%/g) || [];
+                    const values = percents.map(p => parseInt(p.replace("%", ""), 10)).filter(v => !isNaN(v));
+                    if (values.length > 0)
+                        volPercent = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+                } else if (raw.indexOf("Mute:") === 0) {
+                    muted = raw.toLowerCase().includes("yes") || raw.toLowerCase().includes("true");
+                }
+            }
+
+            if (kind && name)
+                root.applyFallback(kind, name, volPercent, muted);
+        }
+
+        onExited: () => {
+            detailProc.parseFallback(detailProc.buffer);
+            detailProc.buffer = "";
+            root.markDefaults();
+        }
+    }
+
+    // Single writer for every mutating action so we never overlap processes.
+    property Process actionProc: Process {
+        running: false
+        property string buffer: ""
+        stdout: SplitParser { onRead: line => actionProc.buffer += line + "\n" }
+        stderr: SplitParser { onRead: line => actionProc.buffer += line + "\n" }
+        onExited: code => {
+            actionProc.buffer = "";
+            if (code !== 0)
+                console.warn("AudioService: action failed with code", code);
+            root.runNextAction();
+            root.refresh();
+        }
+    }
+
+    // Occasional polling picks up changes made outside the shell.
+    property Timer pollTimer: Timer {
+        interval: 30000
+        repeat: true
+        running: true
+        onTriggered: root.refresh()
     }
 
     // Одноразовий таймер після старту для початкового зчитування
@@ -56,34 +497,6 @@ QtObject {
         interval: 100
         running: true
         repeat: false
-        onTriggered: root.getProc.running = true
-    }
-
-    // Процеси для керування гучністю
-    property Process muteProc: Process {
-        command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
-        running: false
-    }
-
-    property Process volUpProc: Process {
-        command: ["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", "5%+"]
-        running: false
-    }
-
-    property Process volDownProc: Process {
-        command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"]
-        running: false
-    }
-
-    function toggleMute() {
-        muteProc.running = true
-    }
-
-    function volumeUp() {
-        volUpProc.running = true
-    }
-
-    function volumeDown() {
-        volDownProc.running = true
+        onTriggered: root.refresh()
     }
 }

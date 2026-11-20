@@ -38,7 +38,8 @@ Item {
     readonly property int mainHeight: 164
     readonly property int bluetoothHeight: 520
     readonly property int internetHeight: 520
-    readonly property int maxPanelHeight: Math.max(mainHeight, bluetoothHeight, internetHeight)
+    readonly property int soundHeight: 570
+    readonly property int maxPanelHeight: Math.max(mainHeight, bluetoothHeight, internetHeight, soundHeight)
 
     readonly property real targetHeight: heightForPage(page)
 
@@ -47,6 +48,8 @@ Item {
             return bluetoothHeight;
         if (name === "internet")
             return internetHeight;
+        if (name === "sound")
+            return soundHeight;
         return mainHeight;
     }
 
@@ -279,6 +282,10 @@ Item {
             root.open("internet");
         }
 
+        function openSound(): void {
+            root.open("sound");
+        }
+
         function close(): void {
             root.close();
         }
@@ -312,7 +319,7 @@ Item {
             sequence: "Escape"
             enabled: root.opened
             onActivated: {
-                if (root.page === "bluetooth" || root.page === "internet")
+                if (root.page === "bluetooth" || root.page === "internet" || root.page === "sound")
                     root.navigate("main");
                 else
                     root.close();
@@ -411,6 +418,13 @@ Item {
                             onBack: root.navigate("main")
                             onClose: root.close()
                         }
+
+                        SoundPage {
+                            anchors.fill: parent
+                            visible: root.page === "sound"
+                            onBack: root.navigate("main")
+                            onClose: root.close()
+                        }
                     }
                 }
             }
@@ -440,7 +454,7 @@ Item {
         sequence: "Escape"
         enabled: root.opened
         onActivated: {
-            if (root.page === "bluetooth" || root.page === "internet")
+            if (root.page === "bluetooth" || root.page === "internet" || root.page === "sound")
                 root.navigate("main");
             else
                 root.close();
@@ -477,8 +491,9 @@ Item {
             {
                 icon: Icons.volumeUp,
                 title: "Sound",
-                subtitle: "Soon",
-                soon: true,
+                subtitle: "Output & input",
+                soon: false,
+                page: "sound",
             },
         ]
 

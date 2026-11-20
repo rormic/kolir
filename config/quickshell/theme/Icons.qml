@@ -12,6 +12,7 @@ QtObject {
     readonly property string volumeDown: "volume_down"
     readonly property string volumeOff: "volume_off"
     readonly property string volumeMute: "volume_mute"
+    readonly property string micOff: "mic_off"
 
     readonly property string musicNote: "music_note"
     readonly property string record: "fiber_manual_record"
