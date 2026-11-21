@@ -14,7 +14,7 @@ warn() {
 
 # --- Config selection -------------------------------------------------------
 # $KOLIR_MATUGEN_CONFIG wins, then the installed config, then the repository
-# copy so a fresh checkout works before install.sh has linked anything.
+# copy so a fresh checkout works before kolir setup has linked anything.
 if [[ -n ${KOLIR_MATUGEN_CONFIG:-} ]]; then
     MAIN_CONFIG=$KOLIR_MATUGEN_CONFIG
 elif [[ -r "$HOME/.config/matugen/config.toml" ]]; then

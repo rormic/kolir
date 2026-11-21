@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 STATE_FILE="$HOME/.cache/current_theme"
 
 current=$(cat "$STATE_FILE" 2>/dev/null)
@@ -19,6 +20,7 @@ gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme"
 # KDE
 kwriteconfig6 --file kdeglobals --group General --key ColorScheme "$kde_scheme"
 
+mkdir -p "$(dirname "$STATE_FILE")"
 echo "$new" > "$STATE_FILE"
 
-sh "$HOME/.config/hypr/scripts/generate-colors.sh"
+zsh "$SCRIPT_DIR/generate-colors.sh"
