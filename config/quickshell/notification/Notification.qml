@@ -1,4 +1,3 @@
-import ".."
 import "../bar/components"
 import "../theme"
 import QtQuick
