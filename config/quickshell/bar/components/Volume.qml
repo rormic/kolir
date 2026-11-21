@@ -1,5 +1,6 @@
 import QtQuick
 import "../../theme"
+import "../../services"
 
 // Volume chip: neon icon, mute = red, progress accent bar.
 Pill {

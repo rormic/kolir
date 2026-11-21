@@ -1,1 +1,2 @@
+singleton AudioService 1.0 AudioService.qml
 singleton ShellPaths 1.0 ShellPaths.qml

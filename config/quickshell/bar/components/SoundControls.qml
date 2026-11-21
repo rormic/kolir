@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../theme"
+import "../../services"
 import "sound"
 
 // Output/input volume, mute and device selection for PipeWire via

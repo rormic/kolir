@@ -3,6 +3,5 @@ singleton Dimensions 1.0 Dimensions.qml
 singleton Typography 1.0 Typography.qml
 singleton Icons 1.0 Icons.qml
 singleton Motion 1.0 Motion.qml
-singleton AudioService 1.0 AudioService.qml
 singleton BrightnessService 1.0 BrightnessService.qml
 singleton HyprsunsetService 1.0 HyprsunsetService.qml
