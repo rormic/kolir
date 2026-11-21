@@ -20,7 +20,6 @@ QtObject {
     readonly property string skipNext: "skip_next"
     readonly property string skipPrevious: "skip_previous"
     readonly property string record: "fiber_manual_record"
-    readonly property string stop: "stop_circle"
 
     readonly property string brightnessLow: "brightness_4"
     readonly property string brightnessMedium: "brightness_5"
@@ -52,7 +51,6 @@ QtObject {
 
     readonly property string wifi: "wifi"
     readonly property string wifiOff: "wifi_off"
-    readonly property string wifiLock: "wifi_lock"
     readonly property string ethernet: "settings_ethernet"
     readonly property string lock: "lock"
     readonly property string visibility: "visibility"
