@@ -1,18 +1,17 @@
 #!/usr/bin/env zsh
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib/monitors.sh"
+. "$SCRIPT_DIR/lib/awww.sh"
 
 # The monitor is chosen at runtime: $KOLIR_MONITOR, then the focused monitor,
 # then the first one, then DP-1 (the author's output).
 MONITOR=$(kolir_monitor_name)
 
-# The awww cache is NUL-separated: `crop:center\0Lanczos3\0/wallpaper.png`
-# (older awww versions wrote `...Lanczos3/wallpaper.png` in one piece).
-# Normalize NULs to newlines, strip everything up to and including the
-# Lanczos3 filter spec, and take the last resulting line as the path.
-IMAGE_PATH=$(tr '\0' '\n' < ~/.cache/awww/0.12.1/$MONITOR | sed -E 's/^.*Lanczos3//' | tail -n 1)
+# The wallpaper path comes from the live awww daemon first and from its cache
+# second; both the cache location and its encoding are version-tolerant.
+IMAGE_PATH=$(kolir_awww_wallpaper_path "$MONITOR") || exit 1
 if [[ ! -r "$IMAGE_PATH" ]]; then
-    echo "generate-colors.sh: cannot read wallpaper path '${IMAGE_PATH}' extracted from ~/.cache/awww/0.12.1/$MONITOR" >&2
+    echo "generate-colors.sh: cannot read wallpaper path '${IMAGE_PATH}' reported by awww for monitor '$MONITOR'" >&2
     exit 1
 fi
 
