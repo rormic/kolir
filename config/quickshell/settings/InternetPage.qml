@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell.Io
 import "../theme"
 import "../bar/components"
+import "internet"
 
 // Internet management page shown inside the settings popup. Uses nmcli
 // (NetworkManager) for Wi-Fi control and to report Ethernet status.
@@ -496,110 +497,18 @@ Item {
             spacing: 10
 
             // Ethernet status
-            Rectangle {
-                id: ethCard
-                Layout.fillWidth: true
-                implicitHeight: ethCol.implicitHeight + 20
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
-
-                ColumnLayout {
-                    id: ethCol
-                    anchors { fill: parent; margins: 10 }
-                    spacing: 8
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Rectangle {
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
-                            radius: 8
-                            color: root.ethernetState === "Connected"
-                                ? Colors.primaryContainer : Colors.surfaceContainerHighest
-                            Text {
-                                anchors.centerIn: parent
-                                text: Icons.ethernet
-                                color: root.ethernetState === "Connected"
-                                    ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
-                                font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.medium
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-                            Text {
-                                text: "Ethernet"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                font.weight: Typography.weight.medium
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: root.ethernetState
-                                    + (root.ethernetConnection ? " · " + root.ethernetConnection : "")
-                                    + (root.ethernetDevice ? " (" + root.ethernetDevice + ")" : "")
-                                color: root.ethernetState === "Connected" ? Colors.primary : Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        Text {
-                            visible: root.ethernetState === "Connected"
-                            text: root.ethernetDetailsExpanded ? Icons.chevronLeft : Icons.chevronRight
-                            rotation: root.ethernetDetailsExpanded ? -90 : 90
-                            color: Colors.onSurfaceVariant
-                            font.family: Typography.iconFont
-                            font.pixelSize: Dimensions.icon.medium
-                            Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-                        }
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: 2
-                        columnSpacing: 10
-                        rowSpacing: 4
-                        visible: root.ethernetState === "Connected" && root.ethernetDetailsExpanded
-
-                        Text { text: "Device"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { Layout.fillWidth: true; text: root.ethernetDevice || "—"; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
-
-                        Text { visible: root.ethernetIp4 !== ""; text: "IPv4"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { visible: root.ethernetIp4 !== ""; Layout.fillWidth: true; text: root.ethernetIp4; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
-
-                        Text { visible: root.ethernetGateway4 !== ""; text: "Gateway"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { visible: root.ethernetGateway4 !== ""; Layout.fillWidth: true; text: root.ethernetGateway4; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
-
-                        Text { visible: root.ethernetDns !== ""; text: "DNS"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { visible: root.ethernetDns !== ""; Layout.fillWidth: true; text: root.ethernetDns; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
-
-                        Text { visible: root.ethernetMac !== ""; text: "MAC"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { visible: root.ethernetMac !== ""; Layout.fillWidth: true; text: root.ethernetMac; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
-
-                        Text { visible: root.ethernetSpeed !== ""; text: "Link"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { visible: root.ethernetSpeed !== ""; Layout.fillWidth: true; text: root.ethernetSpeed; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
-
-                        Text { visible: root.ethernetIp6 !== ""; text: "IPv6"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-                        Text { visible: root.ethernetIp6 !== ""; Layout.fillWidth: true; text: root.ethernetIp6; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    z: -1
-                    enabled: root.ethernetState === "Connected"
-                    cursorShape: root.ethernetState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: root.ethernetDetailsExpanded = !root.ethernetDetailsExpanded
-                }
+            EthernetCard {
+                state: root.ethernetState
+                connection: root.ethernetConnection
+                device: root.ethernetDevice
+                mac: root.ethernetMac
+                speed: root.ethernetSpeed
+                ip4: root.ethernetIp4
+                gateway4: root.ethernetGateway4
+                dns: root.ethernetDns
+                ip6: root.ethernetIp6
+                expanded: root.ethernetDetailsExpanded
+                onToggleExpanded: root.ethernetDetailsExpanded = !root.ethernetDetailsExpanded
             }
 
             // Wi-Fi adapter card
