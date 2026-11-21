@@ -24,49 +24,15 @@ Item {
         onResetRequested: root.resetForms()
     }
 
-    // ── State (owned by the nmcli controller) ─────────────────────────────
-    property alias wifiEnabled: net.wifiEnabled
-    property alias hasWifiDevice: net.hasWifiDevice
-    property alias wifiDevice: net.wifiDevice
-    property alias activeWifi: net.activeWifi
-    property alias ethernetState: net.ethernetState
-    property alias ethernetConnection: net.ethernetConnection
-    property alias ethernetDevice: net.ethernetDevice
-    property alias ethernetMac: net.ethernetMac
-    property alias ethernetSpeed: net.ethernetSpeed
-    property alias ethernetIp4: net.ethernetIp4
-    property alias ethernetGateway4: net.ethernetGateway4
-    property alias ethernetDns: net.ethernetDns
-    property alias ethernetIp6: net.ethernetIp6
-    property alias ethernetDetailsExpanded: net.ethernetDetailsExpanded
-    property alias scanning: net.scanning
-    property alias busy: net.busy
-    property alias lastError: net.lastError
-
-    property alias wifiNetworks: net.wifiNetworks
-    property alias savedWifi: net.savedWifi
-
-    // Password / hidden forms
-    property alias formMode: net.formMode // "", "password", "hidden"
-    property alias formNetwork: net.formNetwork
-    property alias formSsid: net.formSsid
-    property alias formPassword: net.formPassword
-    property alias formShowPassword: net.formShowPassword
-    property alias formBusy: net.formBusy
-    property alias formError: net.formError
-    property alias formSecurityIndex: net.formSecurityIndex
-
-    property alias wifiConnected: net.wifiConnected
-
     function resetForms() {
-        formMode = "";
-        formNetwork = null;
-        formSsid = "";
-        formPassword = "";
-        formShowPassword = false;
-        formBusy = false;
-        formError = "";
-        formSecurityIndex = 1;
+        net.formMode = "";
+        net.formNetwork = null;
+        net.formSsid = "";
+        net.formPassword = "";
+        net.formShowPassword = false;
+        net.formBusy = false;
+        net.formError = "";
+        net.formSecurityIndex = 1;
     }
 
     // ── Header ─────────────────────────────────────────────────────────────
@@ -93,17 +59,17 @@ Item {
 
             // Ethernet status
             EthernetCard {
-                connectionState: root.ethernetState
-                connection: root.ethernetConnection
-                device: root.ethernetDevice
-                mac: root.ethernetMac
-                speed: root.ethernetSpeed
-                ip4: root.ethernetIp4
-                gateway4: root.ethernetGateway4
-                dns: root.ethernetDns
-                ip6: root.ethernetIp6
-                expanded: root.ethernetDetailsExpanded
-                onToggleExpanded: root.ethernetDetailsExpanded = !root.ethernetDetailsExpanded
+                connectionState: net.ethernetState
+                connection: net.ethernetConnection
+                device: net.ethernetDevice
+                mac: net.ethernetMac
+                speed: net.ethernetSpeed
+                ip4: net.ethernetIp4
+                gateway4: net.ethernetGateway4
+                dns: net.ethernetDns
+                ip6: net.ethernetIp6
+                expanded: net.ethernetDetailsExpanded
+                onToggleExpanded: net.ethernetDetailsExpanded = !net.ethernetDetailsExpanded
             }
 
             // Wi-Fi adapter card
@@ -128,11 +94,11 @@ Item {
                             Layout.preferredWidth: 36
                             Layout.preferredHeight: 36
                             radius: Dimensions.radius.small + 2
-                            color: root.wifiEnabled ? Colors.primaryContainer : Colors.surfaceContainerHighest
+                            color: net.wifiEnabled ? Colors.primaryContainer : Colors.surfaceContainerHighest
                             Text {
                                 anchors.centerIn: parent
-                                text: root.wifiEnabled ? Icons.wifi : Icons.wifiOff
-                                color: root.wifiEnabled ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
+                                text: net.wifiEnabled ? Icons.wifi : Icons.wifiOff
+                                color: net.wifiEnabled ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
                                 font.family: Typography.iconFont
                                 font.pixelSize: Dimensions.icon.large
                             }
@@ -152,12 +118,12 @@ Item {
                             Text {
                                 Layout.fillWidth: true
                                 text: {
-                                    if (!root.hasWifiDevice) return "No adapter found";
-                                    if (!root.wifiEnabled) return "Disabled";
-                                    if (root.activeWifi) return "Connected · " + root.activeWifi;
+                                    if (!net.hasWifiDevice) return "No adapter found";
+                                    if (!net.wifiEnabled) return "Disabled";
+                                    if (net.activeWifi) return "Connected · " + net.activeWifi;
                                     return "Enabled";
                                 }
-                                color: root.wifiConnected ? Colors.primary : Colors.onSurfaceVariant
+                                color: net.wifiConnected ? Colors.primary : Colors.onSurfaceVariant
                                 font.family: Typography.barFont
                                 font.pixelSize: Typography.size.labelSmall
                                 elide: Text.ElideRight
@@ -166,16 +132,16 @@ Item {
 
                         Toggle {
                             Layout.alignment: Qt.AlignVCenter
-                            checked: root.wifiEnabled
-                            interactive: root.hasWifiDevice
+                            checked: net.wifiEnabled
+                            interactive: net.hasWifiDevice
                             onToggled: value => net.setWifiEnabled(value)
                         }
                     }
 
                     Text {
-                        visible: root.lastError !== ""
+                        visible: net.lastError !== ""
                         Layout.fillWidth: true
-                        text: root.lastError
+                        text: net.lastError
                         color: Colors.error
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelSmall
@@ -188,7 +154,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
-                visible: root.hasWifiDevice
+                visible: net.hasWifiDevice
 
                 Rectangle {
                     id: scanBtn
@@ -201,7 +167,7 @@ Item {
                     border.color: scanBtn.hovered
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
-                    opacity: root.wifiEnabled ? 1.0 : 0.5
+                    opacity: net.wifiEnabled ? 1.0 : 0.5
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     Row {
@@ -217,12 +183,12 @@ Item {
                             RotationAnimation on rotation {
                                 from: 0; to: 360; duration: 1000
                                 loops: Animation.Infinite
-                                running: root.scanning
+                                running: net.scanning
                             }
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.scanning ? "Scanning…" : "Refresh"
+                            text: net.scanning ? "Scanning…" : "Refresh"
                             color: scanBtn.hovered ? Colors.primary : Colors.onSurface
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.labelMedium
@@ -232,7 +198,7 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        enabled: root.wifiEnabled
+                        enabled: net.wifiEnabled
                         cursorShape: Qt.PointingHandCursor
                         onContainsMouseChanged: scanBtn.hovered = containsMouse
                         onClicked: net.refreshAll(true)
@@ -250,7 +216,7 @@ Item {
                     border.color: hiddenBtn.hovered
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
-                    opacity: root.wifiEnabled ? 1.0 : 0.5
+                    opacity: net.wifiEnabled ? 1.0 : 0.5
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     Text {
@@ -263,17 +229,17 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        enabled: root.wifiEnabled
+                        enabled: net.wifiEnabled
                         cursorShape: Qt.PointingHandCursor
                         onContainsMouseChanged: hiddenBtn.hovered = containsMouse
                         onClicked: {
-                            root.formMode = root.formMode === "hidden" ? "" : "hidden";
-                            root.formNetwork = null;
-                            root.formSsid = "";
-                            root.formPassword = "";
-                            root.formShowPassword = false;
-                            root.formError = "";
-                            root.formSecurityIndex = 1;
+                            net.formMode = net.formMode === "hidden" ? "" : "hidden";
+                            net.formNetwork = null;
+                            net.formSsid = "";
+                            net.formPassword = "";
+                            net.formShowPassword = false;
+                            net.formError = "";
+                            net.formSecurityIndex = 1;
                         }
                     }
                 }
@@ -281,24 +247,24 @@ Item {
 
             // Connection form (password or hidden network)
             WifiConnectionForm {
-                mode: root.formMode
-                visible: root.formMode === "hidden"
-                    || (root.formMode === "password" && root.formNetwork !== null)
-                ssid: root.formMode === "password"
-                    ? (root.formNetwork ? root.formNetwork.ssid : "")
-                    : root.formSsid
-                showPassword: root.formShowPassword
-                busy: root.formBusy
-                error: root.formError
-                securityIndex: root.formSecurityIndex
-                onPasswordEdited: value => root.formPassword = value
-                onSsidEdited: value => root.formSsid = value
-                onShowPasswordToggled: root.formShowPassword = !root.formShowPassword
-                onSecurityIndexSelected: index => root.formSecurityIndex = index
+                mode: net.formMode
+                visible: net.formMode === "hidden"
+                    || (net.formMode === "password" && net.formNetwork !== null)
+                ssid: net.formMode === "password"
+                    ? (net.formNetwork ? net.formNetwork.ssid : "")
+                    : net.formSsid
+                showPassword: net.formShowPassword
+                busy: net.formBusy
+                error: net.formError
+                securityIndex: net.formSecurityIndex
+                onPasswordEdited: value => net.formPassword = value
+                onSsidEdited: value => net.formSsid = value
+                onShowPasswordToggled: net.formShowPassword = !net.formShowPassword
+                onSecurityIndexSelected: index => net.formSecurityIndex = index
                 onSubmitRequested: {
-                    if (root.formMode === "password")
+                    if (net.formMode === "password")
                         net.submitPasswordForm();
-                    else if (root.formMode === "hidden")
+                    else if (net.formMode === "hidden")
                         net.submitHiddenForm();
                 }
                 onCancelRequested: root.resetForms()
@@ -307,7 +273,7 @@ Item {
             // Networks header
             RowLayout {
                 Layout.fillWidth: true
-                visible: root.hasWifiDevice
+                visible: net.hasWifiDevice
                 Text {
                     Layout.fillWidth: true
                     text: "Wi-Fi networks"
@@ -317,7 +283,7 @@ Item {
                     font.weight: Typography.weight.bold
                 }
                 Text {
-                    text: root.wifiNetworks.length + (root.wifiNetworks.length === 1 ? " network" : " networks")
+                    text: net.wifiNetworks.length + (net.wifiNetworks.length === 1 ? " network" : " networks")
                     color: Colors.onSurfaceVariant
                     font.family: Typography.barFont
                     font.pixelSize: Typography.size.labelSmall
@@ -328,7 +294,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 220
-                visible: root.hasWifiDevice
+                visible: net.hasWifiDevice
                 radius: Dimensions.radius.medium
                 color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.5)
                 border.width: 1
@@ -342,14 +308,14 @@ Item {
                     clip: true
                     spacing: 2
                     boundsBehavior: Flickable.StopAtBounds
-                    model: root.wifiNetworks
+                    model: net.wifiNetworks
 
                     delegate: WifiNetworkRow {
                         required property var modelData
 
                         width: netList.width
                         network: modelData
-                        savedMap: root.savedWifi
+                        savedMap: net.savedWifi
                         onConnectRequested: net.connectNetwork(modelData)
                         onForgetRequested: net.forgetNetwork(modelData)
                     }
@@ -361,14 +327,14 @@ Item {
                     visible: netList.count === 0
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.wifiEnabled ? Icons.wifi : Icons.wifiOff
+                        text: net.wifiEnabled ? Icons.wifi : Icons.wifiOff
                         color: Colors.withAlpha(Colors.onSurfaceVariant, 0.5)
                         font.family: Typography.iconFont
                         font.pixelSize: 26
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: !root.wifiEnabled ? "Wi-Fi is off" : "No networks found"
+                        text: !net.wifiEnabled ? "Wi-Fi is off" : "No networks found"
                         color: Colors.onSurfaceVariant
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelMedium
