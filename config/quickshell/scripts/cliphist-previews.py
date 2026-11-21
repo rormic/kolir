@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 
-outdir = '/tmp/qs-clip-previews'
+outdir = sys.argv[1]
 os.makedirs(outdir, exist_ok=True)
 
 p = subprocess.run(['cliphist', 'list'], capture_output=True)

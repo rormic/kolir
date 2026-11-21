@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
 import "../bar/components"
+import "../services"
 import "../theme"
 
 Scope {
@@ -34,13 +35,13 @@ Scope {
     // Окремо для тексту та зображень з переміщенням дублікатів нагору списку
     Process {
         id: clipDaemonText
-        command: ["wl-paste", "--type", "text", "--watch", "/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-store.py"]
+        command: ["wl-paste", "--type", "text", "--watch", ShellPaths.cliphistStore]
         running: true
     }
 
     Process {
         id: clipDaemonImage
-        command: ["wl-paste", "--type", "image", "--watch", "/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-store.py"]
+        command: ["wl-paste", "--type", "image", "--watch", ShellPaths.cliphistStore]
         running: true
     }
 
@@ -164,7 +165,7 @@ Scope {
                             imageInfo: imageInfo,
                             isImage: isImage,
                             // Шлях до кешованого превью
-                            imagePath: isImage ? ("/tmp/qs-clip-previews/" + itemId + ".png") : ""
+                            imagePath: isImage ? (ShellPaths.clipboardPreviewDir + "/" + itemId + ".png") : ""
                         })
                     } else {
                         items.push({
@@ -191,7 +192,7 @@ Scope {
     Process {
         id: imgPreviewProc
         running: false
-        command: ["/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-previews.py"]
+        command: [ShellPaths.cliphistPreviews, ShellPaths.clipboardPreviewDir]
         onRunningChanged: {
             // Після генерації превью — оновлюємо модель щоб Image перемалювалися
             if (!running) {
