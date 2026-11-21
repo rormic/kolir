@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фаза A виконана (кроки 1–20). Триває Фаза B.
+Статус: Фази A і B виконані (кроки 1–36). Наступна — Фаза C (крок 37); кроки 44–47 відкладено.
 
 ## 1. Мета та незмінні вимоги
 
@@ -383,6 +383,18 @@ config/
     **Файли:** `Toggle.qml`, imports у `InternetPage.qml`, `BluetoothPage.qml`, `BrightnessPopup.qml`.  
     **Межі:** checked/interactive/toggled і animation не змінювати.  
     **Перевірка:** NET, BT, NIGHT.
+
+#### ✅ Фаза B виконана
+
+Коміти: `d516f53` (21), `471bc45` (22), `773ec83` (23), `1f06dbd` (24), `e0d4f17` (25), `0b50797` (26), `03f323f` (27), `549d256` (28), `fab0a9d` (29), `e3bfd6b` (30), `5dcdc17` (31), `ad788f4` (32), `e2c1d55` (33), `b545266` (34), `9e52bb5` (35), `ed8013a` (36). Тег: `refactor-phase-b`.
+
+Відхилення та уточнення під час виконання:
+
+- `Motion` отримав додаткові ролі `scale`, `fade`, `move`, `rotate`, бо відповідні наявні тривалості (`140`, `120`, `180`, `320`) не збігаються з жодною з дев’яти базових ролей; значення не округлювалися.
+- `cliphist-previews.py` тепер вимагає каталог превью першим аргументом; QML передає `ShellPaths.clipboardPreviewDir`, тож шлях `/tmp/qs-clip-previews` має одне джерело в QML.
+- Після перенесення `Toggle.qml` його import змінено з `"../theme"` на `"../../theme"`; `BrightnessPopup.qml` більше не імпортує `"../../settings"`, бо `Toggle` тепер у `bar/components`.
+- `VolumeSlider`: іменовано локальні метрики `preferredHeight`, `preferredWidth`, `disabledOpacity`, `wheelStep`; глобальних токенів не додано.
+- Нові warnings не з’явилися: єдиний «новий» набір у порівнянні з baseline — ті самі warnings `RecordingSetup.qml` за новим шляхом `recording/` замість `rec/`.
 
 ### Фаза C. Спільні OSD і popup
 
