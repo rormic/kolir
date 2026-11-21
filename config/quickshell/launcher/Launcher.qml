@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import Quickshell.Io
 import "../bar/components"
 import "../theme"
+import "SearchLogic.js" as SearchLogic
 
 Scope {
     id: root
@@ -22,7 +23,7 @@ Scope {
             search.text = query
         }
         function testSearch(query: string): void {
-            const res = root.getFilteredApplications(query)
+            const res = SearchLogic.filterApplications(DesktopEntries.applications.values, query)
             console.log("TEST_SEARCH for " + query + ":")
             for (let i = 0; i < Math.min(res.length, 5); i++) {
                 console.log("  " + (i + 1) + ". " + res[i].name + " (id: " + res[i].id + ")")
@@ -34,122 +35,11 @@ Scope {
         id: clipboard
     }
 
-    function getFilteredApplications(queryText) {
-        const apps = DesktopEntries.applications.values
-        if (!apps || apps.length === 0) return []
-
-        const q = (queryText || "").trim().toLowerCase()
-
-        // 1. Порожній запит: показуємо всі програми
-        if (q === "") {
-            return apps.slice()
-        }
-
-        // 2. Пошук за запитом
-        const scored = []
-        for (let i = 0; i < apps.length; i++) {
-            const app = apps[i]
-            const name = (app.name || "").toLowerCase()
-            const id = (app.id || "").toLowerCase()
-            const genericName = (app.genericName || "").toLowerCase()
-
-            let matchScore = 0
-
-            // Перевіряємо збіги за релевантністю
-            if (name === q) {
-                matchScore = 1000
-            } else if (name.startsWith(q)) {
-                matchScore = 500
-            } else {
-                const words = name.split(/[\s\-_]+/)
-                let wordPrefixMatch = false
-                for (let w = 0; w < words.length; w++) {
-                    if (words[w].startsWith(q)) {
-                        wordPrefixMatch = true
-                        break
-                    }
-                }
-
-                if (wordPrefixMatch) {
-                    matchScore = 350
-                } else if (name.includes(q)) {
-                    matchScore = 150
-                } else if (id.startsWith(q)) {
-                    matchScore = 120
-                } else if (id.includes(q)) {
-                    matchScore = 70
-                } else if (genericName.startsWith(q)) {
-                    matchScore = 90
-                } else if (genericName.includes(q)) {
-                    matchScore = 50
-                }
-            }
-
-            if (matchScore > 0) {
-                scored.push({
-                    app: app,
-                    score: matchScore,
-                    name: app.name || ""
-                })
-            }
-        }
-
-        // Сортуємо за найвищим балом; при рівності — за алфавітом
-        scored.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score
-            return a.name.localeCompare(b.name)
-        })
-
-        return scored.map(item => item.app)
-    }
-
     // Процес для швидкого копіювання довільного тексту (наприклад, результату калькулятора)
     Process {
         id: directCopyProc
         command: ["wl-copy", ""]
         running: false
-    }
-
-    // ── Безпечна функція математичного калькулятора ──
-    function evalMath(input) {
-        if (!input) return null
-        let s = input.trim()
-        if (s.startsWith("=")) {
-            s = s.substring(1).trim()
-        }
-        if (s === "") return null
-
-        // Ігноруємо якщо це режим буфера обміну (починається з ;)
-        if (s.startsWith(";")) return null
-
-        // Має містити математичні оператори або починатися з =
-        const hasOp = /[\+\-\*\/\%\^]/.test(s)
-        if (!hasOp && !input.trim().startsWith("=")) return null
-
-        // Дозволені тільки цифри, пробіли, крапка, оператори та дужки
-        if (!/^[\d\s\+\-\*\/\%\^\(\)\.]+$/.test(s)) return null
-
-        // Обов'язкова наявність хоча б однієї цифри
-        if (!/\d/.test(s)) return null
-
-        // Не обчислюємо незавершені вирази з оператором на кінці (наприклад, "2 +")
-        if (/[\+\-\*\/\%\^]\s*$/.test(s)) return null
-
-        try {
-            let expr = s.replace(/\^/g, "**")
-            const res = Function('"use strict"; return (' + expr + ')')()
-            if (typeof res === "number" && !isNaN(res) && isFinite(res)) {
-                let formatted = parseFloat(res.toPrecision(12)).toString()
-                return {
-                    expr: s,
-                    result: formatted,
-                    num: res
-                }
-            }
-        } catch (e) {
-            return null
-        }
-        return null
     }
 
     PanelWindow {
@@ -214,7 +104,7 @@ Scope {
 
         readonly property bool isClipboardMode: search.text.startsWith(";")
         readonly property string clipQuery: isClipboardMode ? search.text.substring(1).trim().toLowerCase() : ""
-        readonly property var mathResult: !isClipboardMode ? root.evalMath(search.text) : null
+        readonly property var mathResult: !isClipboardMode ? SearchLogic.evalMath(search.text) : null
 
         onVisibleChanged: {
             if (visible) {
@@ -523,7 +413,7 @@ Scope {
                                     )
                                 } else {
                                     if (search.text.trim() === "") return []
-                                    return root.getFilteredApplications(search.text)
+                                    return SearchLogic.filterApplications(DesktopEntries.applications.values, search.text)
                                 }
                             }
 
