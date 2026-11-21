@@ -5,13 +5,11 @@ QtObject {
     id: root
 
     readonly property QtObject radius: QtObject {
-        readonly property int extraSmall: 4
         readonly property int small: 8
         readonly property int medium: 12
         readonly property int large: 16
         readonly property int largeIncreased: 20
         readonly property int extraLarge: 28
-        readonly property int extraLargeIncreased: 32
         readonly property int extraExtraLarge: 48
         readonly property int full: 9999
     }
@@ -21,7 +19,6 @@ QtObject {
         // No offset from the screen edges: the bar is docked flush. Kept as a
         // token because popups offset themselves from it.
         readonly property int margin: 0
-        readonly property int contentHeight: 24
     }
 
     // Screen frame drawn around the desktop, caelestia style: the bar surface
@@ -40,7 +37,6 @@ QtObject {
     readonly property QtObject control: QtObject {
         readonly property int height: 24
         readonly property int iconButton: 24
-        readonly property int touchTarget: 30
     }
 
     readonly property QtObject icon: QtObject {
@@ -51,8 +47,6 @@ QtObject {
     }
 
     readonly property QtObject padding: QtObject {
-        readonly property int horizontal: 10
-        readonly property int vertical: 4
         readonly property int chipHorizontal: 8
         readonly property int barContent: 12
     }
@@ -67,14 +61,6 @@ QtObject {
     }
 
     readonly property QtObject spacing: QtObject {
-        readonly property int none: 0
-        readonly property int extraSmall: 2
         readonly property int small: 4
-        readonly property int medium: 8
-        readonly property int large: 16
-    }
-
-    readonly property QtObject insideBarSize: QtObject {
-        readonly property int rectangleHight: root.bar.contentHeight
     }
 }
