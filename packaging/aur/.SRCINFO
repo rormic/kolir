@@ -13,7 +13,7 @@ pkgbase = kolir-git
 	depends = hyprlock
 	depends = hypridle
 	depends = foot
-	depends = matugen>=4.0.0
+	depends = matugen
 	depends = awww
 	depends = brightnessctl
 	depends = ddcutil

@@ -15,7 +15,7 @@ depends=(
   'hyprlock'
   'hypridle'
   'foot'
-  'matugen>=4.0.0'
+  'matugen'
   'awww'
   'brightnessctl'
   'ddcutil'

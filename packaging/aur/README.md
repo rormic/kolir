@@ -140,8 +140,9 @@ instead of reusing an old archive. Since the package only owns files under
   `ZaViBiS <ZaViBiS@users.noreply.github.com>`; confirm the contact address that
   should be published.
 - **Versioned lower bounds.** `hyprland>=0.57.2` and `quickshell>=0.3.2` mirror
-  the versions this configuration is developed against, `matugen>=4.0.0` the
-  `-t scheme-neutral` CLI. Re-check them at release time.
+  the versions this configuration is developed against. `matugen` is
+  intentionally unversioned because `matugen-bin` provides it without a version;
+  the code needs the 4.x `-t scheme-neutral` CLI. Re-check these at release time.
 - **Two dependency adjustments against the starting list.**
   `glib2` is a hard dependency because `toggle-theme.sh` calls `gsettings`
   unguarded; `kconfig` (`kwriteconfig6`, same script) is an optdepend so a plain
