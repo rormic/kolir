@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B, C, D виконані (кроки 1–61). Фаза E: E1 виконано (кроки 62–64); наступна — E2.
+Статус: Фази A, B, C, D виконані (кроки 1–61). Фаза E: E1 і E2 виконано; наступна — E3.
 
 ## 1. Мета та незмінні вимоги
 
@@ -509,6 +509,24 @@ config/
 - Повний `qmllint` після E1: 425 warnings, як і після D2; нових класів warnings немає.
 - У `services/qmldir` записи розташовані в порядку `AudioService`, `ShellPaths`, `BrightnessService`, `HyprsunsetService`; порядок не впливає на резолвінг.
 
+#### ✅ E2 виконана
+
+Коміти: `6a84fbe` (69), `98f4d07` (70), `8130234` (71). Тег: `refactor-phase-e2`.
+
+Що зроблено:
+
+- 69: `set_wallpaper.sh` → `set-wallpaper.sh`; посилання оновлено в `select-wallpaper.sh`, `random-wallpaper.sh` і `AGENTS.md`.
+- 70: `select_wallpaper.sh` → `select-wallpaper.sh`; посилання оновлено в `hyprland.lua` і `AGENTS.md`; виконано `hyprctl reload`.
+- 71: `generate_colors.sh` → `generate-colors.sh`; посилання оновлено в обох wallpaper-скриптах, `toggle-theme.sh`, власному повідомленні про помилку, коментарях `hyprlock.conf` і `AGENTS.md`.
+
+Відхилення та уточнення:
+
+- Імена та значення `DP-1`, `~/.cache/awww/0.12.1/DP-1`, `--source-color-index 0`, `-t scheme-neutral` і параметри переходу awww не змінювалися.
+- Перевірено `zsh -n` для `set-wallpaper.sh`, `select-wallpaper.sh`, `random-wallpaper.sh`, `generate-colors.sh` і `bash -n` для `toggle-theme.sh`.
+- Поточні шпалери повторно застосовано через `set-wallpaper.sh` (exit 0, `awww query` показує той самий файл), потім виконано `generate-colors.sh` (exit 0). Контрольні суми `foot/colors.ini`, `terminal-sequences`, `nvim/matugen-colors.lua` і `hypr/colors.lua` до/після збіглися.
+- Інтерактивний вибір через Zenity (SUPER+CTRL+T, Cancel) неможливо відтворити без інструментів введення; перевірено лише `hyprctl reload` і наявність bind.
+- `REFACTOR_PLAN.md` зберігає історичні назви скриптів у таблиці кроків і старих розділах; це документація виконаних кроків, а не чинні посилання.
+
 ### Фаза D. NowPlaying
 
 43. **Винести `bar/components/media/MarqueeText.qml`.**  
@@ -649,17 +667,17 @@ config/
 
 ### Фаза L. Hyprland scripts
 
-69. **`set_wallpaper.sh` → `set-wallpaper.sh`.**  
+69. **`set_wallpaper.sh` → `set-wallpaper.sh`.** — ✅ виконано (E2)  
     **Файли:** script, `select_wallpaper.sh`, `random-wallpaper.sh`.  
     **Виконує:** основний агент; `zsh -n`.  
     **Перевірка:** застосування поточного й random wallpaper; awww transition не змінювати.
 
-70. **`select_wallpaper.sh` → `select-wallpaper.sh`.**  
+70. **`select_wallpaper.sh` → `select-wallpaper.sh`.** — ✅ виконано (E2)  
     **Файли:** script, `hyprland.lua`.  
     **Виконує:** основний агент.  
     **Перевірка:** `hyprctl reload`, SUPER+CTRL+T, вибір і Cancel.
 
-71. **`generate_colors.sh` → `generate-colors.sh`.**  
+71. **`generate_colors.sh` → `generate-colors.sh`.** — ✅ виконано (E2)  
     **Файли:** script, wallpaper scripts, `toggle-theme.sh`, відповідні коментарі `hyprlock.conf`.  
     **Виконує:** основний агент; Matugen options і monitor logic не змінювати.  
     **Перевірка:** THEME, Hyprland/Foot/Neovim/hyprlock outputs.
