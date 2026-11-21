@@ -8,7 +8,7 @@ import "../../theme"
 Rectangle {
     id: root
 
-    property string state: "Unavailable"
+    property string connectionState: "Unavailable"
     property string connection: ""
     property string device: ""
     property string mac: ""
@@ -41,12 +41,12 @@ Rectangle {
                 Layout.preferredWidth: 32
                 Layout.preferredHeight: 32
                 radius: 8
-                color: root.state === "Connected"
+                color: root.connectionState === "Connected"
                     ? Colors.primaryContainer : Colors.surfaceContainerHighest
                 Text {
                     anchors.centerIn: parent
                     text: Icons.ethernet
-                    color: root.state === "Connected"
+                    color: root.connectionState === "Connected"
                         ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
                     font.family: Typography.iconFont
                     font.pixelSize: Dimensions.icon.medium
@@ -65,10 +65,10 @@ Rectangle {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: root.state
+                    text: root.connectionState
                         + (root.connection ? " · " + root.connection : "")
                         + (root.device ? " (" + root.device + ")" : "")
-                    color: root.state === "Connected" ? Colors.primary : Colors.onSurfaceVariant
+                    color: root.connectionState === "Connected" ? Colors.primary : Colors.onSurfaceVariant
                     font.family: Typography.barFont
                     font.pixelSize: Typography.size.labelSmall
                     elide: Text.ElideRight
@@ -76,7 +76,7 @@ Rectangle {
             }
 
             Text {
-                visible: root.state === "Connected"
+                visible: root.connectionState === "Connected"
                 text: root.expanded ? Icons.chevronLeft : Icons.chevronRight
                 rotation: root.expanded ? -90 : 90
                 color: Colors.onSurfaceVariant
@@ -91,7 +91,7 @@ Rectangle {
             columns: 2
             columnSpacing: 10
             rowSpacing: 4
-            visible: root.state === "Connected" && root.expanded
+            visible: root.connectionState === "Connected" && root.expanded
 
             Text { text: "Device"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
             Text { Layout.fillWidth: true; text: root.device || "—"; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
@@ -119,8 +119,8 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         z: -1
-        enabled: root.state === "Connected"
-        cursorShape: root.state === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
+        enabled: root.connectionState === "Connected"
+        cursorShape: root.connectionState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: root.toggleExpanded()
     }
 }
