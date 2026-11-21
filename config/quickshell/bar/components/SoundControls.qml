@@ -157,54 +157,14 @@ Item {
                         Repeater {
                             model: root.codecProfiles
 
-                            delegate: Rectangle {
-                                id: codecChip
-
+                            delegate: CodecChip {
                                 required property var modelData
 
-                                readonly property bool active: root.btCard
+                                active: root.btCard
                                     && root.btCard.activeProfile === modelData.name
-                                readonly property bool hovered: codecHover.hovered
-
-                                width: codecText.implicitWidth + 20
-                                height: 26
-                                radius: Dimensions.radius.full
-                                color: codecChip.active
-                                    ? Colors.primaryContainer
-                                    : codecChip.hovered
-                                        ? Colors.stateLayer(Colors.primary, 0.12)
-                                        : Colors.surfaceContainerLowest
-                                border.width: 1
-                                border.color: codecChip.active
-                                    ? Colors.withAlpha(Colors.primary, 0.7)
-                                    : Colors.withAlpha(Colors.outlineVariant, 0.35)
-
-                                Behavior on color { ColorAnimation { duration: 120 } }
-                                Behavior on border.color { ColorAnimation { duration: 120 } }
-
-                                HoverHandler { id: codecHover }
-
-                                Text {
-                                    id: codecText
-                                    anchors.centerIn: parent
-                                    text: root.codecLabel(codecChip.modelData)
-                                    color: codecChip.active
-                                        ? Colors.onPrimaryContainer
-                                        : Colors.onSurfaceVariant
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.labelSmall
-                                    font.weight: codecChip.active
-                                        ? Typography.weight.bold
-                                        : Typography.weight.medium
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    enabled: !codecChip.active
-                                    onClicked: AudioService.setCardProfile(root.btCard.name,
-                                                                           codecChip.modelData.name)
-                                }
+                                label: root.codecLabel(modelData)
+                                onActivated: AudioService.setCardProfile(root.btCard.name,
+                                                                         modelData.name)
                             }
                         }
                     }
