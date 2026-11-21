@@ -474,34 +474,12 @@ Item {
     }
 
     // ── Header ─────────────────────────────────────────────────────────────
-    Item {
+    SettingsPageHeader {
         id: header
 
-        anchors { top: parent.top; left: parent.left; right: parent.right; topMargin: root.topInset }
-        height: 46
-
-        Rectangle {
-            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-            height: 1
-            color: Colors.withAlpha(Colors.outlineVariant, 0.25)
-        }
-
-        IconButton {
-            id: backButton
-            anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-            icon: Icons.arrowBack
-            iconSize: Dimensions.icon.medium
-            onClicked: root.back()
-        }
-
-        Text {
-            anchors { left: backButton.right; leftMargin: 2; verticalCenter: parent.verticalCenter }
-            text: "Internet"
-            color: Colors.onSurface
-            font.family: Typography.barFont
-            font.pixelSize: Typography.size.titleLarge
-            font.weight: Typography.weight.bold
-        }
+        topInset: root.topInset
+        title: "Internet"
+        onBack: root.back()
     }
 
     Flickable {
