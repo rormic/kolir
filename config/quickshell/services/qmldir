@@ -1,4 +1,4 @@
 singleton AudioService 1.0 AudioService.qml
-singleton ShellPaths 1.0 ShellPaths.qml
 singleton BrightnessService 1.0 BrightnessService.qml
 singleton HyprsunsetService 1.0 HyprsunsetService.qml
+singleton ShellPaths 1.0 ShellPaths.qml

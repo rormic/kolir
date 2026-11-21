@@ -77,7 +77,7 @@ Item {
                             target: row
                             property: "appear"
                             to: 1
-                            duration: 180
+                            duration: Motion.listEnter
                             easing.type: Easing.OutCubic
                         }
                     }
