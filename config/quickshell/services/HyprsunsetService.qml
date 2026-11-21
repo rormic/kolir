@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../services"
+import "."
 
 // Hyprsunset state, manual controls and the bar-owned automatic schedule.
 //

@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell.Io
 import "../../components"
 import "../../theme"
+import "../../services"
 import "nightLight"
 
 // Night-light popup for the brightness pill. Right click opens it; the

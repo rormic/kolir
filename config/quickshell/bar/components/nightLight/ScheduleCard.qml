@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../../../theme"
+import "../../../services"
 import ".."
 
 // Automatic schedule card for the night-light popup: schedule toggle, mode
