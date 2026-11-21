@@ -1,3 +1,4 @@
+import "../../services"
 import "../../theme"
 import Quickshell
 import Quickshell.Io
@@ -10,12 +11,6 @@ Surface {
     property bool active: false
     property double startedAt: 0
     property int elapsed: 0
-
-    readonly property string runtimeDir: {
-        const dir = Quickshell.env("XDG_RUNTIME_DIR");
-        return dir && dir.length > 0 ? dir : "/tmp";
-    }
-    readonly property string statePath: runtimeDir + "/kolir/recording.json"
 
     visible: root.active
     implicitHeight: Dimensions.control.height
@@ -103,7 +98,7 @@ Surface {
     }
 
     FileView {
-        path: root.statePath
+        path: ShellPaths.recordingState
         watchChanges: true
         onFileChanged: this.reload()
         onLoaded: {
@@ -133,7 +128,7 @@ Surface {
 
     Process {
         id: stopProc
-        command: ["sh", Quickshell.env("HOME") + "/.config/hypr/scripts/screen-record.sh"]
+        command: ["sh", ShellPaths.hyprScripts + "/screen-record.sh"]
         running: false
     }
 }
