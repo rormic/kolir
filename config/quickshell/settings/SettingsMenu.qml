@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Shapes
-import Quickshell
 import Quickshell.Io
 import "../theme"
 
@@ -51,7 +50,6 @@ Item {
     // frame thickness while an outward foot is drawn into the frame.
     readonly property int popoutX: 0
     readonly property int popoutY: Dimensions.bar.height - 1
-    readonly property int popoutWidth: popupWidth
 
     readonly property int panelBottomRadius: Dimensions.radius.extraLarge
     // The sheet sits on the desktop frame. Its lower left corner pours down
