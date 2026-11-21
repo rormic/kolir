@@ -1,0 +1,11 @@
+#!/bin/sh
+# Development wrapper: run the checkout CLI without installing it.
+# The AUR package (phase 2) installs tools/kolir.py as /usr/bin/kolir, so this
+# wrapper is only for working from a git clone.
+
+set -u
+
+SELF=$(readlink -f -- "$0")
+ROOT=$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd)
+
+exec python3 "$ROOT/tools/kolir.py" "$@"
