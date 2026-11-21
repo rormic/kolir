@@ -216,6 +216,18 @@ def lexical_link_target(path: Path) -> str:
     return os.path.normpath(raw)
 
 
+def is_managed_hyprlock_link(path: Path) -> bool:
+    """True when path is a symlink to a kolir root's matugen/hyprlock.toml."""
+    path = Path(path)
+    if not path.is_symlink():
+        return False
+    target = Path(lexical_link_target(path))
+    if target.name != "hyprlock.toml" or target.parent.name != "matugen":
+        return False
+    root = target.parent.parent.parent
+    return (root / "config/hypr/hyprland.lua").is_file()
+
+
 def foot_loader_text(root: Path) -> str:
     return (
         f"{FOOT_LOADER_MARKER}; rerun it to refresh after the root changes.\n"
@@ -843,9 +855,14 @@ def setup_matugen(deploy: Deployer, root: Path, obsidian_output: str | None) -> 
     deploy.configure_matugen_templates(
         matugen / "templates", root / MATUGEN_TEMPLATES_REL
     )
-    deploy.ensure_symlink_if_absent(
-        matugen / "hyprlock.toml", root / "config/matugen/hyprlock.toml"
-    )
+    hyprlock_toml = matugen / "hyprlock.toml"
+    shipped = root / "config/matugen/hyprlock.toml"
+    # A link that still points at another kolir root is ours: repoint it.
+    # Anything else (a real file, or a user's own link) is left alone.
+    if is_managed_hyprlock_link(hyprlock_toml):
+        deploy.ensure_symlink(hyprlock_toml, shipped)
+    else:
+        deploy.ensure_symlink_if_absent(hyprlock_toml, shipped)
 
     if obsidian_output:
         deploy.configure_obsidian(config_path, obsidian_output)
