@@ -17,3 +17,23 @@ output_path = '~/.local/share/nvim/matugen-colors.lua'
 input_path = '~/.config/matugen/templates/hyprland-colors.lua'
 output_path = '~/.config/hypr/colors.lua'
 post_hook = 'hyprctl reload'
+
+[templates.quickshell]
+input_path = '~/.config/matugen/templates/quickshell-colors.json'
+output_path = '~/.config/quickshell/colors.json'
+
+[templates.gtk3]
+input_path = '~/.config/matugen/templates/gtk3-colors-template.css'
+output_path = '~/.config/gtk-3.0/colors.css'
+
+[templates.gtk4]
+input_path = '~/.config/matugen/templates/gtk4-colors-template.css'
+output_path = '~/.config/gtk-4.0/colors.css'
+
+# Obsidian is intentionally not configured here: it needs a per-user vault
+# path. `kolir setup` asks for the vault and appends an entry like the one
+# below only when the user opts in (the template is still shipped):
+#
+# [templates.obsidian]
+# input_path = '~/.config/matugen/templates/obsidian.css'
+# output_path = '<vault>/.obsidian/snippets/matugen.css'
