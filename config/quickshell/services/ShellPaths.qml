@@ -37,4 +37,8 @@ QtObject {
     readonly property string cliphistStore: Quickshell.shellPath("scripts/cliphist-store.py")
     readonly property string cliphistWatch: Quickshell.shellPath("scripts/cliphist-watch.sh")
     readonly property string cliphistPreviews: Quickshell.shellPath("scripts/cliphist-previews.py")
+
+    // Audio helper bundled inside the shell config: keeps a single pactl
+    // subscriber alive across shell restarts.
+    readonly property string pactlSubscribe: Quickshell.shellPath("scripts/pactl-subscribe.sh")
 }

@@ -437,8 +437,11 @@ QtObject {
 
     // Live PipeWire/PulseAudio events. Any relevant object change schedules a
     // coalesced refresh; we don't spawn a process per event.
+    // Обгортка pactl-subscribe.sh зупиняє підписника, що лишився від
+    // попереднього запуску Quickshell, інакше кожен рестарт додавав би ще одне
+    // клієнтське підключення до pipewire-pulse.
     property Process subProc: Process {
-        command: ["pactl", "subscribe"]
+        command: [ShellPaths.pactlSubscribe]
         running: true
         stdout: SplitParser {
             splitMarker: "\n"
