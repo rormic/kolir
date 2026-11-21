@@ -124,7 +124,10 @@ Surface {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Hyprland.dispatch(`workspace ${wsItem.wsId}`)
+                    // Hyprland runs a Lua config, so `hyprctl dispatch` parses
+                    // its argument as Lua (`return hl.dispatch(<arg>)`); the
+                    // legacy `workspace N` string is a syntax error there.
+                    onClicked: Hyprland.dispatch(`hl.dsp.focus({ workspace = ${wsItem.wsId} })`)
                 }
 
                 SequentialAnimation {
