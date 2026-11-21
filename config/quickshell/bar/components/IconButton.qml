@@ -27,7 +27,7 @@ Item {
 
     scale: root.pressed ? 0.88 : root.hovered ? 1.08 : 1.0
     Behavior on scale {
-        NumberAnimation { duration: 130; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Motion.press; easing.type: Easing.OutCubic }
     }
 
     // Background + neon border ring on hover
@@ -44,7 +44,7 @@ Item {
         border.width: root.hovered && !root.active ? 1 : 0
         border.color: Colors.withAlpha(Colors.primary, 0.6)
 
-        Behavior on color { ColorAnimation { duration: 130; easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: Motion.press; easing.type: Easing.OutCubic } }
     }
 
     Text {
@@ -57,7 +57,7 @@ Item {
         font.family: Typography.iconFont
         font.pixelSize: root.iconSize
         font.weight: Font.Normal
-        Behavior on color { ColorAnimation { duration: 130 } }
+        Behavior on color { ColorAnimation { duration: Motion.press } }
     }
 
     MouseArea {
