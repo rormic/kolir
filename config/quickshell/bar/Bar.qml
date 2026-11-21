@@ -90,9 +90,14 @@ PanelWindow {
     // The frame is interactive (bar content lives on it); the desktop cut-out
     // is click-through. The popout lives in the same surface and switches the
     // window to the full-screen modal mask above.
+    //
+    // Keep the default geometry renderer here: CurveRenderer flattens the
+    // rounded cut-out about 1px inside the path, so the frame covers the outer
+    // row of the window border where the two edges meet at the corners. The
+    // default renderer keeps the cut-out on the decorated window box, leaving
+    // the border intact.
     Shape {
         anchors.fill: parent
-        preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
             fillColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
