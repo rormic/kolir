@@ -109,6 +109,39 @@ PLAN_PLUGINS=()
 PLAN_THEME_LINK="no"
 PLAN_DIRS=()
 PLAN_DEPLOY=()
+DRY_RUN="no"
+
+usage() {
+  cat <<'EOF'
+Usage: install.sh [options]
+
+Options:
+  -n, --dry-run   Print every change the installer would make and exit
+                  without touching packages, links, or config files.
+  -h, --help      Show this help.
+
+Environment:
+  KOLIR_DIR       Repository checkout (default: ~/.local/share/kolir)
+  KOLIR_REPO_URL  Clone URL used in bootstrap mode
+  KOLIR_BRANCH    Branch used in bootstrap mode (default: remote default)
+EOF
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      -n | --dry-run) DRY_RUN="yes" ;;
+      -h | --help) usage; exit 0 ;;
+      --from-bootstrap) ;; # internal: re-exec after cloning
+      *)
+        err "Unknown option: $1"
+        usage >&2
+        exit 2
+        ;;
+    esac
+    shift
+  done
+}
 
 preflight() {
   step "Preflight"
@@ -343,7 +376,7 @@ choose_aur_helper() {
   info "Found: paru=$has_paru, yay=$has_yay"
 
   local want_yay="no"
-  if ask_yn "Use yay instead of paru? (default: paru)" "N"; then
+  if [[ "$DRY_RUN" != "yes" ]] && ask_yn "Use yay instead of paru? (default: paru)" "N"; then
     want_yay="yes"
   fi
 
@@ -421,6 +454,10 @@ install_repo_packages() {
     return 0
   fi
   step "Installing packages from official repositories"
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would run: sudo pacman -Syu --needed ${MISSING_REPO_PKGS[*]}"
+    return 0
+  fi
   ensure_sudo
   sudo pacman -Syu --needed --noconfirm "${MISSING_REPO_PKGS[@]}"
 }
@@ -428,6 +465,10 @@ install_repo_packages() {
 bootstrap_aur_helper() {
   if [[ "$NEED_AUR_BOOTSTRAP" != "yes" ]]; then return 0; fi
   step "Bootstrapping AUR helper: $AUR_HELPER"
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would install base-devel/git and build $AUR_HELPER from the AUR"
+    return 0
+  fi
   ensure_sudo
   sudo pacman -S --needed --noconfirm base-devel git
   local tmp
@@ -455,6 +496,10 @@ install_aur_packages() {
     return 0
   fi
   step "Installing AUR packages via $AUR_HELPER"
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would run: $AUR_HELPER -S --needed ${MISSING_AUR_PKGS[*]}"
+    return 0
+  fi
   if ! have "$AUR_HELPER"; then
     err "AUR helper '$AUR_HELPER' is not available"; exit 1
   fi
@@ -464,6 +509,10 @@ install_aur_packages() {
 install_omz() {
   if [[ "$PLAN_INSTALL_OMZ" != "yes" ]]; then return 0; fi
   step "Installing Oh My Zsh"
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would install Oh My Zsh into $OMZ_DIR"
+    return 0
+  fi
   if [[ -d "$OMZ_DIR" ]]; then ok "Oh My Zsh already installed"; return 0; fi
   RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
   ok "Oh My Zsh installed"
@@ -472,6 +521,13 @@ install_omz() {
 install_plugins() {
   if ((${#PLAN_PLUGINS[@]}==0)); then return 0; fi
   step "Installing Oh My Zsh plugins"
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    local entry
+    for entry in "${PLAN_PLUGINS[@]}"; do
+      info "Dry run: would clone ${entry#*|} -> $ZSH_CUSTOM_DIR/plugins/${entry%%|*}"
+    done
+    return 0
+  fi
   mkdir -p "$ZSH_CUSTOM_DIR/plugins"
   local entry name url target
   for entry in "${PLAN_PLUGINS[@]}"; do
@@ -492,8 +548,12 @@ link_theme() {
   if [[ ! -f "$THEME_SRC" ]]; then
     err "Theme file not found: $THEME_SRC"; exit 1
   fi
-  mkdir -p "$ZSH_CUSTOM_DIR/themes"
   local dst="$ZSH_CUSTOM_DIR/themes/${THEME_NAME}.zsh-theme"
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would link $dst -> $THEME_SRC (existing file backed up first)"
+    return 0
+  fi
+  mkdir -p "$ZSH_CUSTOM_DIR/themes"
   if [[ -e "$dst" || -L "$dst" ]]; then
     local cur=""
     [[ -L "$dst" ]] && cur="$(readlink -f "$dst" 2>/dev/null || true)"
@@ -511,14 +571,22 @@ link_theme() {
 
 backup_path() {
   local p="$1"
-  local bak="${p}.bak.$(date +%s)"
+  local bak="${p}.bak.$(date +%Y%m%d-%H%M%S)"
+  local n=1
+  while [[ -e "$bak" ]]; do
+    bak="${p}.bak.$(date +%Y%m%d-%H%M%S).$n"
+    n=$((n + 1))
+  done
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would back up $p -> $bak"
+    return 0
+  fi
   mv "$p" "$bak"
   warn "Backup: $p -> $bak"
 }
 
 ensure_symlink() {
   local dst="$1" src="$2"
-  mkdir -p "$(dirname "$dst")"
   local src_abs dst_cur
   src_abs="$(readlink -f "$src" 2>/dev/null || echo "$src")"
   if [[ -L "$dst" ]]; then
@@ -527,21 +595,38 @@ ensure_symlink() {
       ok "Symlink OK: $dst"
       return 0
     fi
+    if [[ "$DRY_RUN" == "yes" ]]; then
+      info "Dry run: would replace symlink $dst (currently -> ${dst_cur:-broken}) with -> $src"
+      return 0
+    fi
     backup_path "$dst"
   elif [[ -e "$dst" ]]; then
+    if [[ "$DRY_RUN" == "yes" ]]; then
+      info "Dry run: would back up existing $( [[ -d "$dst" ]] && echo directory || echo file ) $dst and link -> $src"
+      return 0
+    fi
     backup_path "$dst"
   fi
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would create symlink $dst -> $src"
+    return 0
+  fi
+  mkdir -p "$(dirname "$dst")"
   ln -s "$src" "$dst"
   ok "Symlink: $dst -> $src"
 }
 
 write_file_if_changed() {
   local path="$1" content="$2"
-  mkdir -p "$(dirname "$path")"
   if [[ -f "$path" && ! -L "$path" ]] && [[ "$(cat "$path")" == "$content" ]]; then
     ok "File up to date: $path"
     return 0
   fi
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would write $path (existing file backed up first)"
+    return 0
+  fi
+  mkdir -p "$(dirname "$path")"
   if [[ -e "$path" || -L "$path" ]]; then
     backup_path "$path"
   fi
@@ -552,6 +637,14 @@ write_file_if_changed() {
 deploy_configs() {
   if ((${#PLAN_DEPLOY[@]}==0)); then
     ok "Config deployment: no changes needed."
+    return 0
+  fi
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    step "Dry run: config changes"
+    local action
+    for action in "${PLAN_DEPLOY[@]}"; do
+      info "would $action"
+    done
     return 0
   fi
   step "Deploying configs (ready system)"
@@ -632,12 +725,21 @@ create_dirs() {
   if ((${#PLAN_DIRS[@]}==0)); then return 0; fi
   step "Creating directories"
   for d in "${PLAN_DIRS[@]}"; do
+    if [[ "$DRY_RUN" == "yes" ]]; then
+      info "Dry run: would create $d"
+      continue
+    fi
     mkdir -p "$d"
     ok "Created: $d"
   done
 }
 
 enable_user_services() {
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    step "Systemd user services"
+    info "Dry run: would enable and start hypridle.service"
+    return 0
+  fi
   step "Enabling systemd user services"
   if have systemctl && systemctl --user show-environment >/dev/null 2>&1; then
     if systemctl --user enable --now hypridle.service && systemctl --user is-active --quiet hypridle.service; then
@@ -654,7 +756,11 @@ enable_user_services() {
 
 final_report() {
   step "Summary"
-  ok "Installation and deployment completed (ready system)."
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    ok "Dry run finished. No changes were made."
+  else
+    ok "Installation and deployment completed (ready system)."
+  fi
   if ((${#MISSING_WARN_PKGS[@]})); then
     warn "Missing (not installed automatically): ${MISSING_WARN_PKGS[*]}"
   fi
@@ -683,6 +789,12 @@ bootstrap_repo() {
     echo "  - git is missing: will be installed via 'sudo pacman -S --needed git'"
   fi
   echo
+
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: would prepare $REPO_DIR, then re-run this installer to print the full plan"
+    return 0
+  fi
+
   if ! ask_yn "${BOLD}Proceed with repository bootstrap?${RESET}" "N"; then
     warn "Cancelled by user. No changes made."
     exit 0
@@ -720,9 +832,13 @@ bootstrap_repo() {
 }
 
 main() {
+  parse_args "$@"
   preflight
   if [[ "$BOOTSTRAP_MODE" == "yes" ]]; then
     bootstrap_repo "$@"
+    if [[ "$DRY_RUN" == "yes" ]]; then
+      return 0
+    fi
   fi
 
   scan_packages
@@ -732,7 +848,9 @@ main() {
   print_plan
 
   echo
-  if ! ask_yn "${BOLD}Proceed with the plan?${RESET}" "N"; then
+  if [[ "$DRY_RUN" == "yes" ]]; then
+    info "Dry run: walking through the plan; nothing will be installed, linked, or written."
+  elif ! ask_yn "${BOLD}Proceed with the plan?${RESET}" "N"; then
     warn "Cancelled by user. No changes made."
     exit 0
   fi
