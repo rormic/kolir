@@ -77,10 +77,6 @@ QtObject {
         : root.fixedScheduleValid
     readonly property bool scheduleActive: root.autoSchedule && root.scheduleValid
 
-    readonly property bool expectedOn: root.scheduleActive
-        ? root.expectedScheduleOn()
-        : false
-
     readonly property string sunriseLabel: root.sunTimes.sunrise
         ? root.formatDate(root.sunTimes.sunrise)
         : "—"
