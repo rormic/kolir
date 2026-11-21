@@ -1473,6 +1473,59 @@ def hyprland_running() -> bool:
     return result.returncode == 0
 
 
+def running_shell_configs(qs: str) -> list[str]:
+    """Config directories of every running kolir Quickshell instance."""
+    try:
+        result = subprocess.run(
+            [qs, "list", "--all"], capture_output=True, text=True, timeout=10
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    configs: list[str] = []
+    for line in (result.stdout or "").splitlines():
+        marker = "Config path:"
+        if marker not in line:
+            continue
+        path = line.split(marker, 1)[1].strip()
+        if not path.endswith("/config/quickshell/shell.qml"):
+            continue
+        directory = os.path.dirname(os.path.dirname(path))
+        if directory and directory not in configs:
+            configs.append(directory)
+    return configs
+
+
+def kill_other_shells(qs: str, config: Path) -> None:
+    """Stop every kolir shell, including one left behind by another root.
+
+    Before the package existed the shell ran from a checkout; after `kolir
+    setup` moves the links to /usr/share/kolir a reload has to stop that old
+    instance too, otherwise two bars (and two notification servers) run.
+    """
+    targets = [str(config)]
+    for directory in running_shell_configs(qs):
+        if directory not in targets:
+            targets.append(directory)
+
+    for directory in targets:
+        killed = False
+        try:
+            result = subprocess.run(
+                [qs, "-p", directory, "kill"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            killed = result.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            killed = False
+        if not killed:
+            for pattern in (f"qs -p {directory}", f"quickshell -p {directory}"):
+                subprocess.run(
+                    ["pkill", "-f", pattern], capture_output=True, text=True
+                )
+
+
 def restart_shell(root: Path) -> None:
     config = root / "config/quickshell"
 
@@ -1511,25 +1564,7 @@ def restart_shell(root: Path) -> None:
         warn("qs is not installed; cannot restart Quickshell")
         return
 
-    killed = False
-    try:
-        result = subprocess.run(
-            [qs, "-p", str(config), "kill"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        killed = result.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        killed = False
-
-    if not killed:
-        for pattern in (f"qs -p {config}", f"quickshell -p {config}"):
-            subprocess.run(
-                ["pkill", "-f", pattern],
-                capture_output=True,
-                text=True,
-            )
+    kill_other_shells(qs, config)
     time.sleep(0.7)
 
     log_path = cache_home() / "kolir/shell.log"
