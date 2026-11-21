@@ -14,75 +14,58 @@ Scope {
     id: root
 
     // ── Available values ─────────────────────────────────────────────────
-    readonly property var fpsKeys: ["auto", "30", "60", "120", "180"]
-    readonly property var fpsLabels: ["Auto (native)", "30", "60", "120", "180"]
-
-    readonly property var qualityKeys: ["low", "medium", "high", "max"]
-    readonly property var qualityLabels: ["Low (8 Mbps)", "Medium (20 Mbps)", "High (40 Mbps)", "Max (80 Mbps)"]
-
-    readonly property var codecKeys: ["h264", "hevc", "av1"]
-    readonly property var codecLabels: ["H.264", "HEVC", "AV1"]
-
-    readonly property var audioKeys: ["system", "mic", "both", "none"]
-    readonly property var audioLabels: ["System", "Microphone", "System + Mic", "No audio"]
-
-    readonly property var areaKeys: ["region", "full"]
-    readonly property var areaLabels: ["Region", "Full screen"]
+    readonly property var options: [
+        {
+            title: "FPS",
+            keys: ["auto", "30", "60", "120", "180"],
+            labels: ["Auto (native)", "30", "60", "120", "180"],
+        },
+        {
+            title: "Quality",
+            keys: ["low", "medium", "high", "max"],
+            labels: ["Low (8 Mbps)", "Medium (20 Mbps)", "High (40 Mbps)", "Max (80 Mbps)"],
+        },
+        {
+            title: "Codec",
+            keys: ["h264", "hevc", "av1"],
+            labels: ["H.264", "HEVC", "AV1"],
+        },
+        {
+            title: "Audio",
+            keys: ["system", "mic", "both", "none"],
+            labels: ["System", "Microphone", "System + Mic", "No audio"],
+        },
+        {
+            title: "Area",
+            keys: ["region", "full"],
+            labels: ["Region", "Full screen"],
+        },
+    ]
 
     // ── Current selection (in-memory only, until Enter/Esc) ──────────────
-    property int fpsIndex: 0
-    property int qualityIndex: 1
-    property int codecIndex: 0
-    property int audioIndex: 0
-    property int areaIndex: 0
+    property var optionIndexes: [0, 1, 0, 0, 0]
     property int selectedRow: 0
 
     function wrapIndex(index, length, direction) {
         return (index + direction + length) % length;
     }
 
-    function cycleFps(direction) {
-        root.fpsIndex = root.wrapIndex(root.fpsIndex, root.fpsKeys.length, direction);
+    function cycleOption(row, direction) {
+        const next = root.optionIndexes.slice();
+        next[row] = root.wrapIndex(next[row], root.options[row].keys.length, direction);
+        root.optionIndexes = next;
     }
-    function cycleQuality(direction) {
-        root.qualityIndex = root.wrapIndex(root.qualityIndex, root.qualityKeys.length, direction);
-    }
-    function cycleCodec(direction) {
-        root.codecIndex = root.wrapIndex(root.codecIndex, root.codecKeys.length, direction);
-    }
-    function cycleAudio(direction) {
-        root.audioIndex = root.wrapIndex(root.audioIndex, root.audioKeys.length, direction);
-    }
-    function cycleArea(direction) {
-        root.areaIndex = root.wrapIndex(root.areaIndex, root.areaKeys.length, direction);
+
+    function optionKey(row) {
+        return root.options[row].keys[root.optionIndexes[row]];
     }
 
     function changeSelected(direction) {
-        switch (root.selectedRow) {
-        case 0:
-            root.cycleFps(direction);
-            break;
-        case 1:
-            root.cycleQuality(direction);
-            break;
-        case 2:
-            root.cycleCodec(direction);
-            break;
-        case 3:
-            root.cycleAudio(direction);
-            break;
-        case 4:
-            root.cycleArea(direction);
-            break;
-        }
+        root.cycleOption(root.selectedRow, direction);
     }
 
     function resetOptions() {
-        root.fpsIndex = 0;
-        root.qualityIndex = 1;
-        root.codecIndex = 0;
-        root.audioIndex = 0;
-        root.areaIndex = 0;
+        root.optionIndexes = [0, 1, 0, 0, 0];
         root.selectedRow = 0;
     }
 
@@ -129,11 +112,11 @@ Scope {
                 "sh",
                 ShellPaths.hyprScripts + "/screen-record.sh",
                 "--start",
-                "--fps", root.fpsKeys[root.fpsIndex],
-                "--quality", root.qualityKeys[root.qualityIndex],
-                "--codec", root.codecKeys[root.codecIndex],
-                "--audio", root.audioKeys[root.audioIndex],
-                "--area", root.areaKeys[root.areaIndex]
+                "--fps", root.optionKey(0),
+                "--quality", root.optionKey(1),
+                "--codec", root.optionKey(2),
+                "--audio", root.optionKey(3),
+                "--area", root.optionKey(4)
             ];
             startProc.running = true;
         }
@@ -276,8 +259,7 @@ Scope {
                 }
 
                 // ── Options list ──
-                Rectangle {
-                    id: listCard
+                RecordingOptions {
                     anchors {
                         top: header.bottom
                         topMargin: 12
@@ -286,61 +268,11 @@ Scope {
                         bottom: footer.top
                         bottomMargin: 12
                     }
-                    radius: Dimensions.radius.large
-                    color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.55)
-                    border.width: 1
-                    border.color: Colors.withAlpha(Colors.outlineVariant, 0.20)
-
-                    Column {
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        spacing: 4
-
-                        OptionRow {
-                            title: "FPS"
-                            value: root.fpsLabels[root.fpsIndex]
-                            active: root.selectedRow === 0
-                            onPrevious: root.cycleFps(-1)
-                            onNext: root.cycleFps(1)
-                            onActivated: root.selectedRow = 0
-                        }
-
-                        OptionRow {
-                            title: "Quality"
-                            value: root.qualityLabels[root.qualityIndex]
-                            active: root.selectedRow === 1
-                            onPrevious: root.cycleQuality(-1)
-                            onNext: root.cycleQuality(1)
-                            onActivated: root.selectedRow = 1
-                        }
-
-                        OptionRow {
-                            title: "Codec"
-                            value: root.codecLabels[root.codecIndex]
-                            active: root.selectedRow === 2
-                            onPrevious: root.cycleCodec(-1)
-                            onNext: root.cycleCodec(1)
-                            onActivated: root.selectedRow = 2
-                        }
-
-                        OptionRow {
-                            title: "Audio"
-                            value: root.audioLabels[root.audioIndex]
-                            active: root.selectedRow === 3
-                            onPrevious: root.cycleAudio(-1)
-                            onNext: root.cycleAudio(1)
-                            onActivated: root.selectedRow = 3
-                        }
-
-                        OptionRow {
-                            title: "Area"
-                            value: root.areaLabels[root.areaIndex]
-                            active: root.selectedRow === 4
-                            onPrevious: root.cycleArea(-1)
-                            onNext: root.cycleArea(1)
-                            onActivated: root.selectedRow = 4
-                        }
-                    }
+                    options: root.options
+                    indexes: root.optionIndexes
+                    selectedRow: root.selectedRow
+                    onCycled: (row, direction) => root.cycleOption(row, direction)
+                    onActivated: row => root.selectedRow = row
                 }
             }
         }
