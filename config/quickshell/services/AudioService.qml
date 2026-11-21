@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell.Io
+import "audio/AudioParser.js" as AudioParser
 
 QtObject {
     id: root
@@ -78,55 +79,26 @@ QtObject {
         }
     }
 
+    // Pure parsing helpers live in audio/AudioParser.js. These wrappers keep
+    // the service API (and the JSON guards with their diagnostics) intact.
     function clampPercent(value) {
-        return Math.max(0, Math.min(100, Math.round(value)))
+        return AudioParser.clampPercent(value);
     }
 
     function volumePercent(device) {
-        if (!device || !Array.isArray(device.channels))
-            return 0;
-        const values = device.channels.map(ch => parseInt(String(ch.value_percent ?? "0").replace("%", ""), 10));
-        if (values.length === 0 || values.some(isNaN))
-            return 0;
-        return root.clampPercent(values.reduce((a, b) => a + b, 0) / values.length);
+        return AudioParser.volumePercent(device);
     }
 
     function channelList(volume) {
-        if (!volume)
-            return [];
-        if (Array.isArray(volume))
-            return volume;
-        const out = [];
-        for (const key of Object.keys(volume)) {
-            if (volume[key] && typeof volume[key] === "object")
-                out.push(volume[key]);
-        }
-        return out;
+        return AudioParser.channelList(volume);
     }
 
     function describeDevice(entry) {
-        return entry.description
-            || entry.properties?.["device.nick"]
-            || entry.name
-            || "";
+        return AudioParser.describeDevice(entry);
     }
 
     function deviceIcon(entry) {
-        const mediaClass = entry.properties?.["media.class"] || "";
-        const icon = entry.properties?.["device.icon_name"] || "";
-
-        if (mediaClass === "Audio/Source" && /microphone|mic/i.test(icon))
-            return "audio-input-microphone";
-
-        if (/headset|headphone/i.test(icon))
-            return "audio-headset";
-        if (/speaker/i.test(icon))
-            return "speaker";
-        if (/hdmi|displayport/i.test(icon))
-            return "video-display";
-        if (/microphone|mic/i.test(icon))
-            return "audio-input-microphone";
-        return mediaClass === "Audio/Source" ? "audio-input-microphone" : "audio-card-analog";
+        return AudioParser.deviceIcon(entry);
     }
 
     function parseDevices(text, kind) {
@@ -147,23 +119,7 @@ QtObject {
         if (!Array.isArray(parsed))
             return null;
 
-        const devices = parsed.map(entry => ({
-            name: entry.name,
-            description: root.describeDevice(entry),
-            icon: root.deviceIcon(entry),
-            channels: root.channelList(entry.volume),
-            muted: !!entry.mute,
-            isDefault: false
-        }));
-
-        // Hide monitor sources from the microphone picker (they mirror a sink).
-        if (kind === "source") {
-            return devices.filter(d =>
-                !d.name.endsWith(".monitor")
-                && d.channels.length > 0
-            );
-        }
-        return devices;
+        return AudioParser.devicesFromList(parsed, kind);
     }
 
     function parseCards(text) {
@@ -181,46 +137,12 @@ QtObject {
         if (!Array.isArray(parsed))
             return null;
 
-        const cards = [];
-        for (let i = 0; i < parsed.length; i++) {
-            const entry = parsed[i];
-            const name = entry.name || "";
-            // Only BlueZ cards carry switchable A2DP codec profiles.
-            if (!name.startsWith("bluez_card."))
-                continue;
-
-            const profiles = [];
-            const raw = entry.profiles;
-            // pactl -f json list cards returns profiles as an object keyed by
-            // profile name; some versions use an array instead.
-            if (Array.isArray(raw)) {
-                for (const p of raw) {
-                    if (p && p.name && p.available !== false)
-                        profiles.push({ name: p.name, description: p.description || p.name });
-                }
-            } else if (raw && typeof raw === "object") {
-                for (const key of Object.keys(raw)) {
-                    const p = raw[key];
-                    if (p && p.available !== false)
-                        profiles.push({ name: key, description: (p && p.description) || key });
-                }
-            }
-
-            cards.push({
-                name: name,
-                activeProfile: entry.active_profile || "",
-                profiles: profiles
-            });
-        }
-        return cards;
+        return AudioParser.cardsFromList(parsed);
     }
 
     // bluez_output.98_80_BB_41_CF_2D.1 -> bluez_card.98_80_BB_41_CF_2D
     function cardNameForSink(sinkName) {
-        if (!sinkName || !sinkName.startsWith("bluez_output."))
-            return "";
-        const mac = sinkName.slice("bluez_output.".length).split(".")[0];
-        return mac ? "bluez_card." + mac : "";
+        return AudioParser.cardNameForSink(sinkName);
     }
 
     function cardForSink(sinkName) {
