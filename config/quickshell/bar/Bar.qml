@@ -68,7 +68,7 @@ PanelWindow {
             right: parent.right
         }
         height: Dimensions.bar.height
-        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+        color: Colors.surfaceContainerLow
     }
 
     // Subtle top highlight
