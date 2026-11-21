@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B і C виконані (кроки 1–51). Наступна — Фаза G (крок 52).
+Статус: Фази A, B, C і D1 виконані (кроки 1–58). Наступна — D2 (кроки 59–61).
 
 ## 1. Мета та незмінні вимоги
 
@@ -445,6 +445,32 @@ config/
 - `RecordingOptions` винесено окремим файлом: модель `options`, `Repeater` і `indexes` передаються з `RecordingSetup`, який лишається власником селекції, циклів і CLI-аргументів.
 - `SettingsPageHeader`, `AnchoredPopup` і `MainPage` не змінюють layer namespaces, IPC targets, розміри, таймери або порядок елементів.
 
+### Фаза D. Великі вікна та лаунчер
+
+Фаза D виконується двома частинами: D1 — великі вікна (кроки 52–58), D2 — лаунчер (кроки 59–61). Нумерація кроків у секціях G–J нижче збережена як історична.
+
+#### ✅ D1 виконана
+
+Коміти: `f238de4` (52), `054e1de` (53a), `df9d7b5` (53b), `510d63e` (54), `7b5643a` (55), `716fbbc` (56a), `a557a9b` (56b), `f976592` (57), `443f26b` (58a), `742a1d3` (58b), `7ef72f8` (58c). Тег: `refactor-phase-d1`.
+
+Що зроблено:
+
+- 52: `nightLight/TemperatureCard.qml` — conversion, rounding, presets `2500/4000/6500` і settle timer `350 ms` перенесені без змін; картка отримує температуру/межі й повідомляє `temperatureRequested`.
+- 53a/53b: `nightLight/TimeField.qml` і `nightLight/ScheduleCard.qml` — `ModeChip` лишився локальним для розкладу, не універсалізований зі звуком; `TimeColumn` і steppers перенесені; крок хвилин і добове wrap стали доменними константами `minuteStep = 5`, `minutesPerHour = 60`, `minutesPerDay = 1440`.
+- 54: `bluetooth/BluetoothDeviceRow.qml` — glyph/status mapping, battery/forget, connected accent і hit areas без змін.
+- 55: `internet/EthernetCard.qml` — expand/collapse і detail rows без змін.
+- 56a/56b: `settings/PasswordField.qml` і `internet/WifiConnectionForm.qml` — поле володіє echo mode, visibility, selection і Return/Enter/Escape; форма володіє submit/cancel і не запускає `nmcli`; режими `password`/`hidden` керуються одним `mode`.
+- 57: `internet/WifiNetworkRow.qml` — signal icon, saved/connected labels, hover delete і hit areas без змін.
+- 58a/58b/58c: `internet/NetworkController.qml` — стан, сім `Process`, `nmcli` parsing, polling `10000`, refresh delay `200` і lifecycle перенесені в один контролер, що живе всередині `InternetPage`. Це не singleton; `active` повторює видимість сторінки.
+
+Відхилення та уточнення:
+
+- `NetworkController` — невидимий `Item`, а не singleton. `InternetPage` тримає лише `resetForms` для скидання UI-стану форми; контролер повідомляє `resetRequested`, коли з’єднання успішне або Wi-Fi вимкнено. Це прибрало дублювання reset-логіки.
+- `WifiConnectionForm` використовує один `PasswordField`; при зміні `mode` поле очищується, щоб секрет не переносився між режимами `password` і `hidden`.
+- `EthernetCard.state` перейменовано на `connectionState`, бо `state` збігався з `Item.state` (`property-override`).
+- `InternetPage` отримав `pragma ComponentBehavior: Bound`, щоб перенесені delegate-посилання не додали нових `unqualified` warnings. Поведінка не змінюється.
+- Повний `qmllint` після D1: 442 warnings проти 438 baseline. Усі нові записи — це той самий клас `missing-property` для `Dimensions`/`Typography`, який linter не резолвить у `QtObject`-сінглтонах; нових runtime errors і нових класів warnings немає. `unqualified` у нових компонентах відсутні.
+
 ### Фаза D. NowPlaying
 
 43. **Винести `bar/components/media/MarqueeText.qml`.**  
@@ -491,7 +517,7 @@ config/
     **Виконує:** основний агент.  
     **Перевірка:** REC, усі значення, wrap-around, клавіатура й точна команда `--start`.
 
-### Фаза G. Night Light popup
+### Фаза G. Night Light popup — ✅ виконано в межах D1
 
 52. **Винести `bar/components/nightLight/TemperatureCard.qml`.**  
     **Виконує:** основний агент; conversion, rounding, settle timer і presets `2500/4000/6500` не змінювати.  
@@ -502,13 +528,13 @@ config/
     **Межі:** open/close popup не змінювати.  
     **Перевірка:** NIGHT: fixed/sun, equal times, invalid location, steppers/wheel.
 
-### Фаза H. Bluetooth
+### Фаза H. Bluetooth — ✅ виконано в межах D1
 
 54. **Винести `settings/bluetooth/BluetoothDeviceRow.qml`.**  
     **Виконує:** основний агент; glyph/status mapping передати без зміни результатів.  
     **Перевірка:** BT: battery/delete на hover, connected/pairing/paired, list transitions.
 
-### Фаза I. Internet
+### Фаза I. Internet — ✅ виконано в межах D1
 
 55. **Винести `settings/internet/EthernetCard.qml`.**  
     **Виконує:** основний агент; expand/collapse і visibility detail rows не змінювати.  
