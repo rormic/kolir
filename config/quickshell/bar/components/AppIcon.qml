@@ -14,7 +14,15 @@ Item {
     readonly property string source: {
         if (!root.appClass)
             return "";
-        return Quickshell.iconPath(root.resolveIcon(root.appClass), root.fallbackIcon);
+
+        const icon = root.resolveIcon(root.appClass);
+        if (icon.startsWith("/") || (icon !== "" && Quickshell.hasThemeIcon(icon)))
+            return Quickshell.iconPath(icon, root.fallbackIcon);
+
+        if (root.fallbackIcon !== "" && Quickshell.hasThemeIcon(root.fallbackIcon))
+            return Quickshell.iconPath(root.fallbackIcon, "");
+
+        return "";
     }
 
     implicitWidth: iconSize

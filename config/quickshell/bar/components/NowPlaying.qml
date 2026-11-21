@@ -6,7 +6,7 @@ import QtQuick
 
 // Now playing: expanding media island.
 //
-// Collapsed it is an info chip: cover thumbnail, "Artist – Title", and a
+// Collapsed it is an info chip: site/app icon, "Artist – Title", and a
 // thin neon progress line at the bottom (the "playing" indicator — it
 // moves while playing, dims and freezes on pause). On hover the island
 // grows, the text condenses and transport buttons (prev / play-pause /
@@ -52,9 +52,31 @@ Surface {
         ? Math.max(0, Math.min(1, player.position / player.length))
         : 0
 
-    readonly property bool artReady: hasPlayer
-        && player.trackArtUrl !== ""
-        && artImage.status === Image.Ready
+    // Browsers expose the current tab URL as xesam:url, so use its host to
+    // look up a local favicon.
+    readonly property string trackUrl: {
+        if (!hasPlayer || !player.metadata)
+            return "";
+        const url = player.metadata["xesam:url"];
+        return typeof url === "string" ? url : "";
+    }
+
+    readonly property string siteHost: {
+        const match = trackUrl.match(/^[a-z][a-z0-9+.-]*:\/\/([^\/?#:]+)/i);
+        return match ? match[1].toLowerCase() : "";
+    }
+
+    property string siteIconPath: ""
+    property string faviconRequestHost: ""
+
+    readonly property bool siteIconReady: siteIconPath !== ""
+        && siteIconImage.status === Image.Ready
+
+    // AppIcon resolves the player's desktop entry (zen -> zen-browser, ...).
+    readonly property bool appIconReady: appIcon.ready
+
+    // The music note is the last resort, used only when no icon is available.
+    readonly property bool showNoteIcon: !siteIconReady && !appIconReady
 
     // Optimistic playback state. Some players (Firefox/Zen) never update
     // PlaybackStatus, and quickshell's togglePlaying() then keeps sending
@@ -103,6 +125,17 @@ Surface {
         assumedPlaying = hasPlayer ? player.isPlaying : false;
     }
 
+    function refreshSiteIcon() {
+        siteIconPath = "";
+
+        if (!hasPlayer || trackUrl === "" || siteHost === "")
+            return;
+
+        faviconRequestHost = siteHost;
+        faviconProc.running = false;
+        faviconProc.running = true;
+    }
+
     function nextTrack() {
         if (hasPlayer && player.canGoNext)
             player.next();
@@ -138,6 +171,17 @@ Surface {
     onVisibleChanged: syncMarquee()
     onExpandedChanged: syncMarquee()
     onPlayerChanged: syncAssumedState()
+
+    // The host is enough to identify the favicon, so switching tracks on the
+    // same site does not touch the browser database again.
+    onSiteHostChanged: refreshSiteIcon()
+
+    // Retry when a track changes on the same host but the first lookup found
+    // nothing (for example a site whose icon was cached after it was played).
+    onTrackUrlChanged: {
+        if (siteHost !== "" && siteIconPath === "" && !faviconProc.running)
+            refreshSiteIcon();
+    }
 
     IpcHandler {
         target: "nowPlaying"
@@ -204,39 +248,52 @@ Surface {
                     anchors.fill: parent
                     radius: Dimensions.radius.small
                     color: Colors.stateLayer(Colors.primary, 0.12)
-                    visible: !root.artReady
+                    visible: root.showNoteIcon
                 }
 
                 Text {
                     anchors.centerIn: parent
-                    visible: !root.artReady
+                    visible: root.showNoteIcon
                     text: Icons.musicNote
                     color: Colors.primary
                     font.family: Typography.iconFont
                     font.pixelSize: 12
                 }
 
-                Rectangle {
-                    id: artClip
+                // Application icon, used when the site has no favicon.
+                AppIcon {
+                    id: appIcon
 
                     anchors.fill: parent
-                    radius: Dimensions.radius.small
-                    color: "transparent"
-                    clip: true
-                    opacity: root.artReady ? 1 : 0
+                    iconSize: coverSlot.width
+                    appClass: root.hasPlayer ? root.player.desktopEntry : ""
+                    fallbackIcon: ""
+                    visible: !root.siteIconReady && ready
+                }
+
+                // Site favicon extracted from the browser's local cache.
+                Image {
+                    id: siteIconImage
+
+                    anchors.fill: parent
+                    visible: root.siteIconPath !== ""
+                    opacity: root.siteIconReady ? 1 : 0
+                    source: root.siteIconPath !== ""
+                        ? "file://" + root.siteIconPath
+                        : ""
+                    sourceSize: Qt.size(coverSlot.width, coverSlot.height)
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    smooth: true
+                    mipmap: true
 
                     Behavior on opacity {
-                        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
                     }
 
-                    Image {
-                        id: artImage
-
-                        anchors.fill: parent
-                        source: root.hasPlayer ? root.player.trackArtUrl : ""
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        cache: true
+                    onStatusChanged: {
+                        if (status === Image.Error)
+                            root.siteIconPath = "";
                     }
                 }
             }
@@ -399,6 +456,42 @@ Surface {
         onTriggered: root.player.positionChanged()
     }
 
+    // Local site favicon lookup. The helper reads the browser's
+    // favicons.sqlite and caches the extracted image; no network is used.
+    Process {
+        id: faviconProc
+
+        running: false
+        command: [
+            "python3",
+            Quickshell.shellPath("scripts/favicon.py"),
+            Quickshell.cachePath("favicons"),
+            root.trackUrl
+        ]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const path = text.trim();
+
+                // Ignore a late result from a previous site.
+                if (path !== "" && root.faviconRequestHost === root.siteHost)
+                    root.siteIconPath = path;
+            }
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim() !== "")
+                    console.warn("NowPlaying: favicon lookup:", text.trim());
+            }
+        }
+
+        onExited: (code, status) => {
+            if (code !== 0)
+                console.warn("NowPlaying: favicon helper exited with code", code);
+        }
+    }
+
     // Raw MPRIS control. quickshell's play()/pause() short-circuit when the
     // reported state already matches, which never happens for players that
     // lie about PlaybackStatus, so the D-Bus methods are called directly.
@@ -420,30 +513,13 @@ Surface {
         }
     }
 
-    // Crossfade the cover on track changes, including players that keep
-    // reusing the same art URL (no reload means no fade otherwise), and
-    // follow real playback state changes from well-behaved players.
+    // Follow real playback state changes from well-behaved players.
     Connections {
         target: root.player
-
-        function onPostTrackChanged() {
-            coverFadeIn.restart();
-        }
 
         function onPlaybackStateChanged() {
             root.syncAssumedState();
         }
-    }
-
-    NumberAnimation {
-        id: coverFadeIn
-
-        target: artImage
-        property: "opacity"
-        from: 0
-        to: 1
-        duration: 350
-        easing.type: Easing.OutCubic
     }
 
     HoverHandler { id: _hover }
@@ -451,5 +527,6 @@ Surface {
     Component.onCompleted: {
         syncAssumedState();
         syncMarquee();
+        refreshSiteIcon();
     }
 }
