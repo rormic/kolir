@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B, C, D виконані (кроки 1–61). Фаза E: E1 і E2 виконано; наступна — E3.
+Статус: Фази A, B, C, D виконані (кроки 1–61). Фаза E: E1, E2 і E3 виконано; наступна — E4.
 
 ## 1. Мета та незмінні вимоги
 
@@ -527,6 +527,32 @@ config/
 - Інтерактивний вибір через Zenity (SUPER+CTRL+T, Cancel) неможливо відтворити без інструментів введення; перевірено лише `hyprctl reload` і наявність bind.
 - `REFACTOR_PLAN.md` зберігає історичні назви скриптів у таблиці кроків і старих розділах; це документація виконаних кроків, а не чинні посилання.
 
+#### ✅ E3 виконана
+
+Коміти: `f0ad950` (72), `9e1c78c` (73), `2f03278` (74). Тег: `refactor-phase-e3`.
+
+Що зроблено:
+
+- 72: `screen-record/audio.sh` — `default_sink_monitor`, `default_microphone`, `wait_for_source`, `setup_audio_mix`, `cleanup_audio_mix`.
+- 73: `screen-record/encoders.sh` — `has_encoder`, `encoder_usable`, `encoder_for`, `quality_bitrate`, `quality_crf`.
+- 74: `screen-record/monitors.sh` — `detect_fps`, `focused_region`, `focused_monitor_name`.
+- Усі три файли підключаються через `. "$SCRIPT_DIR/screen-record/<name>.sh"`, де `SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)`. Це POSIX `sh`, працює і з repo-шляхом, і через symlink `~/.config/hypr/scripts`.
+- Назви функцій, змінні `OPT_*`, `MIX_SINK`, `AUDIO_MODULES_FILE`, аргументи рекордера, порядок викликів і тексти повідомлень не змінювалися.
+
+Перевірки:
+
+- `sh -n` для `screen-record.sh` і трьох helper-файлів проходить.
+- Реальні короткі записи: `system`, `mic`, `both`, `none` — усі створили відео; `system`/`mic`/`both` мають AAC-доріжку, `none` — лише відео. У режимі `both` під час запису було 3 тимчасові модулі, після зупинки — 0.
+- Повний запис: `-o DP-1`, 2560×1440, auto FPS = 180. Region через тестовий `slurp`-wrapper: `-g 0,0 640x480`, 640×480. `KOLIR_REC_FPS=60`: `-r 60`, 2560×1440, 60 fps.
+- Для кожної якості (`low/medium/high/max`) і кожного кодеку (`h264/hevc/av1`) вибір encoder/bitrate/CRF до і після збігається: h264_nvenc/hevc_nvenc/libsvtav1 та `8M/20M/40M/80M`, CRF `38/32/26/20`.
+- Після всіх тестів `recording.json` має `active:false`, процесів `wf-recorder` і модулів `kolir_rec_mix` не залишилося.
+
+Відхилення та уточнення:
+
+- Інтерактивний `slurp` не можна відтворити без інструментів введення, тому region-режим перевірено з тимчасовим wrapper-ом `/tmp/opencode/bin/slurp`, який повертає фіксовану геометрію. Репозиторій і система при цьому не змінювалися.
+- Тестові відео залишено в `~/Videos/Recordings/` як доказ перевірки; вони створені штатним `screen-record.sh`.
+- Повторні рестарти Quickshell під час E1–E3 знову накопичили orphan-процеси `wl-paste --watch` (відомий дефект життєвого циклу). E0 виконувався лише один раз, код для цього не змінювався.
+
 ### Фаза D. NowPlaying
 
 43. **Винести `bar/components/media/MarqueeText.qml`.**  
@@ -682,17 +708,17 @@ config/
     **Виконує:** основний агент; Matugen options і monitor logic не змінювати.  
     **Перевірка:** THEME, Hyprland/Foot/Neovim/hyprlock outputs.
 
-72. **Винести audio helpers у `screen-record/audio.sh`.**  
+72. **Винести audio helpers у `screen-record/audio.sh`.** — ✅ виконано (E3)  
     **Дія:** `default_sink_monitor`, `default_microphone`, `wait_for_source`, `setup_audio_mix`, `cleanup_audio_mix`; source через надійно обчислений directory.  
     **Виконує:** основний агент; POSIX `sh`.  
     **Перевірка:** `sh -n`; короткі записи system/mic/both/none; перевірка звуку й вивантаження тимчасових PipeWire modules.
 
-73. **Винести codec/quality helpers у `screen-record/encoders.sh`.**  
+73. **Винести codec/quality helpers у `screen-record/encoders.sh`.** — ✅ виконано (E3)  
     **Дія:** `has_encoder`, `encoder_usable`, `encoder_for`, `quality_bitrate`, `quality_crf`.  
     **Виконує:** основний агент.  
     **Перевірка:** до/після однакові encoder/bitrate/CRF; NVIDIA fallback; короткий запис.
 
-74. **Винести monitor helpers у `screen-record/monitors.sh`.**  
+74. **Винести monitor helpers у `screen-record/monitors.sh`.** — ✅ виконано (E3)  
     **Дія:** `detect_fps`, `focused_region`, `focused_monitor_name`.  
     **Виконує:** основний агент.  
     **Перевірка:** full/region recording, auto FPS, `KOLIR_REC_FPS`, відсутність залишкових процесів.
