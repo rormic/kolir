@@ -420,13 +420,13 @@ hl.window_rule({
 	immediate = true,
 })
 
-hl.window_rule = {
+hl.window_rule({
+	name = "zen-opacity",
 	opacity = "0.95 0.7",
-	blur = true,
 	match = {
-		class = "^(zen|-alpha|-browser)?$",
+		class = "^(zen|zen-alpha|zen-browser)$",
 	},
-}
+})
 
 hl.layer_rule({
 	name = "bar-blur",
