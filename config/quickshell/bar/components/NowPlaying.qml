@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import QtQuick
+import "media"
 
 // Now playing: expanding media island.
 //
@@ -146,30 +147,7 @@ Surface {
             player.previous();
     }
 
-    // The marquee should only run while the text actually overflows the
-    // viewport (and never while the island is hidden). Width changes come
-    // from Behaviors, so this is called per animation frame and must not
-    // restart an already running loop.
-    function syncMarquee() {
-        const overflow = visible && textLabel.implicitWidth > viewport.width;
-
-        if (overflow) {
-            if (!marquee.running)
-                marquee.restart();
-        } else {
-            marquee.stop();
-            textLabel.x = 0;
-        }
-    }
-
-    onTrackTextChanged: {
-        textLabel.x = 0;
-        marquee.stop();
-        syncMarquee();
-    }
-
-    onVisibleChanged: syncMarquee()
-    onExpandedChanged: syncMarquee()
+    onExpandedChanged: viewport.syncMarquee()
     onPlayerChanged: syncAssumedState()
 
     // The host is enough to identify the favicon, so switching tracks on the
@@ -299,61 +277,19 @@ Surface {
             }
 
             // Clipped text viewport; marquee for overflowing titles.
-            Item {
+            MarqueeText {
                 id: viewport
 
                 anchors.left: coverSlot.right
                 anchors.leftMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 height: parent.height
-                clip: true
-                width: Math.min(textLabel.implicitWidth,
+                width: Math.min(viewport.textWidth,
                     root.expanded ? root.textCondensedWidth : root.textMaxWidth)
+                text: root.trackText
 
                 Behavior on width {
                     NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                }
-
-                onWidthChanged: root.syncMarquee()
-
-                Text {
-                    id: textLabel
-
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.trackText
-                    color: Colors.onSurface
-                    font.family: Typography.barFont
-                    font.pixelSize: Typography.size.labelMedium
-                    font.weight: Typography.weight.bold
-                }
-
-                // Marquee: rest, scroll through the title, rest, slide back.
-                SequentialAnimation {
-                    id: marquee
-
-                    loops: Animation.Infinite
-
-                    PauseAnimation { duration: 2000 }
-
-                    NumberAnimation {
-                        target: textLabel
-                        property: "x"
-                        from: 0
-                        to: viewport.width - textLabel.implicitWidth
-                        duration: Math.max(2500, (textLabel.implicitWidth - viewport.width) * 55)
-                        easing.type: Easing.InOutSine
-                    }
-
-                    PauseAnimation { duration: 2000 }
-
-                    NumberAnimation {
-                        target: textLabel
-                        property: "x"
-                        from: viewport.width - textLabel.implicitWidth
-                        to: 0
-                        duration: 700
-                        easing.type: Easing.InQuad
-                    }
                 }
             }
 
@@ -526,7 +462,6 @@ Surface {
 
     Component.onCompleted: {
         syncAssumedState();
-        syncMarquee();
         refreshSiteIcon();
     }
 }
