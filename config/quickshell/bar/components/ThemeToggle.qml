@@ -1,3 +1,4 @@
+import "../../services"
 import "../../theme"
 import Quickshell
 import Quickshell.Io
@@ -28,7 +29,7 @@ IconButton {
     }
 
     FileView {
-        path: Quickshell.env("HOME") + "/.cache/current_theme"
+        path: ShellPaths.currentTheme
         watchChanges: true
         onFileChanged: this.reload()
         onLoaded: {
@@ -42,7 +43,7 @@ IconButton {
 
     Process {
         id: toggleProc
-        command: ["sh", Quickshell.env("HOME") + "/.config/hypr/scripts/toggle-theme.sh"]
+        command: ["sh", ShellPaths.hyprScripts + "/toggle-theme.sh"]
         running: false
     }
 }
