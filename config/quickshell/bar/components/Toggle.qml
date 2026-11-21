@@ -1,5 +1,5 @@
 import QtQuick
-import "../theme"
+import "../../theme"
 
 // Neon Material toggle. Controlled: the parent owns `checked`, this only
 // reports taps via `toggled` so bindings never fight each other.
