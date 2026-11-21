@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B, C і D1 виконані (кроки 1–58). Наступна — D2 (кроки 59–61).
+Статус: Фази A, B, C, D1 і D2 виконані (кроки 1–61). Наступна — Фаза K (крок 62).
 
 ## 1. Мета та незмінні вимоги
 
@@ -471,6 +471,23 @@ config/
 - `InternetPage` отримав `pragma ComponentBehavior: Bound`, щоб перенесені delegate-посилання не додали нових `unqualified` warnings. Поведінка не змінюється.
 - Повний `qmllint` після D1: 442 warnings проти 438 baseline. Усі нові записи — це той самий клас `missing-property` для `Dimensions`/`Typography`, який linter не резолвить у `QtObject`-сінглтонах; нових runtime errors і нових класів warnings немає. `unqualified` у нових компонентах відсутні.
 
+#### ✅ D2 виконана
+
+Коміти: `18bb211` (59), `477011a` (60), `f5e5b04` (61). Тег: `refactor-phase-d`.
+
+Що зроблено:
+
+- 59: `launcher/ClipboardController.qml` — `wl-paste` watchers, `cliphist list` parsing, image previews, copy/delete processes і модель перенесені в `Scope` на корені лаунчера, не в `PanelWindow`. Аргументи демонів, формат записів, команди `cliphist decode`/`delete` і модель лишилися еквівалентними.
+- 60: `launcher/SearchLogic.js` — чисті `filterApplications(apps, query)` і `evalMath(input)`. Scores `1000/500/350/150/120/90/70/50`, regex, сортування й форматування результату не змінені.
+- 61: `launcher/LauncherResultRow.qml` — selection, app icon, clipboard index, image layout і metadata, Enter hint і click-виклик `activated()` перенесені без змін.
+
+Відхилення та уточнення:
+
+- `ClipboardController` має корінь `Scope` (як `MprisController`), тому `wl-paste --watch` працює при закритому лаунчері.
+- Старі процеси `wl-paste --watch` не зупиняються при рестартах Quickshell: під час перевірки їх накопичилося понад сто пар. Це наявна проблема життєвого циклу, не спричинена виносом і не виправлялася в межах D2.
+- `LauncherResultRow` отримує `selected` через `ListView.isCurrentItem`, `rowHeight` — з `imageRowHeight`/`appRowHeight`, а дію виконує лаунчер у `onActivated`, тому `list.currentIndex`, copy та execute мають попередній порядок.
+- Повний `qmllint` після D2: 425 warnings проти 438 baseline; нових класів warnings і runtime errors немає.
+
 ### Фаза D. NowPlaying
 
 43. **Винести `bar/components/media/MarqueeText.qml`.**  
@@ -554,7 +571,7 @@ config/
     **Межі:** polling `10000`, refresh delay `200`, `nmcli` commands, escaping і callback order не змінювати.  
     **Перевірка:** повний NET, повторне входження на сторінку, порівняння model до/після.
 
-### Фаза J. Launcher
+### Фаза J. Launcher — ✅ виконано в межах D2
 
 59. **Винести `launcher/ClipboardController.qml`.**  
     **Виконує:** основний агент; Processes, daemon arguments, модель і preview refresh залишити еквівалентними.  
