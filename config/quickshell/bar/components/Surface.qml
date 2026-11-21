@@ -18,11 +18,11 @@ Rectangle {
     clip: true
 
     Behavior on color {
-        ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+        ColorAnimation { duration: Motion.color; easing.type: Easing.OutCubic }
     }
 
     Behavior on borderColor {
-        ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+        ColorAnimation { duration: Motion.color; easing.type: Easing.OutCubic }
     }
 
     Item {
