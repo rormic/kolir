@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B, C, D1 і D2 виконані (кроки 1–61). Наступна — Фаза K (крок 62).
+Статус: Фази A, B, C, D виконані (кроки 1–61). Фаза E: E1 виконано (кроки 62–64); наступна — E2.
 
 ## 1. Мета та незмінні вимоги
 
@@ -488,6 +488,27 @@ config/
 - `LauncherResultRow` отримує `selected` через `ListView.isCurrentItem`, `rowHeight` — з `imageRowHeight`/`appRowHeight`, а дію виконує лаунчер у `onActivated`, тому `list.currentIndex`, copy та execute мають попередній порядок.
 - Повний `qmllint` після D2: 425 warnings проти 438 baseline; нових класів warnings і runtime errors немає.
 
+### Фаза E. Runtime services, скрипти, документація
+
+Фаза E виконується замість окремих фаз K і L: E1 — сервіси, E2 — перейменування wallpaper-скриптів, E3 — helpers `screen-record.sh`, E4 — документація й фінальний regression. Кроки 65–68 (`AudioParser.js`, `Solar.js`, `Schedule.js`, `StateStore.qml`) відкладені й не виконуються.
+
+#### ✅ E1 виконана
+
+Коміти: `cf1d76b` (62), `4d022af` (63), `31754db` (64). Тег: `refactor-phase-e1`.
+
+Що зроблено:
+
+- 62: `AudioService.qml` перенесено з `theme/` у `services/` без зміни реалізації; оновлено `theme/qmldir`, `services/qmldir` і imports у `VolumeOsd.qml`, `Volume.qml`, `SoundControls.qml`.
+- 63: `BrightnessService.qml` перенесено в `services/`; перше підтверджено, що сервіс не використовує `ShellPaths`; imports оновлено в `BrightnessOsd.qml` і `Brightness.qml`. Коментар у `ProgressIndicator.qml` не містить шляху, тому не змінювався.
+- 64: `HyprsunsetService.qml` перенесено в `services/`; внутрішній import `"../services"` замінено на `"."`, бо сервіс і `ShellPaths` тепер в одному каталозі; imports оновлено в `BrightnessPopup.qml` і `ScheduleCard.qml`.
+
+Відхилення та уточнення:
+
+- Кожен із трьох сервісів перевірено холодним стартом Quickshell, а не hot reload. Консоль щоразу містила лише стандартні startup-рядки.
+- Після 64 `~/.cache/quickshell/hyprsunset.json` побайтово не змінився (md5 до/після збігся), IPC targets і команди `pactl`/`ddcutil` не редагувалися.
+- Повний `qmllint` після E1: 425 warnings, як і після D2; нових класів warnings немає.
+- У `services/qmldir` записи розташовані в порядку `AudioService`, `ShellPaths`, `BrightnessService`, `HyprsunsetService`; порядок не впливає на резолвінг.
+
 ### Фаза D. NowPlaying
 
 43. **Винести `bar/components/media/MarqueeText.qml`.**  
@@ -588,17 +609,19 @@ config/
 
 ### Фаза K. Runtime services
 
-62. **Перемістити `AudioService.qml` у `services/`.**  
+Кроки 62–64 виконано в межах E1. Кроки 65–68 відкладені й не виконуються.
+
+62. **Перемістити `AudioService.qml` у `services/`.** — ✅ виконано (E1)  
     **Файли:** service, `theme/qmldir`, `services/qmldir`, imports у `VolumeOsd.qml`, `Volume.qml`, `SoundControls.qml`.  
     **Виконує:** `qml-mechanic`; реалізацію не змінювати.  
     **Перевірка:** повний shell restart, SOUND, volume keys, external `pactl` updates.
 
-63. **Перемістити `BrightnessService.qml` у `services/`.**  
+63. **Перемістити `BrightnessService.qml` у `services/`.** — ✅ виконано (E1)  
     **Файли:** service, qmldir, imports у `BrightnessOsd.qml`, `Brightness.qml`, коментар у `ProgressIndicator.qml`.  
     **Виконує:** `qml-mechanic`; `ddcutil` commands/timers не змінювати.  
     **Перевірка:** IPC brightness up/down/set, OSD, monitor-button polling.
 
-64. **Перемістити `HyprsunsetService.qml` у `services/`.**  
+64. **Перемістити `HyprsunsetService.qml` у `services/`.** — ✅ виконано (E1)  
     **Файли:** service, qmldir, imports у `Brightness.qml`, `BrightnessPopup.qml`.  
     **Виконує:** `qml-mechanic`; state path і IPC не змінювати.  
     **Перевірка:** NIGHT після restart, state JSON keys.
