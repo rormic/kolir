@@ -22,10 +22,13 @@ Pill {
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
         onClicked: mouse => {
-            if (mouse.button === Qt.LeftButton)
+            if (mouse.button === Qt.RightButton)
                 popup.toggle();
+            else if (mouse.button === Qt.LeftButton)
+                AudioService.toggleMute();
         }
         onWheel: wheel => {
             if (wheel.angleDelta.y > 0) AudioService.volumeUp();
