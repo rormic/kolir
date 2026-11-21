@@ -2,11 +2,10 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../services"
 
 QtObject {
     id: root
-
-    readonly property string home: Quickshell.env("HOME")
 
     property color primary: "#86d6be"
     property color onPrimary: ("#00382c")
@@ -45,7 +44,7 @@ QtObject {
     }
 
     property FileView _fileView: FileView {
-        path: root.home + "/.config/quickshell/colors.json"
+        path: ShellPaths.colorsJson
         watchChanges: true
 
         onFileChanged: {
