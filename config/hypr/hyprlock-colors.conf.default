@@ -1,6 +1,6 @@
 # Fallback palette for hyprlock (neutral dark scheme of the kolir palette).
 #
-# install.sh copies this file to ~/.config/hypr/hyprlock-colors.conf ONLY when
+# `kolir setup` copies this file to ~/.config/hypr/hyprlock-colors.conf ONLY when
 # that file does not exist yet, i.e. before the first Matugen run, so hyprlock
 # has colors to paint with. The deployed copy is a Matugen output from then
 # on: do not edit it by hand, regenerate colors instead.
