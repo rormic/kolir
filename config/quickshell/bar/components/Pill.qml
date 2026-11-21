@@ -34,12 +34,12 @@ Surface {
         : Colors.withAlpha(Colors.outlineVariant, 0.18)
 
     Behavior on borderColor {
-        ColorAnimation { duration: 150 }
+        ColorAnimation { duration: Motion.hover }
     }
 
     scale: hovered ? 1.04 : 1.0
     Behavior on scale {
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
     }
 
     Row {
@@ -55,7 +55,7 @@ Surface {
             font.family: Typography.iconFont
             font.pixelSize: root.iconSize
             font.weight: Font.Normal
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: Motion.hover } }
         }
 
         Text {
@@ -68,7 +68,7 @@ Surface {
             font.weight: root.textWeight
             elide: Text.ElideRight
             width: root.textMaxWidth > 0 ? Math.min(implicitWidth, root.textMaxWidth) : implicitWidth
-            Behavior on color { ColorAnimation { duration: 140 } }
+            Behavior on color { ColorAnimation { duration: Motion.color } }
         }
     }
 
