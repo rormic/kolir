@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A і B виконані (кроки 1–36). Наступна — Фаза C (крок 37); кроки 44–47 відкладено.
+Статус: Фази A, B і C виконані (кроки 1–51). Наступна — Фаза G (крок 52).
 
 ## 1. Мета та незмінні вимоги
 
@@ -396,7 +396,7 @@ config/
 - `VolumeSlider`: іменовано локальні метрики `preferredHeight`, `preferredWidth`, `disabledOpacity`, `wheelStep`; глобальних токенів не додано.
 - Нові warnings не з’явилися: єдиний «новий» набір у порівнянні з baseline — ті самі warnings `RecordingSetup.qml` за новим шляхом `recording/` замість `rec/`.
 
-### Фаза C. Спільні OSD і popup
+### Фаза C. Спільні OSD, popup і розбиття великих компонентів — ✅ виконано
 
 37. **Створити `osd/OsdPanel.qml` і перевести `VolumeOsd.qml`.**  
     **Дія:** винести однаковий PanelWindow, reveal, timer, pill, gradient і layout; wrapper зберігає service connection та `volumeChangedManually`.  
@@ -430,30 +430,45 @@ config/
     **Виконує:** `qml-mechanic`; тільки header-блок.  
     **Перевірка:** NET, SET.
 
+#### ✅ Фаза C виконана
+
+Коміти: `2654eb4` (37), `b2ba81b` (38), `c8d77e2` (39), `4a5cbdc` (40), `283377d` (41), `383e2b3` (42), `5af140a` (43), `13b9895` (44), `9c0a746` (45), `46730a6` (46), `70e8114` (47), `edbc7e8` (48), `7969c7a` (49), `2af6bb5` (50), `f4a7711` (51). Тег: `refactor-phase-c`.
+
+Фаза C за виконанням охопила кроки 37–51: кроки 43–51, які в цьому плані лежать у секціях D–F, виконано в межах Фази C на окреме прохання. Відкладення кроків 44–47 скасовано.
+
+Відхилення та уточнення під час виконання:
+
+- `Motion.osd` виправлено з `180` на `160` — це фактична тривалість fade OSD у `OsdPanel`. `Motion.popupEnter`/`popupExit` (`180`/`120`) збіглися з реальними тривалостями й використані в `AnchoredPopup`.
+- `MprisController` має корінь `Scope`, а не `QtObject`, бо `IpcHandler` потребує default property. Після розділення `NowPlaying`/`MprisController` додано прямі null-guard перевірки `player`, щоб не було нових transient `TypeError` під час зміни гравця.
+- `MainPage` отримав `topInset`, бо більше не бачить `contentTopInset` батьківського `SettingsMenu`.
+- `AudioDeviceCard` володіє власним drag-станом і одним settle-таймером `350 ms` на картку; output та input, як і раніше, мають окремі незалежні таймери.
+- `RecordingOptions` винесено окремим файлом: модель `options`, `Repeater` і `indexes` передаються з `RecordingSetup`, який лишається власником селекції, циклів і CLI-аргументів.
+- `SettingsPageHeader`, `AnchoredPopup` і `MainPage` не змінюють layer namespaces, IPC targets, розміри, таймери або порядок елементів.
+
 ### Фаза D. NowPlaying
 
 43. **Винести `bar/components/media/MarqueeText.qml`.**  
     **Виконує:** основний агент; перенести marquee без зміни формул, restart conditions і pause timings.  
     **Перевірка:** MEDIA: короткий/довгий track, collapsed/expanded, hidden player, зміна track під час scrolling.
 
-44. ⏸ **Відкладено, не виконувати.** **Винести `bar/components/media/MprisController.qml`.**  
+44. **Винести `bar/components/media/MprisController.qml`.**  
     **Виконує:** основний агент; зберегти busctl workaround, favicon Process, polling та IPC `nowPlaying`.  
     **Перевірка:** MEDIA, особливо Firefox/Zen stale PlaybackStatus.
 
 ### Фаза E. Sound
 
-Кроки 45–47 ⏸ відкладено, не виконувати.
+Кроки 45–47 виконано в межах Фази C.
 
-45. ⏸ **Відкладено, не виконувати.** **Винести `bar/components/sound/AudioDeviceCard.qml`.**  
+45. **Винести `bar/components/sound/AudioDeviceCard.qml`.**  
     **Виконує:** основний агент; output/input cards мають використовувати той самий компонент з однаковими візуальними параметрами.  
     **Межі:** settle timers `350ms`, optimistic volume state і codec section не змінювати.  
     **Перевірка:** SOUND: drag/wheel до та після release, unavailable device.
 
-46. ⏸ **Відкладено, не виконувати.** **Винести `bar/components/sound/AudioDeviceList.qml`.**  
+46. **Винести `bar/components/sound/AudioDeviceList.qml`.**  
     **Виконує:** основний агент; sink/source delegates і поведінка мають бути ідентичні поточним.  
     **Перевірка:** switch default sink/source, counts, active check, empty state, scroll.
 
-47. ⏸ **Відкладено, не виконувати.** **Винести `bar/components/sound/CodecChip.qml`.**  
+47. **Винести `bar/components/sound/CodecChip.qml`.**  
     **Виконує:** основний агент; `codecLabel()` і A2DP filtering залишити без змін.  
     **Перевірка:** SOUND з Bluetooth headset, active codec disabled, правильний `pactl` profile.
 
