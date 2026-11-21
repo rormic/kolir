@@ -1,5 +1,4 @@
 # Maintainer: ZaViBiS <ZaViBiS@users.noreply.github.com>
-# TODO(publish): confirm the AUR account/contact before pushing.
 
 pkgname=kolir-git
 pkgver=r157.e43417b

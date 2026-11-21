@@ -136,9 +136,9 @@ instead of reusing an old archive. Since the package only owns files under
 - **No full install test.** `makepkg -f`, `namcap *.pkg.tar.zst`, `pacman -U` and
   a real `kolir setup` on a clean account are still pending; only `bash -n`,
   `namcap PKGBUILD` and `makepkg --printsrcinfo` have been run.
-- **Maintainer line.** `PKGBUILD` currently reads
-  `ZaViBiS <ZaViBiS@users.noreply.github.com>`; confirm the contact address that
-  should be published.
+- **Maintainer line.** `PKGBUILD` uses
+  `ZaViBiS <ZaViBiS@users.noreply.github.com>`; the AUR SSH account is confirmed
+  as `ZaViBiS`.
 - **Versioned lower bounds.** `hyprland>=0.57.2` and `quickshell>=0.3.2` mirror
   the versions this configuration is developed against. `matugen` is
   intentionally unversioned because `matugen-bin` provides it without a version;
