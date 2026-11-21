@@ -10,7 +10,6 @@ Item {
     id: root
 
     signal back()
-    signal close()
 
     property int topInset: 0
 

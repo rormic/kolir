@@ -429,7 +429,6 @@ Item {
                         topInset: root.contentTopInset
                         visible: root.page === "internet"
                         onBack: root.navigate("main")
-                        onClose: root.close()
                     }
                 }
             }
