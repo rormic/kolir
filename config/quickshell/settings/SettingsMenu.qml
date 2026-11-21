@@ -54,14 +54,18 @@ Item {
     readonly property int popoutWidth: popupWidth
 
     readonly property int panelBottomRadius: Dimensions.radius.extraLarge
-    // Right shoulder at the top, plus a small outward foot on the lower left
-    // that melts into the desktop frame without moving the body off the edge.
+    // The sheet sits on the desktop frame. Its lower left corner pours down
+    // that frame: instead of a rounded corner, the bottom edge bends towards
+    // the frame and melts into it over this many pixels, so the panel and the
+    // frame read as one continuous surface.
+    readonly property int panelMelt: Dimensions.radius.extraExtraLarge
+    // Right shoulder at the top, plus the left body edge that stays flush with
+    // the desktop frame.
     readonly property int panelFlare: 32
     readonly property int panelShoulderHeight: 32
-    readonly property int panelBulgeHeight: 48
-    readonly property int panelBulgeBodyLeft: Dimensions.frame.thickness
+    readonly property int panelBodyLeft: Dimensions.frame.thickness
     readonly property int contentTopInset: panelShoulderHeight + 8
-    readonly property int contentLeftInset: panelBulgeBodyLeft
+    readonly property int contentLeftInset: panelBodyLeft
     readonly property int contentRightInset: panelFlare
 
     // The sheet grows out of the trigger: width first, then height, so it does
@@ -69,25 +73,31 @@ Item {
     readonly property real revealWidth: Math.min(1, reveal * 1.35)
     readonly property real panelShapeWidth: Math.max(2 * panelFlare + 80,
         popupWidth * revealWidth)
-    // Keep the contour valid while the panel is only a few pixels tall.
-    readonly property real panelShapeHeight: Math.max(panelShoulderHeight + panelBulgeHeight + 16 + panelBottomRadius,
-        panelHeight * reveal)
     readonly property real contentReveal: Math.max(0, Math.min(1, (reveal - 0.65) / 0.35))
+    // Rounded body of the sheet. Keep the contour valid while the panel is
+    // only a few pixels tall.
+    readonly property real panelBodyHeight: Math.max(
+        panelShoulderHeight + panelBottomRadius + 16,
+        panelHeight * reveal)
+    // The pour grows in once the sheet has dropped, so it never stretches the
+    // opening animation into a long tail.
+    readonly property real panelMeltHeight: panelMelt * contentReveal
+    readonly property real panelShapeHeight: panelBodyHeight + panelMeltHeight
 
-    // Right shoulder curves outward into the bar. The left edge stays at the
-    // frame and, near the bottom, bends outward into the frame.
+    // Right shoulder curves outward into the bar. The left edge stays on the
+    // frame; the bottom edge bends down at the left and flows into that frame
+    // strip, so no rounded corner or notch is left where the two meet.
     readonly property string panelFillPath: {
         const w = panelShapeWidth;
-        const h = panelShapeHeight;
+        const h = panelBodyHeight;
+        const m = panelMeltHeight;
         const r = panelBottomRadius;
         const f = panelFlare;
         const sh = panelShoulderHeight;
-        const bl = panelBulgeBodyLeft;
-        const bh = panelBulgeHeight;
+        const bl = panelBodyLeft;
         return `M ${bl} 0 H ${w} Q ${w - f} 0 ${w - f} ${sh} V ${h - r}`
-            + ` Q ${w - f} ${h} ${w - f - r} ${h} H ${r}`
-            + ` Q 0 ${h} 0 ${h - r} V ${Math.max(h - bh, h - r)}`
-            + ` Q ${bl} ${Math.max(h - bh, h - r)} ${bl} ${Math.max(h - bh - 16, 0)}`
+            + ` Q ${w - f} ${h} ${w - f - r} ${h} H ${bl + m}`
+            + ` C ${bl + m * 0.375} ${h} ${bl} ${h} ${bl} ${h + m}`
             + ` V 0 Z`;
     }
 
@@ -326,7 +336,9 @@ Item {
         x: root.popoutX
         y: root.popoutY
         width: root.panelShapeWidth
-        height: Math.max(0, root.panelHeight * root.reveal)
+        // Ends exactly at the bottom of the pour so the sheet still collapses
+        // cleanly while closing.
+        height: Math.max(0, root.panelHeight * root.reveal + root.panelMeltHeight)
         visible: root.opened || root.reveal > 0.001
         clip: true
         z: 10
@@ -338,7 +350,8 @@ Item {
             height: root.panelHeight
 
             Shape {
-                anchors.fill: parent
+                width: parent.width
+                height: root.panelShapeHeight
                 preferredRendererType: Shape.CurveRenderer
 
                 ShapePath {
