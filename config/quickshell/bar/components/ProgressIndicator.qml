@@ -77,7 +77,7 @@ Item {
 
     Behavior on value {
         enabled: root.animated
-        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
     }
 
     // Build the active wave as a polyline. The sine runs at full amplitude
@@ -125,7 +125,7 @@ Item {
     NumberAnimation on phase {
         from: 0
         to: root.wavelength
-        duration: 1000
+        duration: Motion.spin
         loops: Animation.Infinite
         running: root.wavy && root.animated && root.playing
             && root.progress > 0 && !root.complete
@@ -145,10 +145,10 @@ Item {
         color: root.trackColor
 
         Behavior on width {
-            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
         }
         Behavior on x {
-            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
         }
     }
 
@@ -164,7 +164,7 @@ Item {
         color: root.indicatorColor
 
         Behavior on width {
-            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
         }
     }
 
