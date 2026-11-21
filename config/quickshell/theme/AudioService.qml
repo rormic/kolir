@@ -15,9 +15,9 @@ QtObject {
     // Full device state used by the bar volume popup.
     property string defaultSinkName: ""
     property string defaultSourceName: ""
-    property var sinks: []     // { index, name, description, icon, channels, muted, isDefault }
-    property var sources: []   // { index, name, description, icon, channels, muted, isDefault }
-    // Bluetooth cards only: { name, activeProfile, address, profiles[] }.
+    property var sinks: []     // { name, description, icon, channels, muted, isDefault }
+    property var sources: []   // { name, description, icon, channels, muted, isDefault }
+    // Bluetooth cards only: { name, activeProfile, profiles[] }.
     // Profiles are PipeWire card profiles. A2DP codecs are exposed as
     // "a2dp-sink-<codec>" (plus a bare "a2dp-sink" for AAC) and can be
     // switched with pactl set-card-profile.
@@ -141,14 +141,11 @@ QtObject {
             return [];
 
         const devices = parsed.map(entry => ({
-            index: entry.index,
             name: entry.name,
             description: root.describeDevice(entry),
             icon: root.deviceIcon(entry),
             channels: root.channelList(entry.volume),
             muted: !!entry.mute,
-            // Negotiated Bluetooth codec (empty for non-Bluetooth devices).
-            codec: entry.properties?.["api.bluez5.codec"] || "",
             isDefault: false
         }));
 
@@ -201,7 +198,6 @@ QtObject {
             cards.push({
                 name: name,
                 activeProfile: entry.active_profile || "",
-                address: entry.properties?.["api.bluez5.address"] || "",
                 profiles: profiles
             });
         }
@@ -296,7 +292,6 @@ QtObject {
             found.muted = muted;
         } else {
             devices.push({
-                index: -1,
                 name: name,
                 description: name,
                 icon: kind === "sink" ? "audio-card-analog" : "audio-input-microphone",
@@ -320,10 +315,9 @@ QtObject {
             cardProc.running = true;
     }
 
-    function enqueueCommand(command, description) {
+    function enqueueCommand(command) {
         root.actionQueue.push({
-            command: command,
-            description: description || ""
+            command: command
         });
         root.runNextAction();
     }
@@ -340,16 +334,16 @@ QtObject {
     function applyVolumeToDevice(kind, name, percent) {
         const target = root.clampPercent(percent);
         if (kind === "sink")
-            root.enqueueCommand(["pactl", "set-sink-volume", name, target + "%"], "volume");
+            root.enqueueCommand(["pactl", "set-sink-volume", name, target + "%"]);
         else
-            root.enqueueCommand(["pactl", "set-source-volume", name, target + "%"], "volume");
+            root.enqueueCommand(["pactl", "set-source-volume", name, target + "%"]);
     }
 
     function toggleMuteForDevice(kind, name) {
         const command = kind === "sink"
             ? ["pactl", "set-sink-mute", name, "toggle"]
             : ["pactl", "set-source-mute", name, "toggle"];
-        root.enqueueCommand(command, "mute");
+        root.enqueueCommand(command);
     }
 
     // ── Public controls (settings page) ─────────────────────────────────────
@@ -361,13 +355,13 @@ QtObject {
         const script = 'pactl set-default-sink "$1" && pactl list short sink-inputs'
             + ' | awk \'{print $1}\' | while read -r id; do'
             + ' pactl move-sink-input "$id" "$1" >/dev/null 2>&1; done';
-        root.enqueueCommand(["sh", "-c", script, "sh", name], "default-sink");
+        root.enqueueCommand(["sh", "-c", script, "sh", name]);
     }
 
     function setDefaultSource(name) {
         if (!name)
             return;
-        root.enqueueCommand(["pactl", "set-default-source", name], "default-source");
+        root.enqueueCommand(["pactl", "set-default-source", name]);
     }
 
     // Switch the active Bluetooth codec by selecting its card profile
@@ -375,7 +369,7 @@ QtObject {
     function setCardProfile(cardName, profileName) {
         if (!cardName || !profileName)
             return;
-        root.enqueueCommand(["pactl", "set-card-profile", cardName, profileName], "card-profile");
+        root.enqueueCommand(["pactl", "set-card-profile", cardName, profileName]);
     }
 
     // These are throttled: every slider move updates the pending value, and
