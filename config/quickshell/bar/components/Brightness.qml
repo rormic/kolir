@@ -1,5 +1,6 @@
 import QtQuick
 import "../../theme"
+import "../../services"
 
 // Brightness chip: neon icon, progress accent bar.
 Pill {
