@@ -279,6 +279,11 @@ hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-rec
 -- one-off recording settings: opens Quickshell menu, then starts recording --
 hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh --setup"))
 
+-- lock screen
+hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"))
+-- lock when the laptop lid closes; logind handles the actual suspend
+hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd("loginctl lock-session"))
+
 -- Example binds, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 local closeWindowBind = hl.bind(mainMod .. " + C", hl.dsp.window.close())
@@ -341,8 +346,16 @@ hl.bind(
 	hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
 	{ locked = true, repeating = true }
 )
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/brightness.sh up"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/brightness.sh down"), { locked = true, repeating = true })
+hl.bind(
+	"XF86MonBrightnessUp",
+	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/brightness.sh up"),
+	{ locked = true, repeating = true }
+)
+hl.bind(
+	"XF86MonBrightnessDown",
+	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/brightness.sh down"),
+	{ locked = true, repeating = true }
+)
 
 -- Requires playerctl
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })

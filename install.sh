@@ -71,7 +71,7 @@ REPO_PKGS=(
   brightnessctl ddcutil libnotify playerctl zenity nautilus
   pipewire pipewire-pulse wireplumber
   # wm/session/media/record
-  hyprland hyprsunset foot mpv wf-recorder
+  hyprland hyprsunset foot mpv wf-recorder hyprlock hypridle
   # ui/theme/wallpaper (official repos)
   quickshell awww matugen
   # fonts & icons (bar uses Material Symbols Rounded; app icons need an icon theme)
@@ -248,6 +248,9 @@ scan_layout() {
   local hypr_main="$HOME/.config/hypr/hyprland.lua"
   local hypr_scripts="$HOME/.config/hypr/scripts"
   local hypr_sunset="$HOME/.config/hypr/hyprsunset.conf"
+  local hypr_lock="$HOME/.config/hypr/hyprlock.conf"
+  local hypr_idle="$HOME/.config/hypr/hypridle.conf"
+  local hypr_lock_colors="$HOME/.config/hypr/hyprlock-colors.conf"
   local hypr_user="$HOME/.config/hypr/user.lua"
   local hypr_loader
   hypr_loader=$'-- kolir loader: delegates to repo config\nlocal repo = "'"$REPO_DIR"$'"\ndofile(repo .. "/config/hypr/hyprland.lua")\n'
@@ -268,6 +271,21 @@ scan_layout() {
   else
     PLAN_DEPLOY+=("hypr: link $hypr_sunset to $REPO_DIR/config/hypr/hyprsunset.conf (with backup)")
   fi
+  if [[ -L "$hypr_lock" ]] && [[ "$(readlink -f "$hypr_lock" 2>/dev/null || true)" == "$(readlink -f "$REPO_DIR/config/hypr/hyprlock.conf")" ]]; then
+    ok "hypr: hyprlock.conf linked to repo"
+  else
+    PLAN_DEPLOY+=("hypr: link $hypr_lock to $REPO_DIR/config/hypr/hyprlock.conf (with backup)")
+  fi
+  if [[ -L "$hypr_idle" ]] && [[ "$(readlink -f "$hypr_idle" 2>/dev/null || true)" == "$(readlink -f "$REPO_DIR/config/hypr/hypridle.conf")" ]]; then
+    ok "hypr: hypridle.conf linked to repo"
+  else
+    PLAN_DEPLOY+=("hypr: link $hypr_idle to $REPO_DIR/config/hypr/hypridle.conf (with backup)")
+  fi
+  if [[ -f "$hypr_lock_colors" ]]; then
+    ok "hypr: hyprlock-colors.conf (matugen output or fallback) is present"
+  else
+    PLAN_DEPLOY+=("hypr: create $hypr_lock_colors from the bundled fallback (never overwritten later)")
+  fi
   if [[ -f "$hypr_user" ]]; then
     ok "hypr: user.lua (machine-specific) is present"
   else
@@ -286,6 +304,12 @@ scan_layout() {
     ok "matugen: templates linked to repo"
   else
     PLAN_DEPLOY+=("matugen: symlink $m_tpl -> $REPO_DIR/config/matugen/templates (with backup)")
+  fi
+  local m_lock="$HOME/.config/matugen/hyprlock.toml"
+  if [[ -L "$m_lock" ]] && [[ "$(readlink -f "$m_lock" 2>/dev/null || true)" == "$(readlink -f "$REPO_DIR/config/matugen/hyprlock.toml")" ]]; then
+    ok "matugen: hyprlock.toml linked to repo"
+  else
+    PLAN_DEPLOY+=("matugen: symlink $m_lock -> $REPO_DIR/config/matugen/hyprlock.toml (with backup)")
   fi
 
   # mpv
@@ -373,6 +397,9 @@ print_plan() {
   else
     for a in "${PLAN_DEPLOY[@]}"; do echo "  - $a"; done
   fi
+
+  echo "${BOLD}Systemd user services:${RESET}"
+  echo "  - enable and start hypridle.service (systemd --user; skipped with a warning when no user session is available)"
 
   echo "${BOLD}Warnings only (will not install):${RESET}"
   if ((${#MISSING_WARN_PKGS[@]}==0)); then echo "  - docker/docker-compose/go present or not required"; else for w in "${MISSING_WARN_PKGS[@]}"; do echo "  - missing: $w"; done; fi
@@ -549,6 +576,9 @@ deploy_configs() {
   local hypr_main="$HOME/.config/hypr/hyprland.lua"
   local hypr_scripts="$HOME/.config/hypr/scripts"
   local hypr_sunset="$HOME/.config/hypr/hyprsunset.conf"
+  local hypr_lock="$HOME/.config/hypr/hyprlock.conf"
+  local hypr_idle="$HOME/.config/hypr/hypridle.conf"
+  local hypr_lock_colors="$HOME/.config/hypr/hyprlock-colors.conf"
   local hypr_user="$HOME/.config/hypr/user.lua"
   local hypr_loader
   hypr_loader=$'-- kolir loader: delegates to repo config\nlocal repo = "'"$REPO_DIR"$'"\ndofile(repo .. "/config/hypr/hyprland.lua")\n'
@@ -561,6 +591,20 @@ deploy_configs() {
     fi
   fi
   ensure_symlink "$hypr_sunset" "$REPO_DIR/config/hypr/hyprsunset.conf"
+  ensure_symlink "$hypr_lock" "$REPO_DIR/config/hypr/hyprlock.conf"
+  ensure_symlink "$hypr_idle" "$REPO_DIR/config/hypr/hypridle.conf"
+  # hyprlock colors: deploy the bundled fallback only when the file is
+  # missing; once matugen has written its output it is never overwritten.
+  if [[ ! -f "$hypr_lock_colors" ]]; then
+    if [[ -f "$REPO_DIR/config/hypr/hyprlock-colors.conf.default" ]]; then
+      cp "$REPO_DIR/config/hypr/hyprlock-colors.conf.default" "$hypr_lock_colors"
+      ok "Created fallback: $hypr_lock_colors"
+    else
+      warn "hyprlock colors fallback not found: $REPO_DIR/config/hypr/hyprlock-colors.conf.default"
+    fi
+  else
+    ok "hyprlock colors: $hypr_lock_colors (present, left untouched)"
+  fi
   if [[ ! -f "$hypr_user" ]]; then
     if [[ -f "$REPO_DIR/config/hypr/user.lua.example" ]]; then
       cp "$REPO_DIR/config/hypr/user.lua.example" "$hypr_user"
@@ -575,6 +619,7 @@ deploy_configs() {
   # matugen
   ensure_symlink "$HOME/.config/matugen/config.toml" "$REPO_DIR/config/matugen/config.toml"
   ensure_symlink "$HOME/.config/matugen/templates" "$REPO_DIR/config/matugen/templates"
+  ensure_symlink "$HOME/.config/matugen/hyprlock.toml" "$REPO_DIR/config/matugen/hyprlock.toml"
 
   # mpv
   ensure_symlink "$HOME/.config/mpv/mpv.conf" "$REPO_DIR/config/mpv/mpv.conf"
@@ -590,6 +635,21 @@ create_dirs() {
     mkdir -p "$d"
     ok "Created: $d"
   done
+}
+
+enable_user_services() {
+  step "Enabling systemd user services"
+  if have systemctl && systemctl --user show-environment >/dev/null 2>&1; then
+    if systemctl --user enable --now hypridle.service && systemctl --user is-active --quiet hypridle.service; then
+      ok "hypridle.service enabled and started (packaged systemd user unit)"
+    else
+      warn "Could not enable/start hypridle.service"
+      MANUAL+=("systemctl --user enable --now hypridle.service")
+    fi
+  else
+    warn "No systemd user session detected; cannot manage hypridle.service"
+    MANUAL+=("systemctl --user enable --now hypridle.service")
+  fi
 }
 
 final_report() {
@@ -685,6 +745,7 @@ main() {
   link_theme
   create_dirs
   deploy_configs
+  enable_user_services
   final_report
 }
 

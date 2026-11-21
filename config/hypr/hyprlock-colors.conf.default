@@ -1,0 +1,17 @@
+# Fallback palette for hyprlock (neutral dark scheme of the kolir palette).
+#
+# install.sh copies this file to ~/.config/hypr/hyprlock-colors.conf ONLY when
+# that file does not exist yet, i.e. before the first Matugen run, so hyprlock
+# has colors to paint with. The deployed copy is a Matugen output from then
+# on: do not edit it by hand, regenerate colors instead.
+$primary = rgba(b8cbc3ff)
+$surface = rgba(121413ff)
+$surfaceVariant = rgba(464746ff)
+$onSurface = rgba(e3e2e1ff)
+$error = rgba(ffb4abff)
+$shadow = rgba(00000066)
+$fieldFill = rgba(e3e2e12e)
+$fieldBorder = rgba(e3e2e166)
+$fieldText = rgba(b8cbc380)
+$dateText = rgba(e3e2e1b3)
+$scrim = rgba(46474626)
