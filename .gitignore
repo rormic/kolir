@@ -8,8 +8,3 @@ config/quickshell/.qmlls.ini
 # Python bytecode
 __pycache__/
 *.pyc
-
-# AUR build artefacts
-packaging/aur/src/
-packaging/aur/pkg/
-packaging/aur/*.pkg.tar.*
