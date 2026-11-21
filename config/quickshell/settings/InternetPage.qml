@@ -17,39 +17,43 @@ Item {
     implicitWidth: 380
     implicitHeight: 520
 
-    // ── State ──────────────────────────────────────────────────────────────
-    property bool wifiEnabled: false
-    property bool hasWifiDevice: false
-    property string wifiDevice: ""
-    property string activeWifi: ""
-    property string ethernetState: "Unavailable"
-    property string ethernetConnection: ""
-    property string ethernetDevice: ""
-    property string ethernetMac: ""
-    property string ethernetSpeed: ""
-    property string ethernetIp4: ""
-    property string ethernetGateway4: ""
-    property string ethernetDns: ""
-    property string ethernetIp6: ""
-    property bool ethernetDetailsExpanded: false
-    property bool scanning: false
-    property bool busy: false
-    property string lastError: ""
+    NetworkController {
+        id: net
+    }
 
-    property var wifiNetworks: []
-    property var savedWifi: ({})
+    // ── State (owned by the nmcli controller) ─────────────────────────────
+    property alias wifiEnabled: net.wifiEnabled
+    property alias hasWifiDevice: net.hasWifiDevice
+    property alias wifiDevice: net.wifiDevice
+    property alias activeWifi: net.activeWifi
+    property alias ethernetState: net.ethernetState
+    property alias ethernetConnection: net.ethernetConnection
+    property alias ethernetDevice: net.ethernetDevice
+    property alias ethernetMac: net.ethernetMac
+    property alias ethernetSpeed: net.ethernetSpeed
+    property alias ethernetIp4: net.ethernetIp4
+    property alias ethernetGateway4: net.ethernetGateway4
+    property alias ethernetDns: net.ethernetDns
+    property alias ethernetIp6: net.ethernetIp6
+    property alias ethernetDetailsExpanded: net.ethernetDetailsExpanded
+    property alias scanning: net.scanning
+    property alias busy: net.busy
+    property alias lastError: net.lastError
+
+    property alias wifiNetworks: net.wifiNetworks
+    property alias savedWifi: net.savedWifi
 
     // Password / hidden forms
-    property string formMode: "" // "", "password", "hidden"
-    property var formNetwork: null
-    property string formSsid: ""
-    property string formPassword: ""
-    property bool formShowPassword: false
-    property bool formBusy: false
-    property string formError: ""
-    property int formSecurityIndex: 1 // 0 open, 1 WPA/WPA2
+    property alias formMode: net.formMode // "", "password", "hidden"
+    property alias formNetwork: net.formNetwork
+    property alias formSsid: net.formSsid
+    property alias formPassword: net.formPassword
+    property alias formShowPassword: net.formShowPassword
+    property alias formBusy: net.formBusy
+    property alias formError: net.formError
+    property alias formSecurityIndex: net.formSecurityIndex
 
-    readonly property bool wifiConnected: activeWifi !== ""
+    property alias wifiConnected: net.wifiConnected
 
     function resetForms() {
         formMode = "";
@@ -60,21 +64,6 @@ Item {
         formBusy = false;
         formError = "";
         formSecurityIndex = 1;
-    }
-
-    function signalIcon(signal) {
-        const s = Number(signal) || 0;
-        if (s <= 0) return Icons.signalWifi0;
-        if (s < 30) return Icons.signalWifi1;
-        if (s < 55) return Icons.signalWifi2;
-        if (s < 80) return Icons.signalWifi3;
-        return Icons.signalWifi4;
-    }
-
-    function securityLabel(sec) {
-        if (!sec || sec === "" || sec === "--")
-            return "Open";
-        return sec;
     }
 
     function isSecure(sec) {
