@@ -13,6 +13,8 @@ Item {
     signal back()
     signal close()
 
+    property int topInset: 0
+
     implicitWidth: 380
     implicitHeight: 520
 
@@ -75,6 +77,7 @@ Item {
             top: parent.top
             left: parent.left
             right: parent.right
+            topMargin: root.topInset
         }
         height: 46
 
@@ -110,7 +113,7 @@ Item {
             text: "Bluetooth"
             color: Colors.onSurface
             font.family: Typography.barFont
-            font.pixelSize: Typography.size.titleSmall
+            font.pixelSize: Typography.size.titleLarge
             font.weight: Typography.weight.bold
         }
     }

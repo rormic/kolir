@@ -1,26 +1,27 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 import "../theme"
-import "../bar/components"
 
-// Settings launcher: gear button at the far left of the bar. One popup whose
-// content switches between the category grid and individual setting pages,
-// like navigating between pages of a website.
+// Settings launcher and popout. Unlike a floating popup window, the panel is
+// drawn inside the bar's own layer surface, directly below the trigger. Its top
+// edge is fused with the bar bottom and small concave fillets connect the sides
+// back into the bar, so the menu looks like it pours out of the bar.
+//
+// The root fills the bar window. The trigger sits in the bar strip; the panel
+// hangs below it and is clipped while it reveals. Bar.qml makes the window
+// modal while the menu is open so outside clicks can dismiss it.
 Item {
     id: root
-
-    implicitWidth: Dimensions.control.iconButton
-    implicitHeight: Dimensions.bar.height
 
     property string page: "main"
     property string pendingPage: "main"
     property bool opened: false
 
-    // 0 = hidden, 1 = fully visible. Drives opacity + a small slide instead
-    // of animating the panel's height/clip: opacity/transform stay cheap and
-    // avoid re-laying out the whole page tree on every frame.
+    // 0 = hidden, 1 = fully visible. Drives the panel clip and the content
+    // fade/slide. The panel is inside the already-mapped bar surface, so no
+    // Wayland resize or first-frame wait is needed.
     property real reveal: 0
 
     // Opacity of the page tree. Page switches fade it out, morph the empty
@@ -29,18 +30,68 @@ Item {
     property real contentOpacity: 1
     property int revealTick: 0
 
-    // The first frames of a freshly mapped Wayland surface are not presented,
-    // so the reveal waits for the popup's first real frame instead of running
-    // while the window is still being created.
-    property bool pendingReveal: false
+    // Height of the visible panel itself. The panel background morphs between
+    // pages while the page content is faded out, so no layout animation is
+    // visible. The backing surface is the bar window and never resizes.
+    property real panelHeight: mainHeight
 
-    readonly property int popupWidth: 380
-    readonly property int mainHeight: 164
+    // Exposed for the bar input mask. While the menu is open it behaves like a
+    // modal popup: the whole screen is captured so an outside click can
+    // dismiss it even though the panel itself lives in the bar surface.
+    readonly property bool modal: opened || reveal > 0.001
+
+    readonly property int popupWidth: 424
+    readonly property int mainHeight: 222
     readonly property int bluetoothHeight: 520
     readonly property int internetHeight: 520
-    readonly property int maxPanelHeight: Math.max(mainHeight, bluetoothHeight, internetHeight)
 
     readonly property real targetHeight: heightForPage(page)
+
+    // The popup starts at the screen edge so the left body edge can stay at
+    // frame thickness while an outward foot is drawn into the frame.
+    readonly property int popoutX: 0
+    readonly property int popoutY: Dimensions.bar.height - 1
+    readonly property int popoutWidth: popupWidth
+
+    readonly property int panelBottomRadius: Dimensions.radius.extraLarge
+    // Right shoulder at the top, plus a small outward foot on the lower left
+    // that melts into the desktop frame without moving the body off the edge.
+    readonly property int panelFlare: 32
+    readonly property int panelShoulderHeight: 32
+    readonly property int panelBulgeHeight: 48
+    readonly property int panelBulgeBodyLeft: Dimensions.frame.thickness
+    readonly property int contentTopInset: panelShoulderHeight + 8
+    readonly property int contentLeftInset: panelBulgeBodyLeft
+    readonly property int contentRightInset: panelFlare
+
+    // The sheet grows out of the trigger: width first, then height, so it does
+    // not appear as a full-width blind dropping from the bar.
+    readonly property real revealWidth: Math.min(1, reveal * 1.35)
+    readonly property real panelShapeWidth: Math.max(2 * panelFlare + 80,
+        popupWidth * revealWidth)
+    // Keep the contour valid while the panel is only a few pixels tall.
+    readonly property real panelShapeHeight: Math.max(panelShoulderHeight + panelBulgeHeight + 16 + panelBottomRadius,
+        panelHeight * reveal)
+    readonly property real contentReveal: Math.max(0, Math.min(1, (reveal - 0.65) / 0.35))
+
+    // Right shoulder curves outward into the bar. The left edge stays at the
+    // frame and, near the bottom, bends outward into the frame.
+    readonly property string panelFillPath: {
+        const w = panelShapeWidth;
+        const h = panelShapeHeight;
+        const r = panelBottomRadius;
+        const f = panelFlare;
+        const sh = panelShoulderHeight;
+        const bl = panelBulgeBodyLeft;
+        const bh = panelBulgeHeight;
+        return `M ${bl} 0 H ${w} Q ${w - f} 0 ${w - f} ${sh} V ${h - r}`
+            + ` Q ${w - f} ${h} ${w - f - r} ${h} H ${r}`
+            + ` Q 0 ${h} 0 ${h - r} V ${Math.max(h - bh, h - r)}`
+            + ` Q ${bl} ${Math.max(h - bh, h - r)} ${bl} ${Math.max(h - bh - 16, 0)}`
+            + ` V 0 Z`;
+    }
+
+    focus: opened
 
     function heightForPage(name) {
         if (name === "bluetooth")
@@ -50,17 +101,6 @@ Item {
         return mainHeight;
     }
 
-    // Height of the visible panel itself. The panel background morphs between
-    // pages while the page content is faded out, so no layout animation is
-    // visible and no Wayland surface resize happens (the popup window is
-    // always allocated at maxPanelHeight).
-    property real panelHeight: mainHeight
-
-    // Constant backing-window size. Resizing a Wayland surface during a
-    // transition is the main source of stutter, so the popup is mapped once
-    // at the tallest page size and the panel inside it changes height.
-    readonly property int windowHeight: maxPanelHeight
-
     function open(page) {
         const target = page ?? "main";
 
@@ -69,16 +109,16 @@ Item {
             fadeInAnim.stop();
             panelHeightAnim.stop();
             revealAnim.stop();
+
             root.contentOpacity = 1;
             root.pendingPage = target;
             root.page = target;
             root.panelHeight = root.heightForPage(target);
             root.reveal = 0;
             root.opened = true;
-            root.pendingReveal = true;
-            popup.visible = true;
-            grab.active = true;
-            revealFallback.restart();
+            root.revealTick++;
+            root.forceActiveFocus();
+            root.animateReveal(1, 240, Easing.OutQuint);
         } else {
             root.navigate(target);
         }
@@ -89,30 +129,18 @@ Item {
             return;
 
         root.opened = false;
-        root.pendingReveal = false;
-        revealFallback.stop();
+        revealAnim.stop();
+        fadeOutAnim.stop();
+        fadeInAnim.stop();
         panelHeightAnim.stop();
-        grab.active = false;
 
         if (root.reveal <= 0.01) {
             root.reveal = 0;
-            popup.visible = false;
+            root.reset();
             return;
         }
 
         root.animateReveal(0, 160, Easing.InCubic);
-    }
-
-    // Called on the popup's first rendered frame, or by the fallback timer if
-    // the compositor never reports one.
-    function startReveal() {
-        if (!root.pendingReveal)
-            return;
-
-        root.pendingReveal = false;
-        revealFallback.stop();
-        root.revealTick++;
-        root.animateReveal(1, 220, Easing.OutCubic);
     }
 
     function toggle() {
@@ -125,6 +153,9 @@ Item {
     // Page-to-page navigation: fade the old content out, morph the empty
     // panel background to the new size, then fade the new page in.
     function navigate(page) {
+        if (!root.opened)
+            return;
+
         if (root.page === page) {
             if (root.pendingPage === page)
                 return;
@@ -156,6 +187,7 @@ Item {
     }
 
     function reset() {
+        revealAnim.stop();
         fadeOutAnim.stop();
         fadeInAnim.stop();
         panelHeightAnim.stop();
@@ -166,14 +198,29 @@ Item {
         root.reveal = 0;
     }
 
+    Keys.onEscapePressed: function (event) {
+        if (root.page === "bluetooth" || root.page === "internet")
+            root.navigate("main");
+        else
+            root.close();
+
+        event.accepted = true;
+    }
+
     NumberAnimation {
         id: revealAnim
 
         target: root
         property: "reveal"
-        duration: 220
-        easing.type: Easing.OutCubic
-        onFinished: if (!root.opened) popup.visible = false
+        duration: 240
+        easing.type: Easing.OutQuint
+
+        onFinished: {
+            if (!root.opened) {
+                root.reveal = 0;
+                root.reset();
+            }
+        }
     }
 
     // Fade-through: old page out, morph the empty panel background to the
@@ -233,33 +280,6 @@ Item {
         }
     }
 
-    // The backing window only exists once the popup is mapped; attach to it
-    // there so the reveal starts exactly on the first presented frame.
-    QtObject {
-        id: frameProxy
-
-        signal frameSwapped()
-    }
-
-    Connections {
-        id: frameWatcher
-
-        target: frameProxy
-
-        function onFrameSwapped() {
-            root.startReveal();
-        }
-    }
-
-    Timer {
-        id: revealFallback
-
-        // Short safety net: a long fallback makes the popup feel late even
-        // when the compositor never emits a frame signal.
-        interval: 80
-        onTriggered: root.startReveal()
-    }
-
     IpcHandler {
         target: "settings"
 
@@ -284,166 +304,125 @@ Item {
         }
     }
 
-    IconButton {
-        id: button
+    // Full-window dismissal layer. The bar input mask expands to the whole
+    // screen while the menu is open, so this catches any click outside the
+    // panel. It sits below the bar content and the panel itself.
+    MouseArea {
+        id: dismissArea
 
-        anchors.centerIn: parent
-        icon: Icons.settings
-        iconSize: Dimensions.icon.large
-        iconOffsetX: -0.5
-        iconOffsetY: 1
-        active: root.opened
-        rotation: root.opened ? 90 : 0
-        onClicked: root.toggle()
-
-        Behavior on rotation {
-            NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
-        }
+        anchors.fill: parent
+        enabled: root.modal
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        z: 0
+        onClicked: root.close()
     }
 
-    PopupWindow {
-        id: popup
+    // Panel viewport. Its height is the revealed part of the panel; the page
+    // tree inside keeps its final size, so opening and page sizing never
+    // resquash the layout.
+    Item {
+        id: popout
 
-        visible: false
-        color: "transparent"
-        grabFocus: false
+        x: root.popoutX
+        y: root.popoutY
+        width: root.panelShapeWidth
+        height: Math.max(0, root.panelHeight * root.reveal)
+        visible: root.opened || root.reveal > 0.001
+        clip: true
+        z: 10
 
-        Shortcut {
-            sequence: "Escape"
-            enabled: root.opened
-            onActivated: {
-                if (root.page === "bluetooth" || root.page === "internet")
-                    root.navigate("main");
-                else
-                    root.close();
-            }
-        }
-
-        // Anchor to the full-height settings item, not the icon button: the
-        // button is shorter than the bar, so its bottom edge sits inside the
-        // bar and would make the popup overlap the bar's last pixels.
-        anchor.item: root
-        anchor.edges: Edges.Bottom | Edges.Left
-        anchor.gravity: Edges.Bottom | Edges.Right
-        anchor.adjustment: PopupAdjustment.Slide
-
-        implicitWidth: root.popupWidth
-        implicitHeight: root.windowHeight
-
-        onVisibleChanged: if (!visible) root.reset()
-
-        onBackingWindowVisibleChanged: {
-            frameWatcher.target = backingWindowVisible
-                ? popup._backingWindow
-                : frameProxy;
-        }
-
-        // Panel viewport. During page navigation only the empty panel
-        // background morphs inside it; the page tree is laid out at its final
-        // size and stays hidden until the morph finishes.
         Item {
-            id: viewport
+            id: panelBody
 
-            anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-            }
+            width: root.popupWidth
             height: root.panelHeight
 
-            Item {
-                id: panel
+            Shape {
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
 
-                anchors.top: parent.top
-                width: parent.width
-                height: root.panelHeight
-                opacity: root.reveal
-                transform: Translate { y: -(1.0 - root.reveal) * 8 }
+                ShapePath {
+                    fillColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+                    strokeWidth: 0
 
-                Surface {
-                    anchors.fill: parent
-                    radius: Dimensions.radius.extraLarge
-                    surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
-                    // Match Hyprland's focused window border: 2px in the
-                    // active border color.
-                    borderWidth: 2
-                    borderColor: Colors.primary
-                }
-
-                // Page tree fades away during navigation while the panel
-                // background stays visible and morphs to the new size.
-                Item {
-                    id: content
-
-                    anchors.fill: parent
-                    opacity: root.contentOpacity
-
-                    Item {
-                        id: pages
-
-                        // Pages are laid out at their final size immediately.
-                        // The background panel morphs around them while the
-                        // content is hidden, so no page layout is animated.
-                        anchors {
-                            top: parent.top
-                            left: parent.left
-                            right: parent.right
-                        }
-                        height: root.targetHeight
-
-                        MainPage {
-                            anchors.fill: parent
-                            revealTick: root.revealTick
-                            visible: root.page === "main"
-                            onOpen: page => root.navigate(page)
-                        }
-
-                        BluetoothPage {
-                            anchors.fill: parent
-                            visible: root.page === "bluetooth"
-                            onBack: root.navigate("main")
-                            onClose: root.close()
-                        }
-
-                        InternetPage {
-                            anchors.fill: parent
-                            visible: root.page === "internet"
-                            onBack: root.navigate("main")
-                            onClose: root.close()
-                        }
+                    PathSvg {
+                        path: root.panelFillPath
                     }
                 }
             }
-        }
 
-        // The backing window is always maxPanelHeight. Clicks in the empty
-        // area below a shorter panel behave like clicks outside the popup.
-        MouseArea {
-            anchors {
-                top: viewport.bottom
-                left: parent.left
-                right: parent.right
-                bottom: parent.bottom
+            // Swallow clicks on empty panel areas so they do not fall through
+            // to the full-window dismissal layer and close the menu.
+            MouseArea {
+                anchors {
+                    top: parent.top
+                    left: parent.left
+                    right: parent.right
+                }
+                height: root.panelShoulderHeight
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                z: 0
             }
-            onClicked: root.close()
-        }
-    }
 
-    HyprlandFocusGrab {
-        id: grab
+            MouseArea {
+                anchors {
+                    fill: parent
+                    leftMargin: root.contentLeftInset
+                    rightMargin: root.contentRightInset
+                }
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                z: 0
+            }
 
-        windows: [button.window, popup]
-        onCleared: root.close()
-    }
+            // Page tree fades away during navigation while the panel
+            // background stays visible and morphs to the new size.
+            Item {
+                id: content
 
-    Shortcut {
-        sequence: "Escape"
-        enabled: root.opened
-        onActivated: {
-            if (root.page === "bluetooth" || root.page === "internet")
-                root.navigate("main");
-            else
-                root.close();
+                anchors.fill: parent
+                z: 1
+                opacity: root.contentOpacity * root.contentReveal
+                transform: Translate { y: (1.0 - root.contentReveal) * -10 }
+
+                Item {
+                    id: pages
+
+                    // Pages are laid out at their final size immediately.
+                    // The background panel morphs around them while the
+                    // content is hidden, so no page layout is animated.
+                    anchors {
+                        top: parent.top
+                        left: parent.left
+                        right: parent.right
+                        leftMargin: root.contentLeftInset
+                        rightMargin: root.contentRightInset
+                    }
+                    height: root.targetHeight
+
+                    MainPage {
+                        anchors.fill: parent
+                        revealTick: root.revealTick
+                        visible: root.page === "main"
+                        onOpen: page => root.navigate(page)
+                    }
+
+                    BluetoothPage {
+                        anchors.fill: parent
+                        topInset: root.contentTopInset
+                        visible: root.page === "bluetooth"
+                        onBack: root.navigate("main")
+                        onClose: root.close()
+                    }
+
+                    InternetPage {
+                        anchors.fill: parent
+                        topInset: root.contentTopInset
+                        visible: root.page === "internet"
+                        onBack: root.navigate("main")
+                        onClose: root.close()
+                    }
+                }
+            }
         }
     }
 
@@ -456,8 +435,8 @@ Item {
 
         property int revealTick: 0
 
-        implicitWidth: 380
-        implicitHeight: 164
+        implicitWidth: 388
+        implicitHeight: 222
 
         readonly property var entries: [
             {
@@ -479,53 +458,47 @@ Item {
         Column {
             anchors.fill: parent
             anchors.margins: 16
-            spacing: 14
+            anchors.topMargin: root.contentTopInset
+            spacing: 12
 
             Text {
                 text: "Settings"
                 color: Colors.onSurface
                 font.family: Typography.barFont
-                font.pixelSize: Typography.size.titleSmall
+                font.pixelSize: Typography.size.titleLarge
                 font.weight: Typography.weight.bold
             }
 
-            Row {
-                spacing: 12
+            Column {
+                width: parent.width
+                spacing: 8
 
                 Repeater {
                     model: mainPage.entries
 
                     delegate: Item {
-                        id: tile
+                        id: row
 
                         required property var modelData
                         required property int index
 
                         readonly property bool soon: modelData.soon
-                        readonly property bool hovered: tileMouse.containsMouse && !tile.soon
+                        readonly property bool hovered: rowMouse.containsMouse && !row.soon
 
                         property real appear: 0
 
-                        width: 108
-                        height: 96
+                        width: parent.width
+                        height: 58
 
-                        opacity: tile.appear * (tile.soon ? 0.7 : 1.0)
-                        scale: tileMouse.pressed && !tile.soon
-                            ? 0.96
-                            : tile.hovered ? 1.03 : 1.0
-
-                        transform: Translate { y: (1.0 - tile.appear) * 10 }
-
-                        Behavior on scale {
-                            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                        }
+                        opacity: row.appear * (row.soon ? 0.7 : 1.0)
+                        transform: Translate { y: (1.0 - row.appear) * 8 }
 
                         SequentialAnimation {
                             id: enterAnim
 
-                            PauseAnimation { duration: 20 + tile.index * 25 }
+                            PauseAnimation { duration: 20 + row.index * 25 }
                             NumberAnimation {
-                                target: tile
+                                target: row
                                 property: "appear"
                                 to: 1
                                 duration: 180
@@ -537,7 +510,7 @@ Item {
                             target: mainPage
 
                             function onRevealTickChanged() {
-                                tile.appear = 0;
+                                row.appear = 0;
                                 enterAnim.restart();
                             }
                         }
@@ -550,71 +523,99 @@ Item {
                         Rectangle {
                             anchors.fill: parent
                             radius: Dimensions.radius.medium
-                            color: tile.soon
-                                ? Colors.surfaceContainerHigh
-                                : tile.hovered
-                                    ? Colors.stateLayer(Colors.primary, 0.16)
-                                    : Colors.withAlpha(Colors.primary, 0.07)
-                            border.width: 1
-                            border.color: tile.soon
-                                ? Colors.withAlpha(Colors.outlineVariant, 0.4)
-                                : Colors.withAlpha(Colors.primary, tile.hovered ? 0.7 : 0.28)
+                            color: row.soon
+                                ? Colors.withAlpha(Colors.surfaceContainerHigh, 0.55)
+                                : row.hovered
+                                    ? Colors.stateLayer(Colors.primary, 0.14)
+                                    : Colors.surfaceContainerHigh
 
                             Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
 
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 4
+                        Rectangle {
+                            id: iconBox
+
+                            anchors {
+                                left: parent.left
+                                leftMargin: 10
+                                verticalCenter: parent.verticalCenter
+                            }
+                            width: 38
+                            height: 38
+                            radius: Dimensions.radius.small + 2
+                            color: Colors.withAlpha(Colors.primary, row.hovered ? 0.2 : 0.11)
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
                             Text {
-                                id: tileIcon
-
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: tile.modelData.icon
-                                color: tile.soon
+                                anchors.centerIn: parent
+                                text: row.modelData.icon
+                                color: row.soon
                                     ? Colors.withAlpha(Colors.onSurfaceVariant, 0.6)
                                     : Colors.primary
                                 font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.extraLarge
-                                scale: tile.hovered ? 1.14 : 1.0
-
-                                Behavior on scale {
-                                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-                                }
-                            }
-
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: tile.modelData.title
-                                color: tile.soon
-                                    ? Colors.withAlpha(Colors.onSurface, 0.7)
-                                    : Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelMedium
-                                font.weight: Typography.weight.medium
-                            }
-
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: tile.modelData.subtitle
-                                color: Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
+                                font.pixelSize: Dimensions.icon.large
                             }
                         }
 
+                        Column {
+                            anchors {
+                                left: iconBox.right
+                                leftMargin: 12
+                                right: chevron.left
+                                rightMargin: 8
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 2
+
+                            Text {
+                                text: row.modelData.title
+                                color: row.soon
+                                    ? Colors.withAlpha(Colors.onSurface, 0.7)
+                                    : Colors.onSurface
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelLarge
+                                font.weight: Typography.weight.medium
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+
+                            Text {
+                                text: row.modelData.subtitle
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+                        }
+
+                        Text {
+                            id: chevron
+
+                            anchors {
+                                right: parent.right
+                                rightMargin: 12
+                                verticalCenter: parent.verticalCenter
+                            }
+                            text: Icons.chevronRight
+                            color: Colors.withAlpha(Colors.onSurfaceVariant, row.hovered ? 0.95 : 0.55)
+                            font.family: Typography.iconFont
+                            font.pixelSize: Dimensions.icon.medium
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+
                         MouseArea {
-                            id: tileMouse
+                            id: rowMouse
 
                             anchors.fill: parent
                             hoverEnabled: true
-                            enabled: !tile.soon
-                            cursorShape: tile.soon ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            enabled: !row.soon
+                            cursorShape: row.soon ? Qt.ArrowCursor : Qt.PointingHandCursor
                             onClicked: {
-                                if (tile.modelData.page)
-                                    mainPage.open(tile.modelData.page);
+                                if (row.modelData.page)
+                                    mainPage.open(row.modelData.page);
                             }
                         }
                     }

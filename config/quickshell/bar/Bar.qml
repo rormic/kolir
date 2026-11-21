@@ -19,6 +19,10 @@ PanelWindow {
     WlrLayershell.namespace: "bar"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.exclusiveZone: Dimensions.bar.height
+    // The settings popout lives in this surface instead of a separate window.
+    // OnDemand lets the menu receive keyboard focus (Escape, Wi-Fi password)
+    // after it is clicked without stealing focus when it is closed.
+    WlrLayershell.keyboardFocus: settingsMenu.opened ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     anchors {
         top: true
@@ -39,24 +43,10 @@ PanelWindow {
     // the first window row starts.
     readonly property int holeY: Dimensions.bar.height + Dimensions.frame.thickness
 
-    // Outer rectangle (the whole surface) minus the rounded desktop cut-out.
-    readonly property string framePath: {
-        const w = bar.width;
-        const h = bar.height;
-        const t = bar.frameThickness;
-        const r = bar.holeRadius;
-        const y0 = bar.holeY;
-        const hx = t;
-        const hw = w - t * 2;
-        const hh = h - y0 - t;
-        const hole = `M${hx + r} ${y0} H${hx + hw - r} A${r} ${r} 0 0 1 ${hx + hw} ${y0 + r}` + ` V${y0 + hh - r} A${r} ${r} 0 0 1 ${hx + hw - r} ${y0 + hh}` + ` H${hx + r} A${r} ${r} 0 0 1 ${hx} ${y0 + hh - r}` + ` V${y0 + r} A${r} ${r} 0 0 1 ${hx + r} ${y0} Z`;
-        return `M0 0 H${w} V${h} H0 Z ${hole}`;
-    }
-
-    // The frame is interactive (bar content lives on it); the desktop cut-out
-    // is click-through. The rounded corners count as frame, so clicks in the
-    // small corner slivers stay on the bar instead of hitting a window.
-    mask: Region {
+    // Bar input region: the window minus the rounded desktop cut-out. This is
+    // kept as a fixed Region (like the frame drawing) so the compositor sees a
+    // stable input region while the bar is closed.
+    readonly property Region frameMask: Region {
         x: 0
         y: 0
         width: bar.width
@@ -72,6 +62,34 @@ PanelWindow {
         }
     }
 
+    // While the settings popout is open the whole surface becomes modal, so
+    // the full-window dismissal layer can receive outside clicks.
+    readonly property Region modalMask: Region {
+        x: 0
+        y: 0
+        width: bar.width
+        height: bar.height
+    }
+
+    mask: settingsMenu.modal ? modalMask : frameMask
+
+    // Outer rectangle (the whole surface) minus the rounded desktop cut-out.
+    readonly property string framePath: {
+        const w = bar.width;
+        const h = bar.height;
+        const t = bar.frameThickness;
+        const r = bar.holeRadius;
+        const y0 = bar.holeY;
+        const hx = t;
+        const hw = w - t * 2;
+        const hh = h - y0 - t;
+        const hole = `M${hx + r} ${y0} H${hx + hw - r} A${r} ${r} 0 0 1 ${hx + hw} ${y0 + r}` + ` V${y0 + hh - r} A${r} ${r} 0 0 1 ${hx + hw - r} ${y0 + hh}` + ` H${hx + r} A${r} ${r} 0 0 1 ${hx} ${y0 + hh - r}` + ` V${y0 + r} A${r} ${r} 0 0 1 ${hx + r} ${y0} Z`;
+        return `M0 0 H${w} V${h} H0 Z ${hole}`;
+    }
+
+    // The frame is interactive (bar content lives on it); the desktop cut-out
+    // is click-through. The popout lives in the same surface and switches the
+    // window to the full-screen modal mask above.
     Shape {
         anchors.fill: parent
         preferredRendererType: Shape.CurveRenderer
@@ -98,26 +116,6 @@ PanelWindow {
         color: Colors.withAlpha(Colors.surfaceContainerHighest, 0.18)
     }
 
-    // Neon bottom line — the signature accent, kept at the bottom of the bar
-    // content and above the frame band so it never crosses the rounded
-    // desktop cut-out.
-    Rectangle {
-        anchors {
-            left: parent.left
-            right: parent.right
-        }
-        y: Dimensions.bar.height - 1
-        height: 1
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0;  color: "transparent" }
-            GradientStop { position: 0.25; color: Colors.withAlpha(Colors.primary, 0.4) }
-            GradientStop { position: 0.5;  color: Colors.withAlpha(Colors.primary, 0.85) }
-            GradientStop { position: 0.75; color: Colors.withAlpha(Colors.primary, 0.4) }
-            GradientStop { position: 1.0;  color: "transparent" }
-        }
-    }
-
     Item {
         id: content
 
@@ -127,20 +125,34 @@ PanelWindow {
             right: parent.right
         }
         height: Dimensions.bar.height
+        z: 2
 
-        // Far left: settings launcher
-        SettingsMenu {
-            id: settingsMenu
+        // Settings trigger. The panel is drawn by the full-window overlay
+        // below, but the button stays in the bar strip above it.
+        IconButton {
+            id: settingsTrigger
+
             anchors.left: parent.left
             anchors.leftMargin: Dimensions.padding.barContent
             anchors.verticalCenter: parent.verticalCenter
+            icon: Icons.settings
+            iconSize: Dimensions.icon.large
+            iconOffsetX: -0.5
+            iconOffsetY: 1
+            active: settingsMenu.opened
+            rotation: settingsMenu.opened ? 90 : 0
+            onClicked: settingsMenu.toggle()
+
+            Behavior on rotation {
+                NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
+            }
         }
 
-        // Left: active window
+        // Left: active window, after the settings button slot.
         ActiveWindow {
             id: activeWindow
-            anchors.left: settingsMenu.right
-            anchors.leftMargin: Dimensions.spacing.small
+            anchors.left: parent.left
+            anchors.leftMargin: Dimensions.padding.barContent + Dimensions.control.iconButton + Dimensions.spacing.small
             anchors.verticalCenter: parent.verticalCenter
             width: Math.min(190, Math.max(120, content.width * 0.16))
         }
@@ -182,5 +194,14 @@ PanelWindow {
             Volume          { anchors.verticalCenter: parent.verticalCenter }
             ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
         }
+    }
+
+    // Settings panel overlay. It fills the bar window, sits above the frame but
+    // below the bar content, and paints the popout below the bar as a single
+    // connected surface.
+    SettingsMenu {
+        id: settingsMenu
+        anchors.fill: parent
+        z: 1
     }
 }
