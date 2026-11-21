@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
 import "../bar/components"
-import "../services"
 import "../theme"
 
 Scope {
@@ -31,22 +30,9 @@ Scope {
         }
     }
 
-    // ── Автоматичні фонові демони збереження буфера обміну ──
-    // Окремо для тексту та зображень з переміщенням дублікатів нагору списку
-    Process {
-        id: clipDaemonText
-        command: ["wl-paste", "--type", "text", "--watch", ShellPaths.cliphistStore]
-        running: true
+    ClipboardController {
+        id: clipboard
     }
-
-    Process {
-        id: clipDaemonImage
-        command: ["wl-paste", "--type", "image", "--watch", ShellPaths.cliphistStore]
-        running: true
-    }
-
-    // Список записів історії буфера обміну
-    property var clipboardItems: []
 
     function getFilteredApplications(queryText) {
         const apps = DesktopEntries.applications.values
@@ -115,109 +101,6 @@ Scope {
         })
 
         return scored.map(item => item.app)
-    }
-
-    // Процес оновлення списку буфера обміну
-    Process {
-        id: clipListProc
-        command: ["cliphist", "list"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const raw = text.trim()
-                if (!raw) {
-                    root.clipboardItems = []
-                    return
-                }
-                const lines = raw.split("\n")
-                const items = []
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i]
-                    if (!line) continue
-                    const tabIdx = line.indexOf("\t")
-                    if (tabIdx !== -1) {
-                        const itemId = line.substring(0, tabIdx)
-                        const preview = line.substring(tabIdx + 1)
-                        // Розпізнаємо будь-які зображення (B, KiB, MiB тощо)
-                        const isImage = preview.startsWith("[[ binary data") ||
-                                        preview.startsWith("\uFFFDPNG") ||
-                                        (preview.includes("PNG") && preview.includes("IHDR"))
-                        let displayPreview = preview
-                        let imageDims = ""
-                        let imageInfo = ""
-                        if (preview.startsWith("[[ binary data")) {
-                            const m = preview.match(/^\[\[ binary data\s+(.+?)\s+([a-zA-Z]+)\s+(\d+x\d+)\s*\]\]$/)
-                            if (m) {
-                                imageDims = m[3].replace("x", " × ")
-                                imageInfo = m[1] + " · " + m[2].toUpperCase()
-                                displayPreview = imageDims + " (" + imageInfo + ")"
-                            } else {
-                                displayPreview = preview.replace(/^\[\[ binary data\s*/, "").replace(/\s*\]\]$/, "")
-                                imageDims = displayPreview
-                            }
-                        }
-                        items.push({
-                            raw: line,
-                            id: itemId,
-                            preview: preview,
-                            displayPreview: displayPreview,
-                            imageDims: imageDims,
-                            imageInfo: imageInfo,
-                            isImage: isImage,
-                            // Шлях до кешованого превью
-                            imagePath: isImage ? (ShellPaths.clipboardPreviewDir + "/" + itemId + ".png") : ""
-                        })
-                    } else {
-                        items.push({
-                            raw: line,
-                            id: "",
-                            preview: line,
-                            displayPreview: line,
-                            isImage: false,
-                            imagePath: ""
-                        })
-                    }
-                }
-                root.clipboardItems = items
-                // Генеруємо превью для всіх зображень в одну команду
-                const imgItems = items.filter(it => it.isImage)
-                if (imgItems.length > 0) {
-                    imgPreviewProc.running = true
-                }
-            }
-        }
-    }
-
-    // Процес генерації превью для зображень з буфера обміну
-    Process {
-        id: imgPreviewProc
-        running: false
-        command: [ShellPaths.cliphistPreviews, ShellPaths.clipboardPreviewDir]
-        onRunningChanged: {
-            // Після генерації превью — оновлюємо модель щоб Image перемалювалися
-            if (!running) {
-                const items = root.clipboardItems
-                root.clipboardItems = []
-                root.clipboardItems = items
-            }
-        }
-    }
-
-    // Процес копіювання вибраного запису з cliphist
-    Process {
-        id: copyProc
-        command: ["sh", "-c", "echo -n \"$1\" | cliphist decode | wl-copy", "_", ""]
-        running: false
-    }
-
-    // Процес видалення запису з cliphist
-    Process {
-        id: deleteProc
-        command: ["sh", "-c", "echo -n \"$1\" | cliphist delete", "_", ""]
-        running: false
-        onRunningChanged: {
-            if (!running) clipListProc.running = true
-        }
     }
 
     // Процес для швидкого копіювання довільного тексту (наприклад, результату калькулятора)
@@ -338,7 +221,7 @@ Scope {
                 search.text = ""
                 searching = false
                 list.currentIndex = 0
-                clipListProc.running = true
+                clipboard.refresh()
                 search.forceActiveFocus()
             } else {
                 // Згортаємо одразу, поки вікно приховане — без видимого стрибка
@@ -477,10 +360,7 @@ Scope {
                             Keys.onDeletePressed: {
                                 if (win.isClipboardMode && list.currentItem && list.model && list.model.length > 0) {
                                     const item = list.model[list.currentIndex]
-                                    if (item && item.raw) {
-                                        deleteProc.command = ["sh", "-c", "echo -n \"$1\" | cliphist delete", "_", item.raw]
-                                        deleteProc.running = true
-                                    }
+                                    clipboard.deleteItem(item)
                                 }
                             }
 
@@ -498,11 +378,8 @@ Scope {
                                 if (win.isClipboardMode) {
                                     if (list.currentItem && list.model && list.model.length > 0) {
                                         const item = list.model[list.currentIndex]
-                                        if (item && item.raw) {
-                                            copyProc.command = ["sh", "-c", "echo -n \"$1\" | cliphist decode | wl-copy", "_", item.raw]
-                                            copyProc.running = true
+                                        if (clipboard.copyItem(item))
                                             win.visible = false
-                                        }
                                     }
                                     return
                                 }
@@ -527,7 +404,7 @@ Scope {
                                 win.searching = search.text.trim() !== ""
                                 list.currentIndex = 0
                                 if (search.text.startsWith(";")) {
-                                    clipListProc.running = true
+                                    clipboard.refresh()
                                 }
                             }
                         }
@@ -639,9 +516,9 @@ Scope {
                             model: {
                                 if (win.isClipboardMode) {
                                     if (win.clipQuery === "") {
-                                        return root.clipboardItems
+                                        return clipboard.items
                                     }
-                                    return root.clipboardItems.filter(item =>
+                                    return clipboard.items.filter(item =>
                                         item.preview.toLowerCase().includes(win.clipQuery)
                                     )
                                 } else {
@@ -855,11 +732,8 @@ Scope {
                                     onClicked: {
                                         list.currentIndex = delegateRoot.index
                                         if (win.isClipboardMode) {
-                                            if (modelData && modelData.raw) {
-                                                copyProc.command = ["sh", "-c", "echo -n \"$1\" | cliphist decode | wl-copy", "_", modelData.raw]
-                                                copyProc.running = true
+                                            if (clipboard.copyItem(modelData))
                                                 win.visible = false
-                                            }
                                         } else {
                                             modelData.execute()
                                             win.visible = false
