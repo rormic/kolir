@@ -21,7 +21,6 @@ Item {
     property bool wifiEnabled: false
     property bool hasWifiDevice: false
     property string wifiDevice: ""
-    property string wifiState: ""
     property string activeWifi: ""
     property string ethernetState: "Unavailable"
     property string ethernetConnection: ""
@@ -35,12 +34,10 @@ Item {
     property bool ethernetDetailsExpanded: false
     property bool scanning: false
     property bool busy: false
-    property string busyAction: ""
     property string lastError: ""
 
     property var wifiNetworks: []
     property var savedWifi: ({})
-    property int pollGeneration: 0
 
     // Password / hidden forms
     property string formMode: "" // "", "password", "hidden"
@@ -110,7 +107,6 @@ Item {
     }
 
     function refreshAll(rescan) {
-        pollGeneration++;
         root.lastError = "";
         radioProc.buffer = "";
         radioProc.running = true;
@@ -148,7 +144,6 @@ Item {
             actionProc.command = ["nmcli", "device", "disconnect", net.device || root.wifiDevice];
             actionProc.running = true;
             root.busy = true;
-            root.busyAction = "disconnect";
             return;
         }
         if (root.isSecure(net.security) && !root.savedWifi[net.ssid]) {
@@ -166,7 +161,6 @@ Item {
             actionProc.command = actionProc.command.concat(["bssid", net.bssid]);
         actionProc.running = true;
         root.busy = true;
-        root.busyAction = "connect";
     }
 
     function forgetNetwork(net) {
@@ -177,7 +171,6 @@ Item {
         actionProc.command = ["nmcli", "connection", "delete", net.ssid];
         actionProc.running = true;
         root.busy = true;
-        root.busyAction = "forget";
     }
 
     function submitPasswordForm() {
@@ -269,7 +262,6 @@ Item {
             let ethConn = "";
             let ethDev = "";
             let wifiDev = "";
-            let wifiSt = "";
             let active = "";
             for (let i = 0; i < rows.length; i++) {
                 const r = rows[i];
@@ -290,7 +282,6 @@ Item {
                     }
                 } else if (type === "wifi") {
                     wifiDev = dev;
-                    wifiSt = state;
                     if (state === "connected") {
                         active = (conn && conn !== "--") ? conn : "";
                     }
@@ -302,7 +293,6 @@ Item {
             root.ethernetDevice = ethDev;
             root.hasWifiDevice = wifiDev !== "";
             root.wifiDevice = wifiDev;
-            root.wifiState = wifiSt;
             root.activeWifi = active;
             statusProc.buffer = "";
 
@@ -420,7 +410,6 @@ Item {
             if (code !== 0)
                 root.lastError = actionProc.buffer.trim() || "Action failed"
             actionProc.buffer = "";
-            root.busyAction = "";
             root.refreshAll(false);
         }
     }
@@ -703,7 +692,6 @@ Item {
                                 actionProc.command = ["nmcli", "radio", "wifi", value ? "on" : "off"];
                                 actionProc.running = true;
                                 root.busy = true;
-                                root.busyAction = "radio";
                                 if (!value) root.resetForms();
                             }
                         }
@@ -1173,7 +1161,6 @@ Item {
                     delegate: Item {
                         id: row
                         required property var modelData
-                        required property int index
                         width: netList.width
                         height: 50
 
