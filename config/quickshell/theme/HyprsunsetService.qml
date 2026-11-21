@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../services"
 
 // Hyprsunset state, manual controls and the bar-owned automatic schedule.
 //
@@ -682,7 +683,7 @@ QtObject {
     property bool commandRunning: false
 
     property FileView stateFile: FileView {
-        path: Quickshell.env("HOME") + "/.cache/quickshell/hyprsunset.json"
+        path: ShellPaths.hyprsunsetState
         atomicWrites: true
 
         onLoaded: root.loadState()
