@@ -690,251 +690,29 @@ Item {
                 }
             }
 
-            // Password form
-            Rectangle {
-                Layout.fillWidth: true
-                visible: root.formMode === "password" && root.formNetwork !== null
-                implicitHeight: passCol.implicitHeight + 24
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.primary, 0.35)
-
-                ColumnLayout {
-                    id: passCol
-                    anchors { fill: parent; margins: 12 }
-                    spacing: 8
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: "Connect to: " + (root.formNetwork ? root.formNetwork.ssid : "")
-                        color: Colors.onSurface
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.bodyMedium
-                        font.weight: Typography.weight.medium
-                        elide: Text.ElideRight
-                    }
-
-                    PasswordField {
-                        showPassword: root.formShowPassword
-                        onTextChanged: root.formPassword = text
-                        onVisibilityToggled: root.formShowPassword = !root.formShowPassword
-                        onSubmitRequested: root.submitPasswordForm()
-                        onCancelRequested: root.resetForms()
-                    }
-
-                    Text {
-                        visible: root.formError !== ""
-                        Layout.fillWidth: true
-                        text: root.formError
-                        color: Colors.error
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.labelSmall
-                        wrapMode: Text.Wrap
-                    }
-
-                    RowLayout {
-                        Layout.alignment: Qt.AlignRight
-                        spacing: 8
-
-                        Rectangle {
-                            Layout.preferredWidth: cancelPassText.implicitWidth + 20
-                            Layout.preferredHeight: 30
-                            radius: Dimensions.radius.full
-                            color: "transparent"
-                            border.width: 1
-                            border.color: Colors.withAlpha(Colors.outlineVariant, 0.4)
-                            Text {
-                                id: cancelPassText
-                                anchors.centerIn: parent
-                                text: "Cancel"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelMedium
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.resetForms()
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.preferredWidth: connectPassText.implicitWidth + 20
-                            Layout.preferredHeight: 30
-                            radius: Dimensions.radius.full
-                            color: Colors.primary
-                            opacity: root.formBusy ? 0.7 : 1.0
-                            Text {
-                                id: connectPassText
-                                anchors.centerIn: parent
-                                text: root.formBusy ? "Connecting…" : "Connect"
-                                color: Colors.onPrimary
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelMedium
-                                font.weight: Typography.weight.medium
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                enabled: !root.formBusy
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.submitPasswordForm()
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Hidden network form
-            Rectangle {
-                Layout.fillWidth: true
+            // Connection form (password or hidden network)
+            WifiConnectionForm {
+                mode: root.formMode
                 visible: root.formMode === "hidden"
-                implicitHeight: hiddenCol.implicitHeight + 24
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.primary, 0.35)
-
-                ColumnLayout {
-                    id: hiddenCol
-                    anchors { fill: parent; margins: 12 }
-                    spacing: 8
-
-                    Text {
-                        text: "Hidden network"
-                        color: Colors.onSurface
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.bodyMedium
-                        font.weight: Typography.weight.medium
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        radius: Dimensions.radius.small
-                        color: Colors.surfaceContainerLowest
-                        border.width: 1
-                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.4)
-                        TextInput {
-                            id: hiddenSsidInput
-                            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                            color: Colors.onSurface
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.bodyMedium
-                            clip: true
-                            selectByMouse: true
-                            verticalAlignment: TextInput.AlignVCenter
-                            onTextChanged: root.formSsid = text
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: !hiddenSsidInput.text && !hiddenSsidInput.activeFocus
-                                text: "SSID"
-                                color: Colors.onSurfaceVariant
-                                font: hiddenSsidInput.font
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-                        Repeater {
-                            model: ["Open", "WPA/WPA2"]
-                            delegate: Rectangle {
-                                required property string modelData
-                                required property int index
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 28
-                                radius: Dimensions.radius.full
-                                color: root.formSecurityIndex === index
-                                    ? Colors.primaryContainer : Colors.surfaceContainerLowest
-                                border.width: 1
-                                border.color: root.formSecurityIndex === index
-                                    ? Colors.withAlpha(Colors.primary, 0.6)
-                                    : Colors.withAlpha(Colors.outlineVariant, 0.4)
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData
-                                    color: root.formSecurityIndex === index
-                                        ? Colors.onPrimaryContainer : Colors.onSurface
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.labelSmall
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.formSecurityIndex = index
-                                }
-                            }
-                        }
-                    }
-
-                    PasswordField {
-                        visible: root.formSecurityIndex === 1
-                        placeholder: "Password"
-                        showPassword: root.formShowPassword
-                        onTextChanged: root.formPassword = text
-                        onVisibilityToggled: root.formShowPassword = !root.formShowPassword
-                        onSubmitRequested: root.submitHiddenForm()
-                        onCancelRequested: root.resetForms()
-                    }
-
-                    Text {
-                        visible: root.formError !== ""
-                        Layout.fillWidth: true
-                        text: root.formError
-                        color: Colors.error
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.labelSmall
-                        wrapMode: Text.Wrap
-                    }
-
-                    RowLayout {
-                        Layout.alignment: Qt.AlignRight
-                        spacing: 8
-
-                        Rectangle {
-                            Layout.preferredWidth: cancelHiddenText.implicitWidth + 20
-                            Layout.preferredHeight: 30
-                            radius: Dimensions.radius.full
-                            color: "transparent"
-                            border.width: 1
-                            border.color: Colors.withAlpha(Colors.outlineVariant, 0.4)
-                            Text {
-                                id: cancelHiddenText
-                                anchors.centerIn: parent
-                                text: "Cancel"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelMedium
-                            }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.resetForms() }
-                        }
-
-                        Rectangle {
-                            Layout.preferredWidth: connectHiddenText.implicitWidth + 20
-                            Layout.preferredHeight: 30
-                            radius: Dimensions.radius.full
-                            color: Colors.primary
-                            opacity: (root.formBusy || !root.formSsid) ? 0.7 : 1.0
-                            Text {
-                                id: connectHiddenText
-                                anchors.centerIn: parent
-                                text: root.formBusy ? "Connecting…" : "Connect"
-                                color: Colors.onPrimary
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelMedium
-                                font.weight: Typography.weight.medium
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                enabled: !root.formBusy && !!root.formSsid
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.submitHiddenForm()
-                            }
-                        }
-                    }
+                    || (root.formMode === "password" && root.formNetwork !== null)
+                ssid: root.formMode === "password"
+                    ? (root.formNetwork ? root.formNetwork.ssid : "")
+                    : root.formSsid
+                showPassword: root.formShowPassword
+                busy: root.formBusy
+                error: root.formError
+                securityIndex: root.formSecurityIndex
+                onPasswordEdited: value => root.formPassword = value
+                onSsidEdited: value => root.formSsid = value
+                onShowPasswordToggled: root.formShowPassword = !root.formShowPassword
+                onSecurityIndexSelected: index => root.formSecurityIndex = index
+                onSubmitRequested: {
+                    if (root.formMode === "password")
+                        root.submitPasswordForm();
+                    else if (root.formMode === "hidden")
+                        root.submitHiddenForm();
                 }
+                onCancelRequested: root.resetForms()
             }
 
             // Networks header
