@@ -8,8 +8,6 @@ Item {
 
     property var activeItem: null
 
-    readonly property int itemCount: repeater.count
-
     implicitWidth: row.implicitWidth
     implicitHeight: Dimensions.bar.height
     visible: repeater.count > 0
