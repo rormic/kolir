@@ -12,16 +12,18 @@ Scope {
     property var items: []
 
     // ── Автоматичні фонові демони збереження буфера обміну ──
-    // Окремо для тексту та зображень з переміщенням дублікатів нагору списку
+    // Окремо для тексту та зображень з переміщенням дублікатів нагору списку.
+    // Обгортка cliphist-watch.sh зупиняє слухача, що лишився від попереднього
+    // запуску Quickshell, інакше кожен рестарт додавав би ще одну пару.
     Process {
         id: clipDaemonText
-        command: ["wl-paste", "--type", "text", "--watch", ShellPaths.cliphistStore]
+        command: [ShellPaths.cliphistWatch, "text"]
         running: true
     }
 
     Process {
         id: clipDaemonImage
-        command: ["wl-paste", "--type", "image", "--watch", ShellPaths.cliphistStore]
+        command: [ShellPaths.cliphistWatch, "image"]
         running: true
     }
 
