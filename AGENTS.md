@@ -8,12 +8,14 @@
 - [config/hypr/user.lua.example](file:///home/sakura/.local/share/kolir/config/hypr/user.lua.example): Template for the untracked machine-specific file (`monitors`, autostart, cursor/env, personal binds, overrides).
 - [config/hypr/hyprsunset.conf](file:///home/sakura/.local/share/kolir/config/hypr/hyprsunset.conf): Valid hyprlang config for the blue-light filter. Runtime control and the automatic schedule are owned by Quickshell (`HyprsunsetService`), so native `profile { ... }` blocks should stay commented out.
 - [config/hypr/scripts/](file:///home/sakura/.local/share/kolir/config/hypr/scripts): Helper scripts, all `kebab-case`:
-  - `set-wallpaper.sh`: applies an image with `awww img -t random --transition-fps 180`.
+  - `lib/monitors.sh`: shared monitor selection sourced by zsh and sh callers. `kolir_monitor_name` / `kolir_focused_monitor_name` resolve `$KOLIR_MONITOR`, then the focused monitor from `hyprctl monitors -j`, then the first monitor, and only `kolir_monitor_name` falls back to `DP-1`; `kolir_monitor_geometry` / `kolir_focused_monitor_geometry` return `x,y wxh`.
+  - `lib/awww.sh`: version-tolerant wallpaper lookup. `kolir_awww_wallpaper_path <monitor>` asks `awww query -j` first, then scans `<cache>/awww/<version>/<monitor>` newest-first (also the cache root), decoding both the NUL-separated 0.12.x layout and the older one-piece layout; failures name the awww version, path, and entries found.
+  - `set-wallpaper.sh`: applies an image with `awww img -t random --transition-fps 180` (silent exit 0 on an empty/cancelled picker, explicit errors otherwise).
   - `select-wallpaper.sh` / `random-wallpaper.sh`: pick a wallpaper with Zenity or `find`+`shuf`, then call `set-wallpaper.sh` and `generate-colors.sh`.
-  - `generate-colors.sh`: reads the awww cache and theme state, then runs Matugen with the neutral scheme.
+  - `generate-colors.sh`: sources `lib/monitors.sh` + `lib/awww.sh`, resolves the wallpaper for the selected monitor, then runs Matugen with the neutral scheme.
   - `toggle-theme.sh`: flips `~/.cache/current_theme`, updates GTK/KDE theme names, and regenerates colors.
   - `brightness.sh`: adjusts the internal panel with `brightnessctl` and the external monitor through Quickshell IPC.
-  - `screen-record.sh`: recording toggle/setup/start with `wf-recorder` (fallback `wl-screenrec`), audio mixing, encoder selection, and state files under `$XDG_RUNTIME_DIR/kolir`. It sources `screen-record/audio.sh`, `screen-record/encoders.sh`, and `screen-record/monitors.sh` through `SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)`.
+  - `screen-record.sh`: recording toggle/setup/start with `wf-recorder` (fallback `wl-screenrec`), audio mixing, encoder selection, and state files under `$XDG_RUNTIME_DIR/kolir`. It sources `lib/monitors.sh`, `screen-record/audio.sh`, `screen-record/encoders.sh`, and `screen-record/monitors.sh` through `SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)`.
 - [config/quickshell/shell.qml](file:///home/sakura/.local/share/kolir/config/quickshell/shell.qml): Quickshell `ShellRoot`. Instantiates `Frame`, `Bar`, `Launcher`, `Notification`, `VolumeOsd`, `BrightnessOsd`, and `RecordingSetup`; settings is embedded in `Bar`.
 - [config/quickshell/bar/](file:///home/sakura/.local/share/kolir/config/quickshell/bar): Top panel and screen frame. [Bar.qml](file:///home/sakura/.local/share/kolir/config/quickshell/bar/Bar.qml) is a full-screen Top-layer `PanelWindow` that paints and accepts input only on the 30px bar strip (the whole surface while settings is open). Layout: settings trigger, active window, now playing, workspaces, clock/keyboard layout, tray, recording indicator, brightness, volume, theme toggle. It also hosts `SettingsMenu` as an overlay so the popout shares the bar surface. [Frame.qml](file:///home/sakura/.local/share/kolir/config/quickshell/bar/Frame.qml) is a full-screen Bottom-layer `PanelWindow` that paints the window gaps and the rounded desktop cut-out below windows; it is click-through and its corners cannot clip window borders.
 - [config/quickshell/bar/components/](file:///home/sakura/.local/share/kolir/config/quickshell/bar/components): UI primitives and widgets. Primitives: `Surface`, `Pill`, `IconButton`, `AppIcon`, `ProgressIndicator`, `VolumeSlider`. Widgets: `ActiveWindow`, `Workspaces`, `NowPlaying` (expandable MPRIS island), `Clock`, `KeyboardLayout`, `Tray`, `TrayButton`, `TrayMenu`, `TrayMenuPane`, `RecordingStatus`, `Brightness`, `Volume`, `ThemeToggle`, `Toggle`. `VolumePopup` + `SoundControls` implement the sound popup; `BrightnessPopup` is the right-click night-light menu; `SunTimeCard` renders read-only solar times. Subdirectories: `media/` (`MarqueeText`, `MprisController`), `sound/` (`AudioDeviceCard`, `AudioDeviceList`, `CodecChip`), `nightLight/` (`TemperatureCard`, `ScheduleCard`, `TimeField`).
@@ -30,7 +32,7 @@
 - [config/matugen/templates/](file:///home/sakura/.local/share/kolir/config/matugen/templates): Tracked templates: `foot-colors.ini`, `terminal-sequences`, `nvim-colors.lua`, `hyprland-colors.lua`.
 - [config/foot/](file:///home/sakura/.local/share/kolir/config/foot): Foot base config (`foot.ini`) and a bundled fallback `colors.ini`.
 - [config/mpv/mpv.conf](file:///home/sakura/.local/share/kolir/config/mpv/mpv.conf): MPV configuration.
-- [install.sh](file:///home/sakura/.local/share/kolir/install.sh): Idempotent installer. Supports curl/bootstrap mode, checks/installs Arch and AUR packages, installs Oh My Zsh/plugins/theme, and deploys the Hyprland/Foot loaders plus Matugen, MPV, and zsh symlinks. Quickshell is run directly from the repo (`qs -p <repo>/config/quickshell`).
+- [install.sh](file:///home/sakura/.local/share/kolir/install.sh): Idempotent installer. Supports curl/bootstrap mode, checks/installs Arch and AUR packages, installs Oh My Zsh/plugins/theme, and deploys the Hyprland/Foot loaders plus Matugen, MPV, and zsh symlinks. Existing regular files or stale symlinks are moved to `<path>.bak.<YYYYmmdd-HHMMSS>` (with a numeric suffix on collision) before the link is created. `--dry-run` (`-n`) walks the full plan without sudo, prompts, or writes, and `--help` documents the options. Quickshell is run directly from the repo (`qs -p <repo>/config/quickshell`).
 - [dice.zsh-theme](file:///home/sakura/.local/share/kolir/dice.zsh-theme), [zshrc](file:///home/sakura/.local/share/kolir/zshrc): Oh My Zsh theme and shell profile.
 
 ## 3. Data Flow
@@ -43,7 +45,9 @@ Theme toggle (Bar ThemeToggle.qml)
         └─> toggle-theme.sh (~/.cache/current_theme, GTK/KDE theme)
               └─> generate-colors.sh
 generate-colors.sh
-  reads ~/.cache/awww/0.12.1/DP-1 and ~/.cache/current_theme
+  selects the monitor ($KOLIR_MONITOR, then focused, then first, then DP-1)
+  resolves the wallpaper (awww query -j, then the version-tolerant cache scan)
+  reads ~/.cache/current_theme
   runs: matugen image <path> --source-color-index 0 -m <theme> -t scheme-neutral
         ├─> ~/.config/foot/colors.ini
         ├─> ~/.cache/terminal-sequences  ──> tee /dev/pts/* (live Foot)
@@ -53,7 +57,7 @@ generate-colors.sh
 ```
 - **Wallpaper Trigger**: The Hyprland binds run `config/hypr/scripts/select-wallpaper.sh` or `random-wallpaper.sh`. Both call `set-wallpaper.sh` (`awww img`) and then `generate-colors.sh`.
 - **Theme Trigger**: `ThemeToggle.qml` watches `~/.cache/current_theme` and calls `toggle-theme.sh`. The script flips `light`/`dark`, updates GNOME/GTK and KDE theme settings, writes the state file, and calls `generate-colors.sh`.
-- **Palette Generation**: `generate-colors.sh` is zsh-based and currently hardcodes the awww cache path (`~/.cache/awww/0.12.1/DP-1`) and monitor (`DP-1`). It runs Matugen with `--source-color-index 0` and `-t scheme-neutral`.
+- **Palette Generation**: `generate-colors.sh` is zsh-based. It selects the monitor through `lib/monitors.sh` (`$KOLIR_MONITOR`, focused, first, then `DP-1`) and resolves the wallpaper through `lib/awww.sh`, which prefers `awww query -j` and otherwise scans the version-named cache tolerantly, so neither the output name nor the awww version is hardcoded. It runs Matugen with `--source-color-index 0` and `-t scheme-neutral`.
 - **Consumer Updates**:
   - **Quickshell**: `config/quickshell/theme/Colors.qml` watches `ShellPaths.colorsJson` with `FileView`, parses it in `onLoaded`, and maps snake_case keys to camelCase QML properties without restarting the shell.
   - **Foot**: Matugen writes `~/.cache/terminal-sequences`; its `post_hook` tees ANSI color sequences into open pseudo-terminals. New Foot instances read `~/.config/foot/colors.ini`.
@@ -77,7 +81,7 @@ generate-colors.sh
   3. Settings belongs inside `SettingsMenu.qml` because the popout is drawn in the bar surface: add a `MainPage.entries` item, a page component, and a height in `heightForPage()`. The bar expands its input mask and enables `WlrKeyboardFocus.OnDemand` while settings is open.
   4. Focus-grabbing popups (for example `VolumePopup`) use `PopupWindow` + `HyprlandFocusGrab` rather than a layer-shell window.
   5. The decorative screen frame belongs in `bar/Frame.qml` on `WlrLayer.Bottom` with an empty `mask`; keep it below windows and click-through. Do not move it into the top-layer `Bar` surface, or the window border is clipped at the rounded cut-out.
-- **Recording Helpers**: `screen-record.sh` stays the lifecycle/CLI owner. `screen-record/audio.sh` owns PipeWire/Pulse helpers, `encoders.sh` owns encoder/quality selection, and `monitors.sh` owns Hyprland geometry/FPS helpers. Source them from `SCRIPT_DIR`; do not hardcode repo or home paths.
+- **Recording Helpers**: `screen-record.sh` stays the lifecycle/CLI owner. `lib/monitors.sh` owns shared monitor selection (`KOLIR_MONITOR`, focused, first), `screen-record/audio.sh` owns PipeWire/Pulse helpers, `encoders.sh` owns encoder/quality selection, and `screen-record/monitors.sh` owns Hyprland geometry/FPS helpers. Source them from `SCRIPT_DIR`; do not hardcode repo or home paths.
 
 ## 5. How to Verify Changes
 - **Quickshell**:
@@ -94,9 +98,9 @@ generate-colors.sh
   - Reload compositor: `hyprctl reload`.
   - Inspect layer namespaces: `hyprctl layers` (`frame` should be on the Bottom level, `bar` on Top).
   - Read logs: `cat "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.log"`.
-- **Shell scripts**: `zsh -n` for wallpaper/theme scripts; `sh -n` for `screen-record.sh`, `screen-record/*.sh`, `config/quickshell/scripts/cliphist-watch.sh`, and `config/quickshell/scripts/pactl-subscribe.sh`. Apply the current wallpaper with `set-wallpaper.sh "$(awww query | sed -n 's/.*image: //p')"` and regenerate colors with `generate-colors.sh`.
+- **Shell scripts**: `zsh -n` for wallpaper/theme scripts; `sh -n` for `lib/*.sh`, `screen-record.sh`, `screen-record/*.sh`, `config/quickshell/scripts/cliphist-watch.sh`, and `config/quickshell/scripts/pactl-subscribe.sh`. Apply the current wallpaper with `set-wallpaper.sh "$(awww query | sed -n 's/.*image: //p')"` and regenerate colors with `generate-colors.sh`. Verify monitor selection without changing the session with `. config/hypr/scripts/lib/monitors.sh; kolir_monitor_name` (try `KOLIR_MONITOR=HDMI-A-1` too). Verify awww tolerance with a fake `XDG_CACHE_HOME` containing an old one-piece cache and/or a stub `awww` whose `query` exits non-zero.
 - **Recording**: start `screen-record.sh --start --area full --audio system|mic|both|none`, stop with `screen-record.sh`, and check `ffprobe` streams, `$XDG_RUNTIME_DIR/kolir/recording.json`, leftover recorder processes, and `pactl list short modules | grep kolir_rec_mix`.
-- **Installer**: run `./install.sh`; it prints the full package/config plan and asks for confirmation before changing anything.
+- **Installer**: run `./install.sh --dry-run` first; it prints every would-be change (including timestamped backups) without sudo or writes. A real run prints the plan and asks for confirmation before changing anything; existing regular files/stale symlinks are backed up to `<path>.bak.<YYYYmmdd-HHMMSS>` before linking.
 
 ## 6. Do Not Edit (Generated Files & Real Sources)
 - `~/.config/hypr/colors.lua`: Generated by Matugen. Source template: [config/matugen/templates/hyprland-colors.lua](file:///home/sakura/.local/share/kolir/config/matugen/templates/hyprland-colors.lua).
@@ -117,8 +121,10 @@ generate-colors.sh
 - **Quickshell**: Version 0.3.2. Uses `Quickshell.Io` (`Process`, `FileView`, `SplitParser`, `StdioCollector`, `IpcHandler`), `Quickshell.Wayland` (`WlrLayershell`), `Quickshell.Hyprland`, `Quickshell.Services.Notifications`, `Quickshell.Services.Mpris`, `Quickshell.Services.SystemTray`, and `Quickshell.Bluetooth`.
 - **Runtime Dependencies**: `install.sh` covers the base desktop stack, but the code also expects tools not guaranteed by its package list: `cliphist` (launcher clipboard), `nmcli`/NetworkManager (Internet settings page), BlueZ (Bluetooth settings page and `Quickshell.Bluetooth`), and the `ffmpeg` binary (recording encoder probing). `pactl` comes from `libpulse`, which `pipewire-pulse` pulls in.
 - **Known Quirks & Pitfalls**:
-  - **Hardcoded monitor & cache version**: `config/hypr/scripts/generate-colors.sh` hardcodes monitor `DP-1` and awww version `0.12.1` in `~/.cache/awww/0.12.1/DP-1`. Changing the monitor port or upgrading awww breaks wallpaper path discovery.
+  - **Monitor Selection**: Wallpaper/color scripts and the recorder share `config/hypr/scripts/lib/monitors.sh`; set `KOLIR_MONITOR=<output>` to override detection (`hyprctl monitors -j` focused, then first). Only `kolir_monitor_name` falls back to `DP-1` when Hyprland cannot be queried, so the author's machine keeps working without configuration while other ports are detected. Keep new scripts on this helper instead of hardcoding an output name.
+  - **awww Cache Layout**: `lib/awww.sh` never assumes an awww version directory. It asks `awww query -j` first, then scans `<cache>/awww/<version>/<monitor>` newest-first, accepts the NUL-separated 0.12.x encoding and the older one-piece encoding, and only returns paths that exist. Tested against awww 0.12.1; older/newer releases still work as long as `awww query -j` or one of those cache encodings is available, otherwise the script prints the version, path, and entries it found and exits 1.
   - **Matugen template divergence**: The active `~/.config/matugen/config.toml` and templates may contain `quickshell-colors.json`, `gtk3`, `gtk4`, `zen-colors`, and `obsidian` entries that are not tracked in the repo. Because `install.sh` symlinks the repo config/templates, those extra outputs disappear on a fresh deployment unless committed.
+  - **Installer deploy gating**: `deploy_configs` runs after the package/AUR/Oh-My-Zsh steps under `set -euo pipefail`, and the confirmation prompt defaults to "N" when no TTY is available. A cancelled run or an earlier failure therefore leaves targets such as `~/.config/matugen/config.toml` and `~/.zshrc` as regular files even though the installer would back them up and link them. Check with `./install.sh --dry-run` before assuming a `.bak.*` backup exists.
   - **Lua Configuration**: Hyprland uses the modern Lua API (`hl.config`, `hl.bind`, `hl.window_rule`, `hl.layer_rule`), not traditional `hyprland.conf` directives.
   - **Hybrid Brightness**: `brightness.sh` adjusts the internal display via `brightnessctl` and the external display via Quickshell IPC calling `services/BrightnessService.qml`, which throttles `ddcutil setvcp 10`.
   - **Hyprsunset Authority**: `services/HyprsunsetService.qml` queries `hyprctl hyprsunset identity get/temperature` and reconciles the live CTM every 30 seconds. Direct CLI changes are reverted to the bar state. The automatic schedule lives in Quickshell; native `hyprsunset.conf` profiles must stay disabled to avoid two planners.
