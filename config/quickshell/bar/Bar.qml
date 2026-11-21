@@ -4,16 +4,15 @@ import "./components"
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
-import QtQuick.Shapes
 
-// Caelestia-style docked bar with a screen frame.
+// Caelestia-style docked bar.
 //
-// The window covers the whole screen and paints the bar surface as a ring: the
-// top strip is the bar, the sides and bottom fill the window gaps, and the
-// desktop is a rounded cut-out. Because the surface is at the top layer, the
-// rounded cut-out also frames the corners of the first window row instead of
-// letting the wallpaper show between the bar, the screen edges and the windows.
-// `Dimensions.frame.thickness` must match Hyprland's gaps_out.
+// The window covers the whole screen on the Top layer but only paints and
+// accepts input on the bar strip; the settings popout is drawn below the
+// strip in this same surface and expands the mask to the whole screen while
+// it is open. The decorative screen frame around the desktop (the window gaps
+// and the rounded cut-out) lives in Frame.qml on the Bottom layer, under the
+// windows, so it can never clip their borders.
 PanelWindow {
     id: bar
     WlrLayershell.namespace: "bar"
@@ -37,29 +36,14 @@ PanelWindow {
 
     color: "transparent"
 
-    readonly property int frameThickness: Dimensions.frame.thickness
-    readonly property int holeRadius: Dimensions.frame.radius
-    // The cut-out starts below the bar plus one frame thickness, exactly where
-    // the first window row starts.
-    readonly property int holeY: Dimensions.bar.height + Dimensions.frame.thickness
-
-    // Bar input region: the window minus the rounded desktop cut-out. This is
-    // kept as a fixed Region (like the frame drawing) so the compositor sees a
-    // stable input region while the bar is closed.
-    readonly property Region frameMask: Region {
+    // Bar input region: only the bar strip is interactive, the rest of the
+    // surface is click-through. The decorative screen frame is a separate
+    // Bottom-layer surface (Frame.qml) with an empty mask of its own.
+    readonly property Region barMask: Region {
         x: 0
         y: 0
         width: bar.width
-        height: bar.height
-
-        Region {
-            x: bar.frameThickness
-            y: bar.holeY
-            width: bar.width - bar.frameThickness * 2
-            height: bar.height - bar.holeY - bar.frameThickness
-            radius: bar.holeRadius
-            intersection: Intersection.Subtract
-        }
+        height: Dimensions.bar.height
     }
 
     // While the settings popout is open the whole surface becomes modal, so
@@ -71,43 +55,19 @@ PanelWindow {
         height: bar.height
     }
 
-    mask: settingsMenu.modal ? modalMask : frameMask
+    mask: settingsMenu.modal ? modalMask : barMask
 
-    // Outer rectangle (the whole surface) minus the rounded desktop cut-out.
-    readonly property string framePath: {
-        const w = bar.width;
-        const h = bar.height;
-        const t = bar.frameThickness;
-        const r = bar.holeRadius;
-        const y0 = bar.holeY;
-        const hx = t;
-        const hw = w - t * 2;
-        const hh = h - y0 - t;
-        const hole = `M${hx + r} ${y0} H${hx + hw - r} A${r} ${r} 0 0 1 ${hx + hw} ${y0 + r}` + ` V${y0 + hh - r} A${r} ${r} 0 0 1 ${hx + hw - r} ${y0 + hh}` + ` H${hx + r} A${r} ${r} 0 0 1 ${hx} ${y0 + hh - r}` + ` V${y0 + r} A${r} ${r} 0 0 1 ${hx + r} ${y0} Z`;
-        return `M0 0 H${w} V${h} H0 Z ${hole}`;
-    }
-
-    // The frame is interactive (bar content lives on it); the desktop cut-out
-    // is click-through. The popout lives in the same surface and switches the
-    // window to the full-screen modal mask above.
-    //
-    // Keep the default geometry renderer here: CurveRenderer flattens the
-    // rounded cut-out about 1px inside the path, so the frame covers the outer
-    // row of the window border where the two edges meet at the corners. The
-    // default renderer keeps the cut-out on the decorated window box, leaving
-    // the border intact.
-    Shape {
-        anchors.fill: parent
-
-        ShapePath {
-            fillColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
-            strokeWidth: 0
-            fillRule: ShapePath.OddEvenFill
-
-            PathSvg {
-                path: bar.framePath
-            }
+    // Bar strip background. The decorative frame below starts at
+    // Dimensions.bar.height (see Frame.qml), so the strip is never painted
+    // twice, and the fill keeps the bar-blur layer rule working.
+    Rectangle {
+        anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
         }
+        height: Dimensions.bar.height
+        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
     }
 
     // Subtle top highlight
@@ -201,9 +161,9 @@ PanelWindow {
         }
     }
 
-    // Settings panel overlay. It fills the bar window, sits above the frame but
-    // below the bar content, and paints the popout below the bar as a single
-    // connected surface.
+    // Settings panel overlay. It fills the bar window, sits above the strip
+    // background but below the bar content, and paints the popout below the
+    // bar as a single connected surface.
     SettingsMenu {
         id: settingsMenu
         anchors.fill: parent

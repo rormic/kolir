@@ -6,6 +6,9 @@ import "osd"
 import "rec"
 
 ShellRoot {
+    // Decorative Bottom-layer screen frame; the bar and its popout stay above
+    // it on the Top layer.
+    Frame {}
     Bar {}
     Launcher {}
     Notification {}
