@@ -109,7 +109,7 @@ PanelWindow {
             onClicked: settingsMenu.toggle()
 
             Behavior on rotation {
-                NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: Motion.rotate; easing.type: Easing.OutCubic }
             }
         }
 
