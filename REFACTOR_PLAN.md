@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B, C, D виконані (кроки 1–61). Фаза E: E1, E2 і E3 виконано; наступна — E4.
+Статус: Фази A, B, C, D і E виконані (кроки 1–61, 62–64, 69–75). Усі заплановані фази завершені; відкладені кроки 65–68 не виконувалися.
 
 ## 1. Мета та незмінні вимоги
 
@@ -488,7 +488,7 @@ config/
 - `LauncherResultRow` отримує `selected` через `ListView.isCurrentItem`, `rowHeight` — з `imageRowHeight`/`appRowHeight`, а дію виконує лаунчер у `onActivated`, тому `list.currentIndex`, copy та execute мають попередній порядок.
 - Повний `qmllint` після D2: 425 warnings проти 438 baseline; нових класів warnings і runtime errors немає.
 
-### Фаза E. Runtime services, скрипти, документація
+### Фаза E. Runtime services, скрипти, документація — ✅ виконано
 
 Фаза E виконується замість окремих фаз K і L: E1 — сервіси, E2 — перейменування wallpaper-скриптів, E3 — helpers `screen-record.sh`, E4 — документація й фінальний regression. Кроки 65–68 (`AudioParser.js`, `Solar.js`, `Schedule.js`, `StateStore.qml`) відкладені й не виконуються.
 
@@ -552,6 +552,25 @@ config/
 - Інтерактивний `slurp` не можна відтворити без інструментів введення, тому region-режим перевірено з тимчасовим wrapper-ом `/tmp/opencode/bin/slurp`, який повертає фіксовану геометрію. Репозиторій і система при цьому не змінювалися.
 - Тестові відео залишено в `~/Videos/Recordings/` як доказ перевірки; вони створені штатним `screen-record.sh`.
 - Повторні рестарти Quickshell під час E1–E3 знову накопичили orphan-процеси `wl-paste --watch` (відомий дефект життєвого циклу). E0 виконувався лише один раз, код для цього не змінювався.
+
+#### ✅ E4 виконана
+
+`AGENTS.md` переписано під фактичну структуру:
+
+- дерево `config/quickshell` і `config/hypr/scripts` включно з `services/`, `components/`, `recording/`, `scripts/`, `settings/internet/`, `settings/bluetooth/`, `bar/components/{media,sound,nightLight}`, `screen-record/{audio,encoders,monitors}.sh`;
+- правила іменування: QML `PascalCase`, JS `camelCase`, shell-скрипти `kebab-case`, збереження IPC targets/layer namespaces/JSON keys/CLI;
+- де тримати константи: `theme/` для `Dimensions`/`Typography`/`Icons`/`Motion`, `services/` для сервісів і `ShellPaths`, локальні `readonly` та доменні константи в feature;
+- видалено застарілі згадки `Button.qml`, `corners/Corner.qml`, `Island.qml`, `PixelBox.qml`, `rec/` і hardcoded launcher paths;
+- додано відкладені пункти: `AudioParser.js`, `hyprsunset/Solar.js`, `hyprsunset/Schedule.js`, `hyprsunset/StateStore.qml`, а також `wl-paste --watch` lifecycle і suspect `hl.window_rule`.
+
+Фінальний regression:
+
+- Повний `qmllint`: 425 warnings. Після нормалізації шляхів трьох перенесених сервісів набір діагностик побайтово збігається з 425 warnings після D2; нових діагностик немає.
+- Повний restart Quickshell: консоль містить лише startup-рядки і один відомий transient `qt.qpa.wayland.textinput` warning після IPC-відкриття popup-ів. Нових `ReferenceError`, `TypeError`, `is not a type`, `binding loop`, `Unable to assign` немає.
+- `hyprctl reload` успішний; `hyprctl layers` показує `frame` і `bar` з поточним PID Quickshell.
+- IPC smoke: `settings toggle` (open/close), `nightLight toggle/close`, `launcher toggle` (open/close) — без помилок.
+
+Підсумок Фази E: `services/` містить лише runtime-сервіси та `ShellPaths`, `theme/` — лише візуальні токени; wallpaper-скрипти мають `kebab-case`; `screen-record.sh` розділено на три `POSIX sh` helper-модулі з незмінними функціями та поведінкою. Відкладені кроки 65–68 не виконувалися.
 
 ### Фаза D. NowPlaying
 
@@ -723,7 +742,7 @@ config/
     **Виконує:** основний агент.  
     **Перевірка:** full/region recording, auto FPS, `KOLIR_REC_FPS`, відсутність залишкових процесів.
 
-75. **Оновити документацію й виконати фінальний regression pass.**  
+75. **Оновити документацію й виконати фінальний regression pass.** — ✅ виконано (E4)  
     **Файли:** `AGENTS.md`; лише фактично виконана структура.  
     **Виконує:** основний агент; `qml-mechanic` — фінальний QML lint/log check.  
     **Перевірка:** усі коди таблиці; повний restart Quickshell, `hyprctl reload`, IPC smoke tests, FRAME, THEME.
