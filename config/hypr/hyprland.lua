@@ -13,9 +13,10 @@
 -- This file is the shared ("generic") part of the config and is tracked
 -- in the kolir repository. Machine-specific settings live in
 -- ~/.config/hypr/user.lua and are loaded at the end of this file.
--- ~/.config/hypr/{hyprland.lua,hyprsunset.conf,scripts} are symlinks into
--- the repository. ~/.config/hypr/colors.lua is generated locally by
--- matugen (see config/matugen/config.toml) and is not tracked.
+-- `kolir setup` links ~/.config/hypr/hyprland.lua, hyprsunset.conf,
+-- hyprlock.conf, hypridle.conf and scripts to the active kolir root, so this
+-- file can be edited in place. ~/.config/hypr/colors.lua is generated locally
+-- by matugen (see config/matugen/config.toml) and is not tracked.
 local colorsConfig = os.getenv("HOME") .. "/.config/hypr/colors.lua"
 local colorsConfigFile = io.open(colorsConfig, "r")
 if colorsConfigFile then
@@ -44,7 +45,7 @@ end
 -- Set programs that you use
 local terminal = "foot"
 local fileManager = "nautilus"
-local menu = "qs -p " .. os.getenv("HOME") .. "/.local/share/kolir/config/quickshell ipc call launcher toggle"
+local menu = "sh ~/.config/hypr/scripts/qs-ipc.sh launcher toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
 local select_wallpaper = "sh ~/.config/hypr/scripts/select-wallpaper.sh"
 
@@ -58,9 +59,10 @@ local select_wallpaper = "sh ~/.config/hypr/scripts/select-wallpaper.sh"
 -- Or execute your favorite apps at launch like this:
 --
 -- Autostart is machine-specific: configure it in ~/.config/hypr/user.lua
--- example:
+-- example (the helper resolves the active kolir root through the
+-- ~/.config/hypr/scripts symlink):
 -- hl.on("hyprland.start", function()
--- 	hl.exec_cmd("quickshell -p ~/.local/share/kolir/config/quickshell")
+-- 	hl.exec_cmd("sh ~/.config/hypr/scripts/launch-shell.sh")
 -- 	hl.exec_cmd("awww-daemon & kdeconnect-indicator")
 -- end)
 

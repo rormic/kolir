@@ -33,12 +33,24 @@ LOG_FILE="$STATE_DIR/recorder.log"
 AUDIO_MODULES_FILE="$STATE_DIR/record.modules"
 
 REC_DIR="${KOLIR_REC_DIR:-$HOME/Videos/Recordings}"
-KOLIR_DIR="${KOLIR_DIR:-$HOME/.local/share/kolir}"
-QS_CONFIG="$KOLIR_DIR/config/quickshell"
 FPS="${KOLIR_REC_FPS:-}"
 MIX_SINK="kolir_rec_mix"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/root.sh"
+
+# KOLIR_DIR was the old override name; keep it working for existing setups.
+if [ -n "${KOLIR_DIR:-}" ] && [ -z "${KOLIR_ROOT:-}" ]; then
+	KOLIR_ROOT=$KOLIR_DIR
+	export KOLIR_ROOT
+fi
+
+if ! ROOT=$(kolir_root "$SCRIPT_DIR"); then
+	echo "screen-record.sh: could not locate the kolir root; set KOLIR_ROOT" >&2
+	exit 1
+fi
+QS_CONFIG="$ROOT/config/quickshell"
+
 . "$SCRIPT_DIR/lib/monitors.sh"
 . "$SCRIPT_DIR/screen-record/audio.sh"
 . "$SCRIPT_DIR/screen-record/encoders.sh"

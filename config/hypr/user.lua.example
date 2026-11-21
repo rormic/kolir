@@ -1,13 +1,11 @@
 -- Приклад локальних (машинно-специфічних) налаштувань Hyprland.
 --
--- Скопіюйте цей файл у ~/.config/hypr/user.lua і змініть під свою машину.
+-- Скопіюйте цей файл у ~/.config/hypr/user.lua і змініть під свою машину
+-- (`kolir setup` створює його автоматично, якщо файла ще немає).
 -- Він НЕ зберігається в репозиторії: спільна частина лежить у
--- ~/.local/share/kolir/config/hypr/hyprland.lua, а user.lua підключається
--- в кінці неї. Через те, що user.lua завантажується останнім, його
--- налаштування перекривають спільні.
-
-local home = os.getenv("HOME")
-local repo = home .. "/.local/share/kolir"
+-- <root>/config/hypr/hyprland.lua, на неї посилається симлінк
+-- ~/.config/hypr/hyprland.lua. user.lua підключається в кінці спільної
+-- частини, тому його налаштування перекривають спільні.
 
 ------------------
 ---- MONITORS ----
@@ -25,7 +23,7 @@ hl.monitor({
 -------------------
 
 hl.on("hyprland.start", function()
-	hl.exec_cmd("quickshell -p " .. repo .. "/config/quickshell")
+	hl.exec_cmd("sh ~/.config/hypr/scripts/launch-shell.sh")
 	hl.exec_cmd("awww-daemon & kdeconnect-indicator")
 end)
 
