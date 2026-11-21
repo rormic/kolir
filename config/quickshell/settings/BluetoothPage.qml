@@ -5,13 +5,12 @@ import "../theme"
 import "../bar/components"
 
 // Bluetooth management page, shown inside the settings popup. Navigation is
-// handled by SettingsMenu; this page only reports back/close and device
-// actions back to the BlueZ model.
+// handled by SettingsMenu; this page only reports back and device actions
+// back to the BlueZ model.
 Item {
     id: root
 
     signal back()
-    signal close()
 
     property int topInset: 0
 

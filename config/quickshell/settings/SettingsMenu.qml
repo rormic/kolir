@@ -422,7 +422,6 @@ Item {
                         topInset: root.contentTopInset
                         visible: root.page === "bluetooth"
                         onBack: root.navigate("main")
-                        onClose: root.close()
                     }
 
                     InternetPage {
