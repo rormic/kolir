@@ -1,11 +1,18 @@
 #!/usr/bin/env zsh
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/monitors.sh"
+
+# The monitor is chosen at runtime: $KOLIR_MONITOR, then the focused monitor,
+# then the first one, then DP-1 (the author's output).
+MONITOR=$(kolir_monitor_name)
+
 # The awww cache is NUL-separated: `crop:center\0Lanczos3\0/wallpaper.png`
 # (older awww versions wrote `...Lanczos3/wallpaper.png` in one piece).
 # Normalize NULs to newlines, strip everything up to and including the
 # Lanczos3 filter spec, and take the last resulting line as the path.
-IMAGE_PATH=$(tr '\0' '\n' < ~/.cache/awww/0.12.1/DP-1 | sed -E 's/^.*Lanczos3//' | tail -n 1)
+IMAGE_PATH=$(tr '\0' '\n' < ~/.cache/awww/0.12.1/$MONITOR | sed -E 's/^.*Lanczos3//' | tail -n 1)
 if [[ ! -r "$IMAGE_PATH" ]]; then
-    echo "generate-colors.sh: cannot read wallpaper path '${IMAGE_PATH}' extracted from ~/.cache/awww/0.12.1/DP-1" >&2
+    echo "generate-colors.sh: cannot read wallpaper path '${IMAGE_PATH}' extracted from ~/.cache/awww/0.12.1/$MONITOR" >&2
     exit 1
 fi
 
@@ -14,10 +21,9 @@ fi
 LOCK_BACKGROUND="$HOME/.cache/kolir/lock-background.png"
 mkdir -p "$(dirname "$LOCK_BACKGROUND")"
 if command -v ffmpeg >/dev/null 2>&1; then
-    read -r MON_W MON_H <<< "$(hyprctl monitors -j 2>/dev/null | python3 -c 'import json,sys
-ms=json.load(sys.stdin)
-m=next((x for x in ms if x.get("name")=="DP-1"), ms[0] if ms else None)
-print(m["width"], m["height"]) if m else None' 2>/dev/null)"
+    MON_W=""
+    MON_H=""
+    read -r MON_W MON_H <<< "$(kolir_monitor_geometry)"
     MON_W=${MON_W:-2560}
     MON_H=${MON_H:-1440}
     ffmpeg -y -loglevel error -i "$IMAGE_PATH" \

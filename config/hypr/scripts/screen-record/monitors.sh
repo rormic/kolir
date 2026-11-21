@@ -37,35 +37,13 @@ print(round(float(mon.get("refreshRate", 60))) if mon else 60)
 }
 
 # Геометрія монітора з фокусом — для запису всього екрана без slurp.
+# Вибір монітора спільний зі скриптами шпалер (lib/monitors.sh), тому
+# KOLIR_MONITOR перевизначає його і тут.
 focused_region() {
-	hyprctl -j monitors 2>/dev/null | python3 -c '
-import json, sys
-
-try:
-    monitors = json.load(sys.stdin)
-except Exception:
-    sys.exit(1)
-
-mon = next((m for m in monitors if m.get("focused")), monitors[0] if monitors else None)
-if not mon:
-    sys.exit(1)
-
-print("%s,%s %sx%s" % (mon.get("x", 0), mon.get("y", 0), mon.get("width", 0), mon.get("height", 0)))
-' 2>/dev/null
+	kolir_focused_monitor_geometry
 }
 
 # Назва монітора з фокусом — для wf-recorder -o у режимі повного екрана.
 focused_monitor_name() {
-	hyprctl -j monitors 2>/dev/null | python3 -c '
-import json, sys
-
-try:
-    monitors = json.load(sys.stdin)
-except Exception:
-    sys.exit(1)
-
-mon = next((m for m in monitors if m.get("focused")), monitors[0] if monitors else None)
-if mon:
-    print(mon.get("name", ""))
-' 2>/dev/null
+	kolir_focused_monitor_name
 }

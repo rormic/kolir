@@ -39,6 +39,7 @@ FPS="${KOLIR_REC_FPS:-}"
 MIX_SINK="kolir_rec_mix"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/monitors.sh"
 . "$SCRIPT_DIR/screen-record/audio.sh"
 . "$SCRIPT_DIR/screen-record/encoders.sh"
 . "$SCRIPT_DIR/screen-record/monitors.sh"
