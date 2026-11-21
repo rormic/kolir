@@ -715,44 +715,12 @@ Item {
                         elide: Text.ElideRight
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        radius: Dimensions.radius.small
-                        color: Colors.surfaceContainerLowest
-                        border.width: 1
-                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.4)
-
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: 10; rightMargin: 6 }
-                            spacing: 4
-
-                            TextInput {
-                                id: passInput
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                echoMode: root.formShowPassword ? TextInput.Normal : TextInput.Password
-                                passwordCharacter: "•"
-                                clip: true
-                                selectByMouse: true
-                                verticalAlignment: TextInput.AlignVCenter
-                                onTextChanged: root.formPassword = text
-                                Keys.onReturnPressed: root.submitPasswordForm()
-                                Keys.onEnterPressed: root.submitPasswordForm()
-                                Keys.onEscapePressed: root.resetForms()
-                            }
-
-                            IconButton {
-                                Layout.preferredWidth: 28
-                                Layout.preferredHeight: 28
-                                icon: root.formShowPassword ? Icons.visibilityOff : Icons.visibility
-                                iconSize: Dimensions.icon.small + 2
-                                onClicked: root.formShowPassword = !root.formShowPassword
-                            }
-                        }
+                    PasswordField {
+                        showPassword: root.formShowPassword
+                        onTextChanged: root.formPassword = text
+                        onVisibilityToggled: root.formShowPassword = !root.formShowPassword
+                        onSubmitRequested: root.submitPasswordForm()
+                        onCancelRequested: root.resetForms()
                     }
 
                     Text {
@@ -901,49 +869,14 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
+                    PasswordField {
                         visible: root.formSecurityIndex === 1
-                        radius: Dimensions.radius.small
-                        color: Colors.surfaceContainerLowest
-                        border.width: 1
-                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.4)
-
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: 10; rightMargin: 6 }
-                            spacing: 4
-                            TextInput {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                echoMode: root.formShowPassword ? TextInput.Normal : TextInput.Password
-                                passwordCharacter: "•"
-                                clip: true
-                                selectByMouse: true
-                                verticalAlignment: TextInput.AlignVCenter
-                                onTextChanged: root.formPassword = text
-                                Keys.onReturnPressed: root.submitHiddenForm()
-                                Keys.onEnterPressed: root.submitHiddenForm()
-                                Keys.onEscapePressed: root.resetForms()
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    visible: !parent.text && !parent.activeFocus
-                                    text: "Password"
-                                    color: Colors.onSurfaceVariant
-                                    font: parent.font
-                                }
-                            }
-                            IconButton {
-                                Layout.preferredWidth: 28
-                                Layout.preferredHeight: 28
-                                icon: root.formShowPassword ? Icons.visibilityOff : Icons.visibility
-                                iconSize: Dimensions.icon.small + 2
-                                onClicked: root.formShowPassword = !root.formShowPassword
-                            }
-                        }
+                        placeholder: "Password"
+                        showPassword: root.formShowPassword
+                        onTextChanged: root.formPassword = text
+                        onVisibilityToggled: root.formShowPassword = !root.formShowPassword
+                        onSubmitRequested: root.submitHiddenForm()
+                        onCancelRequested: root.resetForms()
                     }
 
                     Text {
