@@ -1,7 +1,7 @@
 # План рефакторингу Kolir
 
 Дата: 2026-11-21  
-Статус: Фази A, B, C, D і E виконані (кроки 1–61, 62–64, 69–75). Усі заплановані фази завершені; відкладені кроки 65–68 не виконувалися.
+Статус: Фази A, B, C, D і E виконані (кроки 1–61, 62–64, 69–75). Пізніше виконано відкладені кроки 65–66 (`AudioParser.js`, `Solar.js`, кроки 84–85); кроки 67–68 (`Schedule.js`, `StateStore.qml`) лишаються відкладеними.
 
 ## 1. Мета та незмінні вимоги
 
@@ -490,7 +490,7 @@ config/
 
 ### Фаза E. Runtime services, скрипти, документація — ✅ виконано
 
-Фаза E виконується замість окремих фаз K і L: E1 — сервіси, E2 — перейменування wallpaper-скриптів, E3 — helpers `screen-record.sh`, E4 — документація й фінальний regression. Кроки 65–68 (`AudioParser.js`, `Solar.js`, `Schedule.js`, `StateStore.qml`) відкладені й не виконуються.
+Фаза E виконується замість окремих фаз K і L: E1 — сервіси, E2 — перейменування wallpaper-скриптів, E3 — helpers `screen-record.sh`, E4 — документація й фінальний regression. Кроки 65–66 (`AudioParser.js`, `Solar.js`) виконано пізніше (кроки 84–85); кроки 67–68 (`Schedule.js`, `StateStore.qml`) відкладені й не виконуються.
 
 #### ✅ E1 виконана
 
@@ -672,7 +672,7 @@ config/
 
 ### Фаза K. Runtime services
 
-Кроки 62–64 виконано в межах E1. Кроки 65–68 відкладені й не виконуються.
+Кроки 62–64 виконано в межах E1. Кроки 65–66 виконано пізніше (кроки 84–85); кроки 67–68 відкладені й не виконуються.
 
 62. **Перемістити `AudioService.qml` у `services/`.** — ✅ виконано (E1)  
     **Файли:** service, `theme/qmldir`, `services/qmldir`, imports у `VolumeOsd.qml`, `Volume.qml`, `SoundControls.qml`.  
@@ -689,15 +689,15 @@ config/
     **Виконує:** `qml-mechanic`; state path і IPC не змінювати.  
     **Перевірка:** NIGHT після restart, state JSON keys.
 
-65. **Винести `services/audio/AudioParser.js`.**  
-    **Дія:** чисті `channelList`, `describeDevice`, `deviceIcon`, `parseDevices`, `parseCards`; public API service — через wrappers.  
+65. **Винести `services/audio/AudioParser.js`.** — ✅ виконано (крок 85)  
+    **Дія:** чисті `channelList`, `describeDevice`, `deviceIcon`, `parseDevices`, `parseCards`; public API service — через wrappers. JSON-перевірки й діагностика лишилися в `AudioService.qml`.  
     **Виконує:** основний агент.  
-    **Перевірка:** SOUND, monitor sources filtering, BlueZ array/object profiles.
+    **Перевірка:** SOUND, monitor sources filtering, BlueZ array/object profiles; порівняння з еталоном через node (128 перевірок, 0 розбіжностей).
 
-66. **Винести `services/hyprsunset/Solar.js`.**  
+66. **Винести `services/hyprsunset/Solar.js`.** — ✅ виконано (крок 84)  
     **Дія:** NOAA sunrise equation без зміни формул.  
     **Виконує:** основний агент.  
-    **Перевірка:** sunrise/sunset для тієї ж дати/координат збігаються до хвилини; DST, polar null, різні довготи.
+    **Перевірка:** sunrise/sunset для тієї ж дати/координат збігаються побітово; DST, polar null, різні довготи (116 960 випадків, 467 920 порівнянь, 0 розбіжностей).
 
 67. **Винести `services/hyprsunset/Schedule.js`.**  
     **Дія:** fixed/sun helpers; mutable state залишається в service.  
