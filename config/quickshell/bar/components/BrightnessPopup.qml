@@ -1,0 +1,925 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Hyprland
+import Quickshell.Io
+import "../../settings"
+import "../../theme"
+
+// Night-light popup for the brightness pill. Right click opens it; the
+// hyprsunset IPC is owned by HyprsunsetService.
+PopupWindow {
+    id: root
+
+    property Item anchorItem: null
+
+    property real reveal: 0
+    property bool pendingReveal: false
+
+    readonly property int panelWidth: 380
+    readonly property int panelHeight: 500
+    readonly property int headerHeight: 52
+
+    // Local slider state while dragging, so the handle follows the cursor
+    // without waiting for hyprctl to confirm every step.
+    property bool draggingTemperature: false
+    property real dragTemperaturePercent: 0
+
+    readonly property int displayTemperature: root.draggingTemperature
+        ? root.percentToTemperature(root.dragTemperaturePercent)
+        : HyprsunsetService.temperature
+
+    readonly property string statusText: {
+        if (!HyprsunsetService.available)
+            return "hyprsunset is not running";
+
+        const state = HyprsunsetService.enabled ? "On" : "Off";
+        let text = state + " · " + HyprsunsetService.temperature + " K";
+
+        if (HyprsunsetService.scheduleActive && HyprsunsetService.scheduleLabel !== "")
+            text += " · " + HyprsunsetService.scheduleLabel;
+
+        return text;
+    }
+
+    readonly property string scheduleWarning: {
+        if (HyprsunsetService.scheduleValid)
+            return "";
+
+        if (HyprsunsetService.scheduleMode === "sun") {
+            if (HyprsunsetService.locationRefreshing)
+                return "";
+            if (!HyprsunsetService.locationAvailable)
+                return "Location unavailable — refresh or use fixed times";
+            return "Sunrise/sunset unavailable for this date";
+        }
+
+        return "On and off times must differ";
+    }
+
+    function temperatureToPercent(kelvin) {
+        const range = HyprsunsetService.maxTemperature - HyprsunsetService.minTemperature;
+        if (range <= 0)
+            return 0;
+
+        return Math.max(0, Math.min(100,
+            (kelvin - HyprsunsetService.minTemperature) / range * 100));
+    }
+
+    function percentToTemperature(percent) {
+        const range = HyprsunsetService.maxTemperature - HyprsunsetService.minTemperature;
+        const raw = HyprsunsetService.minTemperature + percent / 100 * range;
+        return Math.max(HyprsunsetService.minTemperature,
+            Math.min(HyprsunsetService.maxTemperature, Math.round(raw / 50) * 50));
+    }
+
+    function open() {
+        revealIn.stop();
+        revealOut.stop();
+        revealFallback.stop();
+
+        if (root.visible && root.reveal > 0.99)
+            return;
+
+        root.reveal = 0;
+        root.pendingReveal = true;
+        root.visible = true;
+        grab.active = true;
+        HyprsunsetService.refresh();
+        if (HyprsunsetService.sunMode)
+            HyprsunsetService.refreshLocation(false);
+        revealFallback.restart();
+    }
+
+    function close() {
+        if (!root.visible)
+            return;
+
+        root.pendingReveal = false;
+        revealFallback.stop();
+        revealIn.stop();
+        grab.active = false;
+
+        if (root.reveal <= 0.01) {
+            root.visible = false;
+            return;
+        }
+
+        revealOut.restart();
+    }
+
+    function toggle() {
+        if (root.visible)
+            root.close();
+        else
+            root.open();
+    }
+
+    function startReveal() {
+        if (!root.pendingReveal)
+            return;
+
+        root.pendingReveal = false;
+        revealFallback.stop();
+        revealIn.restart();
+    }
+
+    visible: false
+    color: "transparent"
+    grabFocus: false
+
+    anchor.item: root.anchorItem
+    anchor.edges: Edges.Bottom | Edges.Right
+    anchor.gravity: Edges.Bottom | Edges.Left
+    anchor.adjustment: PopupAdjustment.Slide
+
+    implicitWidth: root.panelWidth
+    implicitHeight: root.panelHeight
+
+    NumberAnimation {
+        id: revealIn
+
+        target: root
+        property: "reveal"
+        to: 1
+        duration: 180
+        easing.type: Easing.OutCubic
+    }
+
+    NumberAnimation {
+        id: revealOut
+
+        target: root
+        property: "reveal"
+        to: 0
+        duration: 120
+        easing.type: Easing.InCubic
+
+        onFinished: {
+            if (!root.pendingReveal && root.reveal <= 0.01) {
+                root.visible = false;
+                root.reveal = 0;
+            }
+        }
+    }
+
+    Timer {
+        id: revealFallback
+
+        interval: 40
+        repeat: false
+        onTriggered: root.startReveal()
+    }
+
+    Timer {
+        id: temperatureSettleTimer
+
+        interval: 350
+        repeat: false
+        onTriggered: root.draggingTemperature = false
+    }
+
+    onVisibleChanged: {
+        if (!visible) {
+            revealFallback.stop();
+            revealIn.stop();
+            revealOut.stop();
+            pendingReveal = false;
+            reveal = 0;
+            grab.active = false;
+            draggingTemperature = false;
+            temperatureSettleTimer.stop();
+        }
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.visible
+        onActivated: root.close()
+    }
+
+    IpcHandler {
+        target: "nightLight"
+
+        function toggle(): void {
+            root.toggle();
+        }
+
+        function open(): void {
+            root.open();
+        }
+
+        function close(): void {
+            root.close();
+        }
+    }
+
+    HyprlandFocusGrab {
+        id: grab
+
+        windows: [
+            root.anchorItem ? root.anchorItem.window : null,
+            root
+        ]
+        onCleared: root.close()
+    }
+
+    Item {
+        id: panel
+
+        anchors.fill: parent
+        opacity: root.reveal
+        transform: Translate { y: -(1.0 - root.reveal) * 8 }
+
+        Surface {
+            anchors.fill: parent
+            radius: Dimensions.radius.extraLarge
+            surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
+            borderWidth: 2
+            borderColor: Colors.primary
+        }
+
+        Item {
+            id: header
+
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+            }
+            height: root.headerHeight
+
+            Text {
+                id: headerIcon
+
+                anchors {
+                    left: parent.left
+                    leftMargin: 16
+                    verticalCenter: parent.verticalCenter
+                }
+                text: Icons.nightlight
+                color: Colors.tertiary
+                font.family: Typography.iconFont
+                font.pixelSize: Dimensions.icon.extraLarge
+            }
+
+            Column {
+                anchors {
+                    left: headerIcon.right
+                    leftMargin: 10
+                    right: closeButton.left
+                    rightMargin: 8
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: 1
+
+                Text {
+                    width: parent.width
+                    text: "Night Light"
+                    color: Colors.onSurface
+                    font.family: Typography.barFont
+                    font.pixelSize: Typography.size.titleSmall
+                    font.weight: Typography.weight.bold
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    width: parent.width
+                    text: root.statusText
+                    color: HyprsunsetService.available
+                        ? Colors.onSurfaceVariant
+                        : Colors.error
+                    font.family: Typography.barFont
+                    font.pixelSize: Typography.size.labelSmall
+                    elide: Text.ElideRight
+                }
+            }
+
+            IconButton {
+                id: closeButton
+
+                anchors {
+                    right: parent.right
+                    rightMargin: 10
+                    verticalCenter: parent.verticalCenter
+                }
+                icon: Icons.close
+                iconSize: Dimensions.icon.medium
+                onClicked: root.close()
+            }
+
+            Rectangle {
+                anchors {
+                    bottom: parent.bottom
+                    left: parent.left
+                    right: parent.right
+                }
+                height: 1
+                color: Colors.withAlpha(Colors.outlineVariant, 0.25)
+            }
+        }
+
+        ColumnLayout {
+            anchors {
+                top: header.bottom
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
+                margins: 14
+            }
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Blue-light filter"
+                        color: Colors.onSurface
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelLarge
+                        font.weight: Typography.weight.medium
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Warm the display in the evening"
+                        color: Colors.onSurfaceVariant
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelSmall
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Toggle {
+                    Layout.alignment: Qt.AlignVCenter
+                    checked: HyprsunsetService.enabled
+                    interactive: HyprsunsetService.available
+                    onToggled: checked => HyprsunsetService.setEnabledManual(checked)
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: temperatureColumn.implicitHeight + 24
+                radius: Dimensions.radius.medium
+                color: Colors.surfaceContainerHigh
+                border.width: 1
+                border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
+
+                ColumnLayout {
+                    id: temperatureColumn
+
+                    anchors {
+                        fill: parent
+                        margins: 12
+                    }
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Temperature"
+                            color: Colors.onSurface
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.labelMedium
+                            font.weight: Typography.weight.bold
+                        }
+
+                        Text {
+                            text: root.displayTemperature + " K"
+                            color: Colors.primary
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.labelMedium
+                            font.weight: Typography.weight.bold
+                        }
+                    }
+
+                    VolumeSlider {
+                        Layout.fillWidth: true
+                        value: root.draggingTemperature
+                            ? root.dragTemperaturePercent
+                            : root.temperatureToPercent(HyprsunsetService.temperature)
+                        interactive: HyprsunsetService.available
+                        onDragStarted: value => {
+                            temperatureSettleTimer.stop();
+                            root.draggingTemperature = true;
+                            root.dragTemperaturePercent = value;
+                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
+                        }
+                        onDragUpdated: value => {
+                            root.dragTemperaturePercent = value;
+                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
+                        }
+                        onMoved: value => {
+                            root.dragTemperaturePercent = value;
+                            root.draggingTemperature = false;
+                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
+                        }
+                        onWheelMoved: value => {
+                            root.draggingTemperature = true;
+                            root.dragTemperaturePercent = value;
+                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
+                            temperatureSettleTimer.restart();
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Repeater {
+                            model: [2500, 4000, 6500]
+
+                            delegate: Rectangle {
+                                id: presetChip
+
+                                required property int modelData
+
+                                readonly property bool active: HyprsunsetService.temperature === modelData
+                                readonly property bool hovered: presetMouse.containsMouse
+
+                                Layout.fillWidth: true
+                                implicitHeight: 28
+                                opacity: HyprsunsetService.available ? 1.0 : 0.45
+                                radius: Dimensions.radius.full
+                                color: presetChip.active
+                                    ? Colors.primaryContainer
+                                    : presetChip.hovered
+                                        ? Colors.stateLayer(Colors.primary, 0.12)
+                                        : Colors.surfaceContainerLowest
+                                border.width: 1
+                                border.color: presetChip.active
+                                    ? Colors.withAlpha(Colors.primary, 0.7)
+                                    : Colors.withAlpha(Colors.outlineVariant, 0.35)
+
+                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: presetChip.modelData + " K"
+                                    color: presetChip.active
+                                        ? Colors.onPrimaryContainer
+                                        : Colors.onSurfaceVariant
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelSmall
+                                    font.weight: presetChip.active
+                                        ? Typography.weight.bold
+                                        : Typography.weight.medium
+                                }
+
+                                MouseArea {
+                                    id: presetMouse
+
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: HyprsunsetService.available
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: HyprsunsetService.setTemperature(presetChip.modelData)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: scheduleColumn.implicitHeight + 24
+                radius: Dimensions.radius.medium
+                color: Colors.surfaceContainerHigh
+                border.width: 1
+                border.color: HyprsunsetService.scheduleActive
+                    ? Colors.withAlpha(Colors.primary, 0.35)
+                    : Colors.withAlpha(Colors.outlineVariant, 0.22)
+
+                Behavior on border.color { ColorAnimation { duration: 140 } }
+
+                ColumnLayout {
+                    id: scheduleColumn
+
+                    anchors {
+                        fill: parent
+                        margins: 12
+                    }
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Rectangle {
+                            Layout.preferredWidth: 30
+                            Layout.preferredHeight: 30
+                            Layout.alignment: Qt.AlignVCenter
+                            radius: Dimensions.radius.small
+                            color: HyprsunsetService.scheduleActive
+                                ? Colors.primaryContainer
+                                : Colors.surfaceContainerHighest
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: Icons.schedule
+                                color: HyprsunsetService.scheduleActive
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                font.family: Typography.iconFont
+                                font.pixelSize: Dimensions.icon.medium
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 1
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Automatic schedule"
+                                color: Colors.onSurface
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelMedium
+                                font.weight: Typography.weight.bold
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: HyprsunsetService.scheduleStatusText
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Toggle {
+                            Layout.alignment: Qt.AlignVCenter
+                            checked: HyprsunsetService.autoSchedule
+                            interactive: HyprsunsetService.available
+                                && HyprsunsetService.scheduleValid
+                            onToggled: checked => HyprsunsetService.setScheduleEnabled(checked)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        ModeChip {
+                            Layout.fillWidth: true
+                            text: "Fixed times"
+                            active: HyprsunsetService.scheduleMode === "fixed"
+                            onClicked: HyprsunsetService.setScheduleMode("fixed")
+                        }
+
+                        ModeChip {
+                            Layout.fillWidth: true
+                            text: "Sunrise / sunset"
+                            active: HyprsunsetService.scheduleMode === "sun"
+                            onClicked: HyprsunsetService.setScheduleMode("sun")
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        visible: HyprsunsetService.scheduleMode === "fixed"
+
+                        TimeField {
+                            Layout.fillWidth: true
+                            label: "Turn on"
+                            hour: HyprsunsetService.onHour
+                            minute: HyprsunsetService.onMinute
+                            interactive: HyprsunsetService.available
+                            onEdited: (hour, minute) => HyprsunsetService.setOnTime(hour, minute)
+                        }
+
+                        TimeField {
+                            Layout.fillWidth: true
+                            label: "Turn off"
+                            hour: HyprsunsetService.offHour
+                            minute: HyprsunsetService.offMinute
+                            interactive: HyprsunsetService.available
+                            onEdited: (hour, minute) => HyprsunsetService.setOffTime(hour, minute)
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        visible: HyprsunsetService.scheduleMode === "sun"
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Text {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: Icons.place
+                                color: Colors.primary
+                                font.family: Typography.iconFont
+                                font.pixelSize: Dimensions.icon.medium
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 0
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Location"
+                                    color: Colors.onSurfaceVariant
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelSmall
+                                    font.weight: Typography.weight.medium
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: HyprsunsetService.locationLabel
+                                    color: HyprsunsetService.locationAvailable
+                                        ? Colors.onSurface
+                                        : Colors.onSurfaceVariant
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelMedium
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            IconButton {
+                                Layout.alignment: Qt.AlignVCenter
+                                icon: Icons.refresh
+                                iconSize: Dimensions.icon.small + 2
+                                enabled: !HyprsunsetService.locationRefreshing
+                                opacity: HyprsunsetService.locationRefreshing ? 0.5 : 1.0
+                                onClicked: HyprsunsetService.refreshLocation(true)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            SunTimeCard {
+                                Layout.fillWidth: true
+                                icon: Icons.lightMode
+                                caption: "Sunrise"
+                                value: HyprsunsetService.sunriseLabel
+                            }
+
+                            SunTimeCard {
+                                Layout.fillWidth: true
+                                icon: Icons.darkMode
+                                caption: "Sunset"
+                                value: HyprsunsetService.sunsetLabel
+                            }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: root.scheduleWarning !== ""
+                        text: root.scheduleWarning
+                        color: Colors.error
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelSmall
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+        }
+    }
+
+    component StepButton: Item {
+        id: stepButton
+
+        property string icon: ""
+        property bool interactive: true
+
+        signal clicked()
+
+        width: 30
+        height: 18
+        opacity: stepButton.interactive ? 1.0 : 0.35
+
+        Text {
+            anchors.centerIn: parent
+            text: stepButton.icon
+            color: stepMouse.containsMouse
+                ? Colors.primary
+                : Colors.onSurfaceVariant
+            font.family: Typography.iconFont
+            font.pixelSize: Dimensions.icon.large
+
+            Behavior on color { ColorAnimation { duration: 100 } }
+        }
+
+        MouseArea {
+            id: stepMouse
+
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: stepButton.interactive
+            cursorShape: Qt.PointingHandCursor
+            onClicked: stepButton.clicked()
+        }
+    }
+
+    component TimeColumn: Item {
+        id: timeColumn
+
+        property int value: 0
+        property bool interactive: true
+
+        signal step(int delta)
+
+        width: 36
+        height: 60
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 0
+
+            StepButton {
+                icon: Icons.chevronUp
+                interactive: timeColumn.interactive
+                onClicked: timeColumn.step(1)
+            }
+
+            Text {
+                width: parent.width
+                height: 24
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                text: timeColumn.value < 10 ? "0" + timeColumn.value : String(timeColumn.value)
+                color: timeColumn.interactive ? Colors.onSurface : Colors.onSurfaceVariant
+                font.family: Typography.barFont
+                font.pixelSize: Typography.size.titleSmall
+                font.weight: Typography.weight.bold
+            }
+
+            StepButton {
+                icon: Icons.chevronDown
+                interactive: timeColumn.interactive
+                onClicked: timeColumn.step(-1)
+            }
+        }
+
+        WheelHandler {
+            enabled: timeColumn.interactive
+            onWheel: wheel => {
+                if (wheel.angleDelta.y === 0)
+                    return;
+
+                timeColumn.step(wheel.angleDelta.y > 0 ? 1 : -1);
+                wheel.accepted = true;
+            }
+        }
+    }
+
+    component ModeChip: Rectangle {
+        id: modeChip
+
+        property string text: ""
+        property bool active: false
+
+        signal clicked()
+
+        readonly property bool hovered: modeMouse.containsMouse
+
+        implicitHeight: 26
+        radius: Dimensions.radius.full
+        color: modeChip.active
+            ? Colors.primaryContainer
+            : modeChip.hovered
+                ? Colors.stateLayer(Colors.primary, 0.12)
+                : Colors.surfaceContainerLowest
+        border.width: 1
+        border.color: modeChip.active
+            ? Colors.withAlpha(Colors.primary, 0.7)
+            : Colors.withAlpha(Colors.outlineVariant, 0.35)
+
+        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on border.color { ColorAnimation { duration: 120 } }
+
+        Text {
+            anchors.centerIn: parent
+            text: modeChip.text
+            color: modeChip.active ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
+            font.family: Typography.barFont
+            font.pixelSize: Typography.size.labelSmall
+            font.weight: modeChip.active ? Typography.weight.bold : Typography.weight.medium
+        }
+
+        MouseArea {
+            id: modeMouse
+
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: HyprsunsetService.available
+            cursorShape: Qt.PointingHandCursor
+            onClicked: modeChip.clicked()
+        }
+    }
+
+
+    component TimeField: Item {
+        id: timeField
+
+        property string label: ""
+        property int hour: 0
+        property int minute: 0
+        property bool interactive: true
+
+        signal edited(int hour, int minute)
+
+        implicitWidth: 150
+        implicitHeight: 96
+
+        function applyTotal(total) {
+            const wrapped = ((total % 1440) + 1440) % 1440;
+            timeField.edited(Math.floor(wrapped / 60), wrapped % 60);
+        }
+
+        function stepHour(delta) {
+            timeField.applyTotal(timeField.hour * 60 + timeField.minute + delta * 60);
+        }
+
+        function stepMinute(delta) {
+            timeField.applyTotal(timeField.hour * 60 + timeField.minute + delta * 5);
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Dimensions.radius.medium
+            color: Colors.surfaceContainerLowest
+            border.width: 1
+            border.color: timeHover.hovered
+                ? Colors.withAlpha(Colors.primary, 0.35)
+                : Colors.withAlpha(Colors.outlineVariant, 0.3)
+
+            Behavior on border.color { ColorAnimation { duration: 120 } }
+        }
+
+        HoverHandler {
+            id: timeHover
+            enabled: timeField.interactive
+        }
+
+        Column {
+            anchors {
+                fill: parent
+                margins: 8
+            }
+            spacing: 2
+
+            Text {
+                width: parent.width
+                text: timeField.label
+                color: Colors.onSurfaceVariant
+                font.family: Typography.barFont
+                font.pixelSize: Typography.size.labelSmall
+                font.weight: Typography.weight.medium
+            }
+
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 2
+
+                TimeColumn {
+                    value: timeField.hour
+                    interactive: timeField.interactive
+                    onStep: delta => timeField.stepHour(delta)
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: ":"
+                    color: Colors.onSurfaceVariant
+                    font.family: Typography.barFont
+                    font.pixelSize: Typography.size.titleSmall
+                    font.weight: Typography.weight.bold
+                }
+
+                TimeColumn {
+                    value: timeField.minute
+                    interactive: timeField.interactive
+                    onStep: delta => timeField.stepMinute(delta)
+                }
+            }
+        }
+
+    }
+
+
+}
