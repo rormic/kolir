@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell.Io
 import "../../components"
 import "../../theme"
+import "nightLight"
 
 // Night-light popup for the brightness pill. Right click opens it; the
 // hyprsunset IPC is owned by HyprsunsetService.
@@ -12,15 +13,6 @@ AnchoredPopup {
     panelWidth: 380
     panelHeight: 500
     headerHeight: 52
-
-    // Local slider state while dragging, so the handle follows the cursor
-    // without waiting for hyprctl to confirm every step.
-    property bool draggingTemperature: false
-    property real dragTemperaturePercent: 0
-
-    readonly property int displayTemperature: root.draggingTemperature
-        ? root.percentToTemperature(root.dragTemperaturePercent)
-        : HyprsunsetService.temperature
 
     readonly property string statusText: {
         if (!HyprsunsetService.available)
@@ -50,40 +42,13 @@ AnchoredPopup {
         return "On and off times must differ";
     }
 
-    function temperatureToPercent(kelvin) {
-        const range = HyprsunsetService.maxTemperature - HyprsunsetService.minTemperature;
-        if (range <= 0)
-            return 0;
-
-        return Math.max(0, Math.min(100,
-            (kelvin - HyprsunsetService.minTemperature) / range * 100));
-    }
-
-    function percentToTemperature(percent) {
-        const range = HyprsunsetService.maxTemperature - HyprsunsetService.minTemperature;
-        const raw = HyprsunsetService.minTemperature + percent / 100 * range;
-        return Math.max(HyprsunsetService.minTemperature,
-            Math.min(HyprsunsetService.maxTemperature, Math.round(raw / 50) * 50));
-    }
-
     onOpened: {
         HyprsunsetService.refresh();
         if (HyprsunsetService.sunMode)
             HyprsunsetService.refreshLocation(false);
     }
 
-    onHidden: {
-        draggingTemperature = false;
-        temperatureSettleTimer.stop();
-    }
-
-    Timer {
-        id: temperatureSettleTimer
-
-        interval: 350
-        repeat: false
-        onTriggered: root.draggingTemperature = false
-    }
+    onHidden: temperatureCard.cancelDrag()
 
     IpcHandler {
         target: "nightLight"
@@ -203,132 +168,14 @@ AnchoredPopup {
                 }
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: temperatureColumn.implicitHeight + 24
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
+            TemperatureCard {
+                id: temperatureCard
 
-                ColumnLayout {
-                    id: temperatureColumn
-
-                    anchors {
-                        fill: parent
-                        margins: 12
-                    }
-                    spacing: 8
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Temperature"
-                            color: Colors.onSurface
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelMedium
-                            font.weight: Typography.weight.bold
-                        }
-
-                        Text {
-                            text: root.displayTemperature + " K"
-                            color: Colors.primary
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelMedium
-                            font.weight: Typography.weight.bold
-                        }
-                    }
-
-                    VolumeSlider {
-                        Layout.fillWidth: true
-                        value: root.draggingTemperature
-                            ? root.dragTemperaturePercent
-                            : root.temperatureToPercent(HyprsunsetService.temperature)
-                        interactive: HyprsunsetService.available
-                        onDragStarted: value => {
-                            temperatureSettleTimer.stop();
-                            root.draggingTemperature = true;
-                            root.dragTemperaturePercent = value;
-                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
-                        }
-                        onDragUpdated: value => {
-                            root.dragTemperaturePercent = value;
-                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
-                        }
-                        onMoved: value => {
-                            root.dragTemperaturePercent = value;
-                            root.draggingTemperature = false;
-                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
-                        }
-                        onWheelMoved: value => {
-                            root.draggingTemperature = true;
-                            root.dragTemperaturePercent = value;
-                            HyprsunsetService.setTemperature(root.percentToTemperature(value));
-                            temperatureSettleTimer.restart();
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
-
-                        Repeater {
-                            model: [2500, 4000, 6500]
-
-                            delegate: Rectangle {
-                                id: presetChip
-
-                                required property int modelData
-
-                                readonly property bool active: HyprsunsetService.temperature === modelData
-                                readonly property bool hovered: presetMouse.containsMouse
-
-                                Layout.fillWidth: true
-                                implicitHeight: 28
-                                opacity: HyprsunsetService.available ? 1.0 : 0.45
-                                radius: Dimensions.radius.full
-                                color: presetChip.active
-                                    ? Colors.primaryContainer
-                                    : presetChip.hovered
-                                        ? Colors.stateLayer(Colors.primary, 0.12)
-                                        : Colors.surfaceContainerLowest
-                                border.width: 1
-                                border.color: presetChip.active
-                                    ? Colors.withAlpha(Colors.primary, 0.7)
-                                    : Colors.withAlpha(Colors.outlineVariant, 0.35)
-
-                                Behavior on color { ColorAnimation { duration: 120 } }
-                                Behavior on border.color { ColorAnimation { duration: 120 } }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: presetChip.modelData + " K"
-                                    color: presetChip.active
-                                        ? Colors.onPrimaryContainer
-                                        : Colors.onSurfaceVariant
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.labelSmall
-                                    font.weight: presetChip.active
-                                        ? Typography.weight.bold
-                                        : Typography.weight.medium
-                                }
-
-                                MouseArea {
-                                    id: presetMouse
-
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    enabled: HyprsunsetService.available
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: HyprsunsetService.setTemperature(presetChip.modelData)
-                                }
-                            }
-                        }
-                    }
-                }
+                temperature: HyprsunsetService.temperature
+                minTemperature: HyprsunsetService.minTemperature
+                maxTemperature: HyprsunsetService.maxTemperature
+                interactive: HyprsunsetService.available
+                onTemperatureRequested: kelvin => HyprsunsetService.setTemperature(kelvin)
             }
 
             Rectangle {
