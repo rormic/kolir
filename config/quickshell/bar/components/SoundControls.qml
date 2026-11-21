@@ -1,43 +1,18 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../theme"
+import "sound"
 
 // Output/input volume, mute and device selection for PipeWire via
 // AudioService (pactl under the hood), hosted by the bar volume popup.
 Item {
     id: root
 
-    // Local slider position while dragging, so the track doesn't fight the
-    // service state mid-drag. After release we keep the local value briefly
-    // until pactl reports the new volume back.
-    property bool draggingOutput: false
-    property real dragOutputValue: 0
-    property bool draggingInput: false
-    property real dragInputValue: 0
-
-    Timer {
-        id: outputSettleTimer
-        interval: 350
-        repeat: false
-        onTriggered: root.draggingOutput = false
-    }
-
-    Timer {
-        id: inputSettleTimer
-        interval: 350
-        repeat: false
-        onTriggered: root.draggingInput = false
-    }
-
     readonly property var out: AudioService.activeSink
     readonly property var inp: AudioService.activeSource
 
     readonly property int outVolume: root.out ? AudioService.volumePercent(root.out) : AudioService.volume
     readonly property int inVolume: root.inp ? AudioService.volumePercent(root.inp) : 0
-    // While dragging, show the live local value so the number tracks the
-    // handle instead of waiting for pactl to confirm the change.
-    readonly property int displayOutputVolume: root.draggingOutput ? Math.round(root.dragOutputValue) : root.outVolume
-    readonly property int displayInputVolume: root.draggingInput ? Math.round(root.dragInputValue) : root.inVolume
 
     // Codec switching only applies to the A2DP profiles of a Bluetooth sink.
     readonly property var btCard: root.out ? AudioService.cardForSink(root.out.name) : null
@@ -139,224 +114,96 @@ Item {
             spacing: 12
 
             // ── Output card ───────────────────────────────────────────────────
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: outCol.implicitHeight + 24
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
+            AudioDeviceCard {
+                id: outputCard
 
+                title: "Output"
+                device: root.out
+                deviceLabel: root.deviceLabel(root.out, "No output device")
+                fallbackMuted: AudioService.muted
+                volume: root.outVolume
+                icon: root.iconFor("out", root.out)
+                mutedIcon: Icons.volumeOff
+                normalIcon: Icons.volumeMute
+
+                onMuteClicked: AudioService.toggleOutputMute()
+                onVolumeMoved: value => AudioService.setOutputVolume(value)
+                onVolumeDragStarted: value => AudioService.setOutputVolume(value)
+                onVolumeDragUpdated: value => AudioService.setOutputVolume(value)
+                onVolumeWheelMoved: value => AudioService.setOutputVolume(value)
+
+                // ── Bluetooth codec chips ─────────────────────────────
+                // Only the A2DP profiles the headset advertises are listed.
+                // PipeWire exposes one profile per codec; the bare
+                // "a2dp-sink" profile carries AAC.
                 ColumnLayout {
-                    id: outCol
+                    Layout.fillWidth: true
+                    spacing: 6
+                    visible: root.showCodec
 
-                    anchors {
-                        fill: parent
-                        margins: 12
-                    }
-                    spacing: 8
-
-                    RowLayout {
+                    Text {
                         Layout.fillWidth: true
-                        spacing: 10
-
-                        Rectangle {
-                            Layout.preferredWidth: 36
-                            Layout.preferredHeight: 36
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: Dimensions.radius.small + 2
-                            color: root.out && !root.out.muted
-                                ? Colors.primaryContainer
-                                : Colors.surfaceContainerHighest
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.iconFor("out", root.out)
-                                color: root.out && !root.out.muted
-                                    ? Colors.onPrimaryContainer
-                                    : Colors.onSurfaceVariant
-                                font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.large
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 1
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "Output"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                font.weight: Typography.weight.medium
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: root.deviceLabel(root.out, "No output device")
-                                color: root.out && !root.out.muted ? Colors.primary : Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        Text {
-                            Layout.alignment: Qt.AlignVCenter
-                            width: 38
-                            horizontalAlignment: Text.AlignRight
-                            text: root.out && root.out.muted ? "Mute" : (root.displayOutputVolume + "%")
-                            color: root.out && root.out.muted ? Colors.error : Colors.onSurface
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelLarge
-                            font.weight: Typography.weight.bold
-                            elide: Text.ElideRight
-                        }
-
-                        Rectangle {
-                            id: outMuteBtn
-                            property bool hovered: false
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 28
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: Dimensions.radius.full
-                            color: outMuteBtn.hovered
-                                ? Colors.stateLayer(Colors.primary, 0.16)
-                                : Colors.surfaceContainerLowest
-                            border.width: 1
-                            border.color: root.out && root.out.muted
-                                ? Colors.withAlpha(Colors.error, 0.7)
-                                : outMuteBtn.hovered
-                                    ? Colors.withAlpha(Colors.primary, 0.6)
-                                    : Colors.withAlpha(Colors.outlineVariant, 0.35)
-                            opacity: root.out ? 1.0 : 0.45
-
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.out && root.out.muted ? Icons.volumeOff : Icons.volumeMute
-                                color: root.out && root.out.muted ? Colors.error : Colors.onSurface
-                                font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.small + 2
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                enabled: !!root.out
-                                cursorShape: Qt.PointingHandCursor
-                                onContainsMouseChanged: outMuteBtn.hovered = containsMouse
-                                onClicked: AudioService.toggleOutputMute()
-                            }
-                        }
+                        text: "Bluetooth codec"
+                        color: Colors.onSurfaceVariant
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelSmall
+                        font.weight: Typography.weight.medium
                     }
 
-                    VolumeSlider {
-                        Layout.fillWidth: true
-                        value: root.draggingOutput ? root.dragOutputValue : root.outVolume
-                        muted: root.out ? root.out.muted : AudioService.muted
-                        interactive: !!root.out
-                        onMoved: value => {
-                            root.dragOutputValue = value;
-                            AudioService.setOutputVolume(value);
-                            outputSettleTimer.restart();
-                        }
-                        onDragStarted: value => {
-                            outputSettleTimer.stop();
-                            root.draggingOutput = true;
-                            root.dragOutputValue = value;
-                            AudioService.setOutputVolume(value);
-                        }
-                        onDragUpdated: value => {
-                            root.dragOutputValue = value;
-                            AudioService.setOutputVolume(value);
-                        }
-                        onWheelMoved: value => {
-                            root.draggingOutput = true;
-                            root.dragOutputValue = value;
-                            AudioService.setOutputVolume(value);
-                            outputSettleTimer.restart();
-                        }
-                    }
-
-                    // ── Bluetooth codec chips ─────────────────────────────
-                    // Only the A2DP profiles the headset advertises are listed.
-                    // PipeWire exposes one profile per codec; the bare
-                    // "a2dp-sink" profile carries AAC.
-                    ColumnLayout {
+                    Flow {
                         Layout.fillWidth: true
                         spacing: 6
-                        visible: root.showCodec
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Bluetooth codec"
-                            color: Colors.onSurfaceVariant
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelSmall
-                            font.weight: Typography.weight.medium
-                        }
+                        Repeater {
+                            model: root.codecProfiles
 
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: 6
+                            delegate: Rectangle {
+                                id: codecChip
 
-                            Repeater {
-                                model: root.codecProfiles
+                                required property var modelData
 
-                                delegate: Rectangle {
-                                    id: codecChip
+                                readonly property bool active: root.btCard
+                                    && root.btCard.activeProfile === modelData.name
+                                readonly property bool hovered: codecHover.hovered
 
-                                    required property var modelData
+                                width: codecText.implicitWidth + 20
+                                height: 26
+                                radius: Dimensions.radius.full
+                                color: codecChip.active
+                                    ? Colors.primaryContainer
+                                    : codecChip.hovered
+                                        ? Colors.stateLayer(Colors.primary, 0.12)
+                                        : Colors.surfaceContainerLowest
+                                border.width: 1
+                                border.color: codecChip.active
+                                    ? Colors.withAlpha(Colors.primary, 0.7)
+                                    : Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-                                    readonly property bool active: root.btCard
-                                        && root.btCard.activeProfile === modelData.name
-                                    readonly property bool hovered: codecHover.hovered
+                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Behavior on border.color { ColorAnimation { duration: 120 } }
 
-                                    width: codecText.implicitWidth + 20
-                                    height: 26
-                                    radius: Dimensions.radius.full
+                                HoverHandler { id: codecHover }
+
+                                Text {
+                                    id: codecText
+                                    anchors.centerIn: parent
+                                    text: root.codecLabel(codecChip.modelData)
                                     color: codecChip.active
-                                        ? Colors.primaryContainer
-                                        : codecChip.hovered
-                                            ? Colors.stateLayer(Colors.primary, 0.12)
-                                            : Colors.surfaceContainerLowest
-                                    border.width: 1
-                                    border.color: codecChip.active
-                                        ? Colors.withAlpha(Colors.primary, 0.7)
-                                        : Colors.withAlpha(Colors.outlineVariant, 0.35)
+                                        ? Colors.onPrimaryContainer
+                                        : Colors.onSurfaceVariant
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelSmall
+                                    font.weight: codecChip.active
+                                        ? Typography.weight.bold
+                                        : Typography.weight.medium
+                                }
 
-                                    Behavior on color { ColorAnimation { duration: 120 } }
-                                    Behavior on border.color { ColorAnimation { duration: 120 } }
-
-                                    HoverHandler { id: codecHover }
-
-                                    Text {
-                                        id: codecText
-                                        anchors.centerIn: parent
-                                        text: root.codecLabel(codecChip.modelData)
-                                        color: codecChip.active
-                                            ? Colors.onPrimaryContainer
-                                            : Colors.onSurfaceVariant
-                                        font.family: Typography.barFont
-                                        font.pixelSize: Typography.size.labelSmall
-                                        font.weight: codecChip.active
-                                            ? Typography.weight.bold
-                                            : Typography.weight.medium
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        enabled: !codecChip.active
-                                        onClicked: AudioService.setCardProfile(root.btCard.name,
-                                                                               codecChip.modelData.name)
-                                    }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: !codecChip.active
+                                    onClicked: AudioService.setCardProfile(root.btCard.name,
+                                                                           codecChip.modelData.name)
                                 }
                             }
                         }
@@ -365,151 +212,22 @@ Item {
             }
 
             // ── Input card ────────────────────────────────────────────────────
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: inCol.implicitHeight + 24
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
+            AudioDeviceCard {
+                id: inputCard
 
-                ColumnLayout {
-                    id: inCol
+                title: "Input"
+                device: root.inp
+                deviceLabel: root.deviceLabel(root.inp, "No input device")
+                volume: root.inVolume
+                icon: root.iconFor("in", root.inp)
+                mutedIcon: Icons.micOff
+                normalIcon: Icons.mic
 
-                    anchors {
-                        fill: parent
-                        margins: 12
-                    }
-                    spacing: 8
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Rectangle {
-                            Layout.preferredWidth: 36
-                            Layout.preferredHeight: 36
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: Dimensions.radius.small + 2
-                            color: root.inp && !root.inp.muted
-                                ? Colors.primaryContainer
-                                : Colors.surfaceContainerHighest
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.iconFor("in", root.inp)
-                                color: root.inp && !root.inp.muted
-                                    ? Colors.onPrimaryContainer
-                                    : Colors.onSurfaceVariant
-                                font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.large
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 1
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "Input"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                font.weight: Typography.weight.medium
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: root.deviceLabel(root.inp, "No input device")
-                                color: root.inp && !root.inp.muted ? Colors.primary : Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        Text {
-                            Layout.alignment: Qt.AlignVCenter
-                            width: 38
-                            horizontalAlignment: Text.AlignRight
-                            text: root.inp && root.inp.muted ? "Mute" : (root.displayInputVolume + "%")
-                            color: root.inp && root.inp.muted ? Colors.error : Colors.onSurface
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelLarge
-                            font.weight: Typography.weight.bold
-                            elide: Text.ElideRight
-                        }
-
-                        Rectangle {
-                            id: inMuteBtn
-                            property bool hovered: false
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 28
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: Dimensions.radius.full
-                            color: inMuteBtn.hovered
-                                ? Colors.stateLayer(Colors.primary, 0.16)
-                                : Colors.surfaceContainerLowest
-                            border.width: 1
-                            border.color: root.inp && root.inp.muted
-                                ? Colors.withAlpha(Colors.error, 0.7)
-                                : inMuteBtn.hovered
-                                    ? Colors.withAlpha(Colors.primary, 0.6)
-                                    : Colors.withAlpha(Colors.outlineVariant, 0.35)
-                            opacity: root.inp ? 1.0 : 0.45
-
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.inp && root.inp.muted ? Icons.micOff : Icons.mic
-                                color: root.inp && root.inp.muted ? Colors.error : Colors.onSurface
-                                font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.small + 2
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                enabled: !!root.inp
-                                cursorShape: Qt.PointingHandCursor
-                                onContainsMouseChanged: inMuteBtn.hovered = containsMouse
-                                onClicked: AudioService.toggleInputMute()
-                            }
-                        }
-                    }
-
-                    VolumeSlider {
-                        Layout.fillWidth: true
-                        value: root.draggingInput ? root.dragInputValue : root.inVolume
-                        muted: root.inp ? root.inp.muted : false
-                        interactive: !!root.inp
-                        onMoved: value => {
-                            root.dragInputValue = value;
-                            AudioService.setInputVolume(value);
-                            inputSettleTimer.restart();
-                        }
-                        onDragStarted: value => {
-                            inputSettleTimer.stop();
-                            root.draggingInput = true;
-                            root.dragInputValue = value;
-                            AudioService.setInputVolume(value);
-                        }
-                        onDragUpdated: value => {
-                            root.dragInputValue = value;
-                            AudioService.setInputVolume(value);
-                        }
-                        onWheelMoved: value => {
-                            root.draggingInput = true;
-                            root.dragInputValue = value;
-                            AudioService.setInputVolume(value);
-                            inputSettleTimer.restart();
-                        }
-                    }
-                }
+                onMuteClicked: AudioService.toggleInputMute()
+                onVolumeMoved: value => AudioService.setInputVolume(value)
+                onVolumeDragStarted: value => AudioService.setInputVolume(value)
+                onVolumeDragUpdated: value => AudioService.setInputVolume(value)
+                onVolumeWheelMoved: value => AudioService.setInputVolume(value)
             }
 
             // ── Device lists ──────────────────────────────────────────────────
