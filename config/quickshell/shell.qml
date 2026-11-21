@@ -3,7 +3,7 @@ import "bar"
 import "launcher"
 import "notification"
 import "osd"
-import "rec"
+import "recording"
 
 ShellRoot {
     // Decorative Bottom-layer screen frame; the bar and its popout stay above
