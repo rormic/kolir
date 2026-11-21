@@ -130,15 +130,22 @@ QtObject {
     }
 
     function parseDevices(text, kind) {
+        // pactl prints nothing when it cannot reach the sound server (for
+        // example while the server refuses new clients). Return null so the
+        // caller keeps the previous list instead of clearing the device model.
+        const raw = text.trim();
+        if (!raw)
+            return null;
+
         let parsed;
         try {
-            parsed = JSON.parse(text.trim());
+            parsed = JSON.parse(raw);
         } catch (err) {
             console.warn("AudioService: failed to parse", kind, err);
-            return [];
+            return null;
         }
         if (!Array.isArray(parsed))
-            return [];
+            return null;
 
         const devices = parsed.map(entry => ({
             name: entry.name,
@@ -160,15 +167,19 @@ QtObject {
     }
 
     function parseCards(text) {
+        const raw = text.trim();
+        if (!raw)
+            return null;
+
         let parsed;
         try {
-            parsed = JSON.parse(text.trim());
+            parsed = JSON.parse(raw);
         } catch (err) {
             console.warn("AudioService: failed to parse cards", err);
-            return [];
+            return null;
         }
         if (!Array.isArray(parsed))
-            return [];
+            return null;
 
         const cards = [];
         for (let i = 0; i < parsed.length; i++) {
@@ -447,7 +458,10 @@ QtObject {
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
-                root.sinks = root.parseDevices(text, "sink");
+                const devices = root.parseDevices(text, "sink");
+                if (!devices)
+                    return;
+                root.sinks = devices;
                 root.markDefaults();
             }
         }
@@ -458,7 +472,10 @@ QtObject {
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
-                root.sources = root.parseDevices(text, "source");
+                const devices = root.parseDevices(text, "source");
+                if (!devices)
+                    return;
+                root.sources = devices;
                 root.markDefaults();
             }
         }
@@ -468,7 +485,11 @@ QtObject {
         command: ["pactl", "-f", "json", "list", "cards"]
         running: false
         stdout: StdioCollector {
-            onStreamFinished: root.cards = root.parseCards(text)
+            onStreamFinished: {
+                const cards = root.parseCards(text);
+                if (cards)
+                    root.cards = cards;
+            }
         }
     }
 
@@ -481,14 +502,26 @@ QtObject {
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.split("\n");
+                let changed = false;
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i].trim();
-                    if (line.startsWith("SINK:"))
-                        root.defaultSinkName = line.slice(5).trim();
-                    else if (line.startsWith("SOURCE:"))
-                        root.defaultSourceName = line.slice(7).trim();
+                    if (line.startsWith("SINK:")) {
+                        const name = line.slice(5).trim();
+                        if (name) {
+                            root.defaultSinkName = name;
+                            changed = true;
+                        }
+                    } else if (line.startsWith("SOURCE:")) {
+                        const name = line.slice(7).trim();
+                        if (name) {
+                            root.defaultSourceName = name;
+                            changed = true;
+                        }
+                    }
                 }
-                root.markDefaults();
+                // Empty names mean pactl failed; keep the last valid defaults.
+                if (changed)
+                    root.markDefaults();
             }
         }
     }
