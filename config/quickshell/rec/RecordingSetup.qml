@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import "../bar/components"
+import "../services"
 import "../theme"
 
 // One-shot screen recording options.
@@ -126,7 +127,7 @@ Scope {
         onTriggered: {
             startProc.command = [
                 "sh",
-                Quickshell.env("HOME") + "/.config/hypr/scripts/screen-record.sh",
+                ShellPaths.hyprScripts + "/screen-record.sh",
                 "--start",
                 "--fps", root.fpsKeys[root.fpsIndex],
                 "--quality", root.qualityKeys[root.qualityIndex],
