@@ -46,7 +46,7 @@ local terminal = "foot"
 local fileManager = "nautilus"
 local menu = "qs -p " .. os.getenv("HOME") .. "/.local/share/kolir/config/quickshell ipc call launcher toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
-local select_wallpaper = "sh ~/.config/hypr/scripts/select_wallpaper.sh"
+local select_wallpaper = "sh ~/.config/hypr/scripts/select-wallpaper.sh"
 
 -------------------
 ---- AUTOSTART ----

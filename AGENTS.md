@@ -9,7 +9,7 @@
 - [config/hypr/hyprsunset.conf](file:///home/sakura/.local/share/kolir/config/hypr/hyprsunset.conf): Valid hyprlang config for the blue-light filter. Runtime control and the automatic schedule are owned by Quickshell (`HyprsunsetService`), so native `profile { ... }` blocks should stay commented out.
 - [config/hypr/scripts/](file:///home/sakura/.local/share/kolir/config/hypr/scripts): Helper scripts:
   - `set-wallpaper.sh`: applies an image with `awww img -t random --transition-fps 180`.
-  - `select_wallpaper.sh` / `random-wallpaper.sh`: pick a wallpaper with Zenity or `find`+`shuf`, then call `set-wallpaper.sh` and `generate_colors.sh`.
+  - `select-wallpaper.sh` / `random-wallpaper.sh`: pick a wallpaper with Zenity or `find`+`shuf`, then call `set-wallpaper.sh` and `generate_colors.sh`.
   - `generate_colors.sh`: reads the awww cache and theme state, then runs Matugen with the neutral scheme.
   - `toggle-theme.sh`: flips `~/.cache/current_theme`, updates GTK/KDE theme names, and regenerates colors.
   - `brightness.sh`: adjusts the internal panel with `brightnessctl` and the external monitor through Quickshell IPC.
@@ -35,7 +35,7 @@
 ## 3. Data Flow
 ```
 Wallpaper (SUPER+CTRL+T select / SUPER+CTRL+ALT+T random)
-        └─> select_wallpaper.sh / random-wallpaper.sh
+        └─> select-wallpaper.sh / random-wallpaper.sh
               └─> set-wallpaper.sh (awww img)
                     └─> generate_colors.sh
 Theme toggle (Bar ThemeToggle.qml)
@@ -50,7 +50,7 @@ generate_colors.sh
         ├─> ~/.config/hypr/colors.lua    ──> hyprctl reload
         └─> ~/.config/quickshell/colors.json (only if the active Matugen config defines it)
 ```
-- **Wallpaper Trigger**: The Hyprland binds run `config/hypr/scripts/select_wallpaper.sh` or `random-wallpaper.sh`. Both call `set-wallpaper.sh` (`awww img`) and then `generate_colors.sh`.
+- **Wallpaper Trigger**: The Hyprland binds run `config/hypr/scripts/select-wallpaper.sh` or `random-wallpaper.sh`. Both call `set-wallpaper.sh` (`awww img`) and then `generate_colors.sh`.
 - **Theme Trigger**: `ThemeToggle.qml` watches `~/.cache/current_theme` and calls `toggle-theme.sh`. The script flips `light`/`dark`, updates GNOME/GTK and KDE theme settings, writes the state file, and calls `generate_colors.sh`.
 - **Palette Generation**: `generate_colors.sh` is zsh-based and currently hardcodes the awww cache path (`~/.cache/awww/0.12.1/DP-1`) and monitor (`DP-1`). It runs Matugen with `--source-color-index 0` and `-t scheme-neutral` (the contrast branch is commented out).
 - **Consumer Updates**:
