@@ -1,5 +1,4 @@
 #!/usr/bin/env zsh
-#IMAGE_PATH=$(sed -n 's/.*\(\/home\/[^\%]*\.png\).*/\1/p' "$HOME/.cache/awww/0.12.1/DP-1")
 # The awww cache is NUL-separated: `crop:center\0Lanczos3\0/wallpaper.png`
 # (older awww versions wrote `...Lanczos3/wallpaper.png` in one piece).
 # Normalize NULs to newlines, strip everything up to and including the
@@ -33,12 +32,6 @@ print(m["width"], m["height"]) if m else None' 2>/dev/null)"
 fi
 
 CURRENT_THEME=$(<"$HOME/.cache/current_theme")
-
-# if [[ "$CURRENT_THEME" == light ]]; then
-#   CONTRAST=0.5
-# else
-#   CONTRAST=0
-# fi
 
 matugen image "$IMAGE_PATH" --source-color-index 0 -m "$CURRENT_THEME" -t scheme-neutral
 
