@@ -417,217 +417,26 @@ Scope {
                                 }
                             }
 
-                            delegate: Item {
-                                id: delegateRoot
+                            delegate: LauncherResultRow {
+                                id: resultRow
                                 required property var modelData
                                 required property int index
 
-                                readonly property bool isSelected: ListView.isCurrentItem
-                                readonly property bool isImageClip: win.isClipboardMode && modelData.isImage
-
                                 width: list.width
-                                height: delegateRoot.isImageClip ? win.imageRowHeight : win.appRowHeight
-
-                                Rectangle {
-                                    id: rowBackground
-                                    anchors.fill: parent
-                                    anchors.margins: 2
-                                    radius: Dimensions.radius.medium
-                                    color: delegateRoot.isSelected
-                                        ? Colors.stateLayer(Colors.primary, 0.16)
-                                        : itemMouse.containsMouse
-                                            ? Colors.stateLayer(Colors.onSurface, 0.06)
-                                            : "transparent"
-                                    border.width: delegateRoot.isSelected ? 1 : 0
-                                    border.color: Colors.withAlpha(Colors.primary, 0.35)
-
-                                    Behavior on color {
-                                        ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
-                                    }
-                                    Behavior on border.color {
-                                        ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
-                                    }
-                                }
-
-                                // Акцент вибраного рядка
-                                Rectangle {
-                                    anchors {
-                                        left: parent.left
-                                        leftMargin: 6
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    width: 2
-                                    height: 18
-                                    radius: 1
-                                    visible: delegateRoot.isSelected
-                                    color: Colors.primary
-                                }
-
-                                Item {
-                                    id: leading
-                                    anchors {
-                                        left: parent.left
-                                        leftMargin: 14
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    width: 22
-                                    height: 22
-
-                                    Image {
-                                        anchors.fill: parent
-                                        visible: !win.isClipboardMode
-                                        sourceSize: Qt.size(20, 20)
-                                        source: !win.isClipboardMode
-                                            ? Quickshell.iconPath(modelData.icon, "application-x-executable")
-                                            : ""
-                                        smooth: true
-                                    }
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        visible: win.isClipboardMode
-                                        radius: Dimensions.radius.small
-                                        color: delegateRoot.isSelected
-                                            ? Colors.primaryContainer
-                                            : Colors.surfaceContainerHigh
-                                        border.width: delegateRoot.isSelected ? 0 : 1
-                                        border.color: Colors.withAlpha(Colors.outlineVariant, 0.18)
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: delegateRoot.index + 1
-                                            color: delegateRoot.isSelected
-                                                ? Colors.onPrimaryContainer
-                                                : Colors.primary
-                                            font.family: Typography.barFont
-                                            font.pixelSize: Typography.size.labelSmall
-                                            font.weight: Typography.weight.bold
-                                        }
-                                    }
-                                }
-
-                                // Прев'ю зображення з буфера обміну
-                                Rectangle {
-                                    id: imageFrame
-                                    anchors {
-                                        left: leading.right
-                                        leftMargin: 10
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    width: 152
-                                    height: 100
-                                    radius: Dimensions.radius.medium
-                                    visible: delegateRoot.isImageClip
-                                    color: Colors.withAlpha(Colors.surfaceContainerLow, 0.55)
-                                    border.width: 1
-                                    border.color: delegateRoot.isSelected
-                                        ? Colors.withAlpha(Colors.primary, 0.35)
-                                        : Colors.withAlpha(Colors.outlineVariant, 0.30)
-                                    clip: true
-
-                                    Image {
-                                        anchors.fill: parent
-                                        anchors.margins: 6
-                                        fillMode: Image.PreserveAspectFit
-                                        smooth: true
-                                        cache: false
-                                        source: (delegateRoot.isImageClip && modelData.imagePath !== "")
-                                            ? ("file://" + modelData.imagePath) : ""
-                                    }
-                                }
-
-                                // Метадані зображення
-                                Column {
-                                    anchors {
-                                        left: imageFrame.right
-                                        leftMargin: 14
-                                        right: parent.right
-                                        rightMargin: 14
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    visible: delegateRoot.isImageClip
-                                    spacing: 4
-
-                                    Text {
-                                        width: parent.width
-                                        text: modelData.imageDims || modelData.displayPreview || "Image"
-                                        color: Colors.onSurface
-                                        font.family: Typography.barFont
-                                        font.pixelSize: Typography.size.titleSmall
-                                        font.weight: delegateRoot.isSelected ? Typography.weight.bold : Typography.weight.medium
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Text {
-                                        width: parent.width
-                                        visible: text !== ""
-                                        text: modelData.imageInfo || ""
-                                        color: Colors.onSurfaceVariant
-                                        font.family: Typography.barFont
-                                        font.pixelSize: Typography.size.labelSmall
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Text {
-                                        width: parent.width
-                                        visible: delegateRoot.isSelected
-                                        text: "Enter to copy"
-                                        color: Colors.primary
-                                        font.family: Typography.barFont
-                                        font.pixelSize: Typography.size.labelSmall
-                                        elide: Text.ElideRight
-                                    }
-                                }
-
-                                // Назва програми або текст із буфера
-                                Text {
-                                    anchors {
-                                        left: leading.right
-                                        leftMargin: 10
-                                        right: enterHint.visible ? enterHint.left : parent.right
-                                        rightMargin: enterHint.visible ? 8 : 14
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    visible: !delegateRoot.isImageClip
-                                    text: win.isClipboardMode
-                                        ? (modelData.displayPreview || modelData.preview)
-                                        : modelData.name
-                                    color: Colors.onSurface
-                                    font.family: Typography.barFont
-                                    font.pixelSize: Typography.size.bodyMedium
-                                    font.weight: delegateRoot.isSelected ? Typography.weight.bold : Typography.weight.medium
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    id: enterHint
-                                    anchors {
-                                        right: parent.right
-                                        rightMargin: 14
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    visible: delegateRoot.isSelected && !delegateRoot.isImageClip
-                                    text: Icons.keyboardReturn
-                                    color: Colors.primary
-                                    font.family: Typography.iconFont
-                                    font.pixelSize: 16
-                                }
-
-                                MouseArea {
-                                    id: itemMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-
-                                    onClicked: {
-                                        list.currentIndex = delegateRoot.index
-                                        if (win.isClipboardMode) {
-                                            if (clipboard.copyItem(modelData))
-                                                win.visible = false
-                                        } else {
-                                            modelData.execute()
+                                item: resultRow.modelData
+                                itemIndex: resultRow.index
+                                selected: ListView.isCurrentItem
+                                clipboardMode: win.isClipboardMode
+                                isImageClip: win.isClipboardMode && resultRow.modelData.isImage
+                                rowHeight: resultRow.isImageClip ? win.imageRowHeight : win.appRowHeight
+                                onActivated: {
+                                    list.currentIndex = resultRow.index
+                                    if (win.isClipboardMode) {
+                                        if (clipboard.copyItem(resultRow.modelData))
                                             win.visible = false
-                                        }
+                                    } else {
+                                        resultRow.modelData.execute()
+                                        win.visible = false
                                     }
                                 }
                             }
