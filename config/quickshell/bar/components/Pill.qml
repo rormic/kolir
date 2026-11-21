@@ -18,9 +18,6 @@ Surface {
     property int horizontalPadding: Dimensions.padding.chipHorizontal
     property int spacing: 6
 
-    property alias iconItem: iconLabel
-    property alias textItem: textLabel
-
     // Persistent accent state for a pill whose popup is open.
     property bool active: false
 
