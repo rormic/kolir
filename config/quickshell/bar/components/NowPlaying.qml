@@ -1,7 +1,4 @@
 import "../../theme"
-import Quickshell
-import Quickshell.Io
-import Quickshell.Services.Mpris
 import QtQuick
 import "media"
 
@@ -16,17 +13,18 @@ import "media"
 Surface {
     id: root
 
-    readonly property var player: {
-        const list = Mpris.players.values;
-        return list.find(p => p.isPlaying) ?? list[0] ?? null;
+    MprisController {
+        id: controller
+
+        pollActive: root.visible
     }
 
-    readonly property bool hasPlayer: player !== null
-    readonly property bool interactive: hasPlayer && player.canControl
+    readonly property var player: controller.player
+
+    readonly property bool hasPlayer: controller.hasPlayer
+    readonly property bool interactive: controller.interactive
     readonly property bool expanded: hovered && interactive
-    readonly property string trackText: player
-        ? ((player.trackArtist ? player.trackArtist + " – " : "") + (player.trackTitle || ""))
-        : ""
+    readonly property string trackText: controller.trackText
 
     // Set from Bar.qml: hidden on narrow screens.
     property bool enabled: true
@@ -41,36 +39,13 @@ Surface {
     readonly property int textCondensedWidth: 110
     readonly property int horizontalPadding: Dimensions.padding.chipHorizontal
 
-    readonly property bool progressSupported: hasPlayer
-        && player.lengthSupported
-        && player.positionSupported
-        && player.length > 0
+    readonly property bool progressSupported: controller.progressSupported
 
     // 0..1 position in the current track. `position` does not update
-    // reactively; the poll Timer below emits its change signal while
-    // playing so this binding re-reads the fresh value.
-    readonly property real progress: progressSupported
-        ? Math.max(0, Math.min(1, player.position / player.length))
-        : 0
+    // reactively; the controller polls it while playing.
+    readonly property real progress: controller.progress
 
-    // Browsers expose the current tab URL as xesam:url, so use its host to
-    // look up a local favicon.
-    readonly property string trackUrl: {
-        if (!hasPlayer || !player.metadata)
-            return "";
-        const url = player.metadata["xesam:url"];
-        return typeof url === "string" ? url : "";
-    }
-
-    readonly property string siteHost: {
-        const match = trackUrl.match(/^[a-z][a-z0-9+.-]*:\/\/([^\/?#:]+)/i);
-        return match ? match[1].toLowerCase() : "";
-    }
-
-    property string siteIconPath: ""
-    property string faviconRequestHost: ""
-
-    readonly property bool siteIconReady: siteIconPath !== ""
+    readonly property bool siteIconReady: controller.siteIconPath !== ""
         && siteIconImage.status === Image.Ready
 
     // AppIcon resolves the player's desktop entry (zen -> zen-browser, ...).
@@ -79,12 +54,7 @@ Surface {
     // The music note is the last resort, used only when no icon is available.
     readonly property bool showNoteIcon: !siteIconReady && !appIconReady
 
-    // Optimistic playback state. Some players (Firefox/Zen) never update
-    // PlaybackStatus, and quickshell's togglePlaying() then keeps sending
-    // Pause and can never resume. We flip this flag ourselves, send raw
-    // MPRIS Play/Pause, and resync whenever the player reports a real
-    // state change.
-    property bool assumedPlaying: false
+    readonly property bool assumedPlaying: controller.assumedPlaying
 
     implicitHeight: Dimensions.control.height
     implicitWidth: content.implicitWidth + horizontalPadding * 2
@@ -106,76 +76,7 @@ Surface {
         NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
     }
 
-    function togglePlaying() {
-        if (!interactive)
-            return;
-
-        const action = assumedPlaying ? "Pause" : "Play";
-        assumedPlaying = !assumedPlaying;
-
-        controlProc.command = [
-            "busctl", "--user", "call", player.dbusName,
-            "/org/mpris/MediaPlayer2",
-            "org.mpris.MediaPlayer2.Player",
-            action
-        ];
-        controlProc.running = true;
-    }
-
-    function syncAssumedState() {
-        assumedPlaying = hasPlayer ? player.isPlaying : false;
-    }
-
-    function refreshSiteIcon() {
-        siteIconPath = "";
-
-        if (!hasPlayer || trackUrl === "" || siteHost === "")
-            return;
-
-        faviconRequestHost = siteHost;
-        faviconProc.running = false;
-        faviconProc.running = true;
-    }
-
-    function nextTrack() {
-        if (hasPlayer && player.canGoNext)
-            player.next();
-    }
-
-    function prevTrack() {
-        if (hasPlayer && player.canGoPrevious)
-            player.previous();
-    }
-
     onExpandedChanged: viewport.syncMarquee()
-    onPlayerChanged: syncAssumedState()
-
-    // The host is enough to identify the favicon, so switching tracks on the
-    // same site does not touch the browser database again.
-    onSiteHostChanged: refreshSiteIcon()
-
-    // Retry when a track changes on the same host but the first lookup found
-    // nothing (for example a site whose icon was cached after it was played).
-    onTrackUrlChanged: {
-        if (siteHost !== "" && siteIconPath === "" && !faviconProc.running)
-            refreshSiteIcon();
-    }
-
-    IpcHandler {
-        target: "nowPlaying"
-
-        function playPause(): void {
-            root.togglePlaying();
-        }
-
-        function next(): void {
-            root.nextTrack();
-        }
-
-        function previous(): void {
-            root.prevTrack();
-        }
-    }
 
     // Body: click toggles playback, wheel skips tracks. The layout is
     // parented to the MouseArea so wheels over the transport buttons
@@ -186,13 +87,13 @@ Surface {
         anchors.fill: parent
         cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
 
-        onClicked: root.togglePlaying()
+        onClicked: controller.togglePlaying()
 
         onWheel: wheel => {
             if (wheel.angleDelta.y > 0)
-                root.nextTrack();
+                controller.nextTrack();
             else if (wheel.angleDelta.y < 0)
-                root.prevTrack();
+                controller.prevTrack();
         }
 
         Item {
@@ -244,7 +145,7 @@ Surface {
 
                     anchors.fill: parent
                     iconSize: coverSlot.width
-                    appClass: root.hasPlayer ? root.player.desktopEntry : ""
+                    appClass: root.player ? root.player.desktopEntry : ""
                     fallbackIcon: ""
                     visible: !root.siteIconReady && ready
                 }
@@ -254,10 +155,10 @@ Surface {
                     id: siteIconImage
 
                     anchors.fill: parent
-                    visible: root.siteIconPath !== ""
+                    visible: controller.siteIconPath !== ""
                     opacity: root.siteIconReady ? 1 : 0
-                    source: root.siteIconPath !== ""
-                        ? "file://" + root.siteIconPath
+                    source: controller.siteIconPath !== ""
+                        ? "file://" + controller.siteIconPath
                         : ""
                     sourceSize: Qt.size(coverSlot.width, coverSlot.height)
                     fillMode: Image.PreserveAspectFit
@@ -271,7 +172,7 @@ Surface {
 
                     onStatusChanged: {
                         if (status === Image.Error)
-                            root.siteIconPath = "";
+                            controller.clearSiteIcon();
                     }
                 }
             }
@@ -324,13 +225,13 @@ Surface {
                         icon: Icons.skipPrevious
                         iconSize: Dimensions.icon.medium
                         iconColor: Colors.onSurfaceVariant
-                        opacity: root.hasPlayer && root.player.canGoPrevious ? 1 : 0.35
+                        opacity: root.player && root.player.canGoPrevious ? 1 : 0.35
 
                         Behavior on opacity {
                             NumberAnimation { duration: 140 }
                         }
 
-                        onClicked: root.prevTrack()
+                        onClicked: controller.prevTrack()
                     }
 
                     IconButton {
@@ -338,20 +239,20 @@ Surface {
                         iconSize: Dimensions.icon.medium
                         iconColor: Colors.primary
 
-                        onClicked: root.togglePlaying()
+                        onClicked: controller.togglePlaying()
                     }
 
                     IconButton {
                         icon: Icons.skipNext
                         iconSize: Dimensions.icon.medium
                         iconColor: Colors.onSurfaceVariant
-                        opacity: root.hasPlayer && root.player.canGoNext ? 1 : 0.35
+                        opacity: root.player && root.player.canGoNext ? 1 : 0.35
 
                         Behavior on opacity {
                             NumberAnimation { duration: 140 }
                         }
 
-                        onClicked: root.nextTrack()
+                        onClicked: controller.nextTrack()
                     }
                 }
             }
@@ -380,88 +281,5 @@ Surface {
         }
     }
 
-    // `position` does not update reactively, so emit its change signal once
-    // per second while playing (the pattern recommended by the Quickshell
-    // MprisPlayer docs).
-    Timer {
-        running: root.visible && root.hasPlayer && root.assumedPlaying
-        interval: 1000
-        repeat: true
-        triggeredOnStart: true
-
-        onTriggered: root.player.positionChanged()
-    }
-
-    // Local site favicon lookup. The helper reads the browser's
-    // favicons.sqlite and caches the extracted image; no network is used.
-    Process {
-        id: faviconProc
-
-        running: false
-        command: [
-            "python3",
-            Quickshell.shellPath("scripts/favicon.py"),
-            Quickshell.cachePath("favicons"),
-            root.trackUrl
-        ]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const path = text.trim();
-
-                // Ignore a late result from a previous site.
-                if (path !== "" && root.faviconRequestHost === root.siteHost)
-                    root.siteIconPath = path;
-            }
-        }
-
-        stderr: StdioCollector {
-            onStreamFinished: {
-                if (text.trim() !== "")
-                    console.warn("NowPlaying: favicon lookup:", text.trim());
-            }
-        }
-
-        onExited: (code, status) => {
-            if (code !== 0)
-                console.warn("NowPlaying: favicon helper exited with code", code);
-        }
-    }
-
-    // Raw MPRIS control. quickshell's play()/pause() short-circuit when the
-    // reported state already matches, which never happens for players that
-    // lie about PlaybackStatus, so the D-Bus methods are called directly.
-    Process {
-        id: controlProc
-
-        running: false
-
-        stderr: StdioCollector {
-            onStreamFinished: {
-                if (text.trim() !== "")
-                    console.warn("NowPlaying: MPRIS control error:", text.trim());
-            }
-        }
-
-        onExited: (code, status) => {
-            if (code !== 0)
-                console.warn("NowPlaying: MPRIS control call failed, exit code", code);
-        }
-    }
-
-    // Follow real playback state changes from well-behaved players.
-    Connections {
-        target: root.player
-
-        function onPlaybackStateChanged() {
-            root.syncAssumedState();
-        }
-    }
-
     HoverHandler { id: _hover }
-
-    Component.onCompleted: {
-        syncAssumedState();
-        refreshSiteIcon();
-    }
 }
