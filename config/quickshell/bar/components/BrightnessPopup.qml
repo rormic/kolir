@@ -1,23 +1,17 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
+import "../../components"
 import "../../theme"
 
 // Night-light popup for the brightness pill. Right click opens it; the
 // hyprsunset IPC is owned by HyprsunsetService.
-PopupWindow {
+AnchoredPopup {
     id: root
 
-    property Item anchorItem: null
-
-    property real reveal: 0
-    property bool pendingReveal: false
-
-    readonly property int panelWidth: 380
-    readonly property int panelHeight: 500
-    readonly property int headerHeight: 52
+    panelWidth: 380
+    panelHeight: 500
+    headerHeight: 52
 
     // Local slider state while dragging, so the handle follows the cursor
     // without waiting for hyprctl to confirm every step.
@@ -72,102 +66,15 @@ PopupWindow {
             Math.min(HyprsunsetService.maxTemperature, Math.round(raw / 50) * 50));
     }
 
-    function open() {
-        revealIn.stop();
-        revealOut.stop();
-        revealFallback.stop();
-
-        if (root.visible && root.reveal > 0.99)
-            return;
-
-        root.reveal = 0;
-        root.pendingReveal = true;
-        root.visible = true;
-        grab.active = true;
+    onOpened: {
         HyprsunsetService.refresh();
         if (HyprsunsetService.sunMode)
             HyprsunsetService.refreshLocation(false);
-        revealFallback.restart();
     }
 
-    function close() {
-        if (!root.visible)
-            return;
-
-        root.pendingReveal = false;
-        revealFallback.stop();
-        revealIn.stop();
-        grab.active = false;
-
-        if (root.reveal <= 0.01) {
-            root.visible = false;
-            return;
-        }
-
-        revealOut.restart();
-    }
-
-    function toggle() {
-        if (root.visible)
-            root.close();
-        else
-            root.open();
-    }
-
-    function startReveal() {
-        if (!root.pendingReveal)
-            return;
-
-        root.pendingReveal = false;
-        revealFallback.stop();
-        revealIn.restart();
-    }
-
-    visible: false
-    color: "transparent"
-    grabFocus: false
-
-    anchor.item: root.anchorItem
-    anchor.edges: Edges.Bottom | Edges.Right
-    anchor.gravity: Edges.Bottom | Edges.Left
-    anchor.adjustment: PopupAdjustment.Slide
-
-    implicitWidth: root.panelWidth
-    implicitHeight: root.panelHeight
-
-    NumberAnimation {
-        id: revealIn
-
-        target: root
-        property: "reveal"
-        to: 1
-        duration: 180
-        easing.type: Easing.OutCubic
-    }
-
-    NumberAnimation {
-        id: revealOut
-
-        target: root
-        property: "reveal"
-        to: 0
-        duration: 120
-        easing.type: Easing.InCubic
-
-        onFinished: {
-            if (!root.pendingReveal && root.reveal <= 0.01) {
-                root.visible = false;
-                root.reveal = 0;
-            }
-        }
-    }
-
-    Timer {
-        id: revealFallback
-
-        interval: 40
-        repeat: false
-        onTriggered: root.startReveal()
+    onHidden: {
+        draggingTemperature = false;
+        temperatureSettleTimer.stop();
     }
 
     Timer {
@@ -176,25 +83,6 @@ PopupWindow {
         interval: 350
         repeat: false
         onTriggered: root.draggingTemperature = false
-    }
-
-    onVisibleChanged: {
-        if (!visible) {
-            revealFallback.stop();
-            revealIn.stop();
-            revealOut.stop();
-            pendingReveal = false;
-            reveal = 0;
-            grab.active = false;
-            draggingTemperature = false;
-            temperatureSettleTimer.stop();
-        }
-    }
-
-    Shortcut {
-        sequence: "Escape"
-        enabled: root.visible
-        onActivated: root.close()
     }
 
     IpcHandler {
@@ -213,121 +101,73 @@ PopupWindow {
         }
     }
 
-    HyprlandFocusGrab {
-        id: grab
-
-        windows: [
-            root.anchorItem ? root.anchorItem.window : null,
-            root
-        ]
-        onCleared: root.close()
-    }
-
-    Item {
-        id: panel
-
-        anchors.fill: parent
-        opacity: root.reveal
-        transform: Translate { y: -(1.0 - root.reveal) * 8 }
-
-        Surface {
-            anchors.fill: parent
-            radius: Dimensions.radius.extraLarge
-            surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
-            borderWidth: 2
-            borderColor: Colors.primary
-        }
-
-        Item {
-            id: header
+    headerContent: [
+        Text {
+            id: headerIcon
 
             anchors {
-                top: parent.top
                 left: parent.left
-                right: parent.right
+                leftMargin: 16
+                verticalCenter: parent.verticalCenter
             }
-            height: root.headerHeight
+            text: Icons.nightlight
+            color: Colors.tertiary
+            font.family: Typography.iconFont
+            font.pixelSize: Dimensions.icon.extraLarge
+        },
+
+        Column {
+            anchors {
+                left: headerIcon.right
+                leftMargin: 10
+                right: closeButton.left
+                rightMargin: 8
+                verticalCenter: parent.verticalCenter
+            }
+            spacing: 1
 
             Text {
-                id: headerIcon
-
-                anchors {
-                    left: parent.left
-                    leftMargin: 16
-                    verticalCenter: parent.verticalCenter
-                }
-                text: Icons.nightlight
-                color: Colors.tertiary
-                font.family: Typography.iconFont
-                font.pixelSize: Dimensions.icon.extraLarge
+                width: parent.width
+                text: "Night Light"
+                color: Colors.onSurface
+                font.family: Typography.barFont
+                font.pixelSize: Typography.size.titleSmall
+                font.weight: Typography.weight.bold
+                elide: Text.ElideRight
             }
 
-            Column {
-                anchors {
-                    left: headerIcon.right
-                    leftMargin: 10
-                    right: closeButton.left
-                    rightMargin: 8
-                    verticalCenter: parent.verticalCenter
-                }
-                spacing: 1
-
-                Text {
-                    width: parent.width
-                    text: "Night Light"
-                    color: Colors.onSurface
-                    font.family: Typography.barFont
-                    font.pixelSize: Typography.size.titleSmall
-                    font.weight: Typography.weight.bold
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    width: parent.width
-                    text: root.statusText
-                    color: HyprsunsetService.available
-                        ? Colors.onSurfaceVariant
-                        : Colors.error
-                    font.family: Typography.barFont
-                    font.pixelSize: Typography.size.labelSmall
-                    elide: Text.ElideRight
-                }
+            Text {
+                width: parent.width
+                text: root.statusText
+                color: HyprsunsetService.available
+                    ? Colors.onSurfaceVariant
+                    : Colors.error
+                font.family: Typography.barFont
+                font.pixelSize: Typography.size.labelSmall
+                elide: Text.ElideRight
             }
+        },
 
-            IconButton {
-                id: closeButton
+        IconButton {
+            id: closeButton
 
-                anchors {
-                    right: parent.right
-                    rightMargin: 10
-                    verticalCenter: parent.verticalCenter
-                }
-                icon: Icons.close
-                iconSize: Dimensions.icon.medium
-                onClicked: root.close()
-            }
-
-            Rectangle {
-                anchors {
-                    bottom: parent.bottom
-                    left: parent.left
-                    right: parent.right
-                }
-                height: 1
-                color: Colors.withAlpha(Colors.outlineVariant, 0.25)
-            }
-        }
-
-        ColumnLayout {
             anchors {
-                top: header.bottom
-                left: parent.left
                 right: parent.right
-                bottom: parent.bottom
-                margins: 14
+                rightMargin: 10
+                verticalCenter: parent.verticalCenter
             }
-            spacing: 12
+            icon: Icons.close
+            iconSize: Dimensions.icon.medium
+            onClicked: root.close()
+        }
+    ]
 
+    ColumnLayout {
+        anchors {
+            fill: parent
+            margins: 14
+        }
+        spacing: 12
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 12
@@ -697,7 +537,6 @@ PopupWindow {
                 }
             }
         }
-    }
 
     component StepButton: Item {
         id: stepButton
