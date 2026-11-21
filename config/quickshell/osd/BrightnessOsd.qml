@@ -1,153 +1,31 @@
 import QtQuick
 import Quickshell
-import Quickshell.Wayland
-import "../bar/components"
 import "../theme"
 
 Scope {
-    id: root
-
-    property bool active: false
-
-    Timer {
-        id: hideTimer
-        interval: 1500
-        repeat: false
-        onTriggered: root.active = false
-    }
-
     Connections {
         target: BrightnessService
         function onBrightnessChangedManually(val) {
-            osdWin.visible = true
-            root.active = true
-            hideTimer.restart()
+            osd.show();
         }
     }
 
-    PanelWindow {
-        id: osdWin
+    OsdPanel {
+        id: osd
 
-        visible: false
-        color: "transparent"
+        layerNamespace: "brightness-osd"
 
-        anchors {
-            bottom: true
-        }
-        margins.bottom: 60
+        icon: BrightnessService.value < 34
+            ? Icons.brightnessLow
+            : (BrightnessService.value < 67
+                ? Icons.brightnessMedium
+                : Icons.brightnessHigh)
+        iconColor: Colors.primary
 
-        implicitWidth: 200
-        implicitHeight: 36
+        value: BrightnessService.value
+        indicatorColor: Colors.primary
 
-        exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "brightness-osd"
-
-        Item {
-            id: container
-            anchors.fill: parent
-
-            opacity: root.active ? 1.0 : 0.0
-            scale: root.active ? 1.0 : 0.94
-            transformOrigin: Item.Center
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 160
-                    easing.type: Easing.OutCubic
-                    onRunningChanged: {
-                        if (!running && !root.active) {
-                            osdWin.visible = false
-                        }
-                    }
-                }
-            }
-            Behavior on scale {
-                NumberAnimation {
-                    duration: 160
-                    easing.type: Easing.OutCubic
-                }
-            }
-
-            // ── Compact Neon Pill ──
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.height / 2
-                color: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
-
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.primary, 0.45)
-
-                Behavior on border.color {
-                    ColorAnimation { duration: 140 }
-                }
-
-                // Subtle neon bottom highlight
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: parent.width * 0.6
-                    height: 1
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: "transparent" }
-                        GradientStop {
-                            position: 0.5
-                            color: Colors.withAlpha(Colors.primary, 0.7)
-                        }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
-                }
-
-                Row {
-                    anchors {
-                        fill: parent
-                        leftMargin: 12
-                        rightMargin: 12
-                    }
-                    spacing: 8
-
-                    // Brightness Icon
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: BrightnessService.value < 34
-                            ? Icons.brightnessLow
-                            : (BrightnessService.value < 67
-                                ? Icons.brightnessMedium
-                                : Icons.brightnessHigh)
-                        font.family: Typography.iconFont
-                        font.pixelSize: 18
-                        color: Colors.primary
-                        Behavior on color { ColorAnimation { duration: 140 } }
-                    }
-
-                    // Material 3 linear progress indicator: wavy while the OSD
-                    // is visible, flat track with a gap and a stop dot.
-                    ProgressIndicator {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - 18 - 8 - 36 - 8 // width minus icon, gaps, text
-                        height: implicitHeight
-                        value: BrightnessService.value
-                        indicatorColor: Colors.primary
-                        trackColor: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
-                        wavy: true
-                        playing: root.active
-                    }
-
-                    // Value text
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 36
-                        horizontalAlignment: Text.AlignRight
-                        text: BrightnessService.value + "%"
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.labelMedium
-                        font.weight: Typography.weight.bold
-                        color: Colors.onSurface
-                        Behavior on color { ColorAnimation { duration: 140 } }
-                    }
-                }
-            }
-        }
+        text: BrightnessService.value + "%"
+        textColor: Colors.onSurface
     }
 }
