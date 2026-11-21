@@ -5,7 +5,7 @@
 # Lanczos3 filter spec, and take the last resulting line as the path.
 IMAGE_PATH=$(tr '\0' '\n' < ~/.cache/awww/0.12.1/DP-1 | sed -E 's/^.*Lanczos3//' | tail -n 1)
 if [[ ! -r "$IMAGE_PATH" ]]; then
-    echo "generate_colors.sh: cannot read wallpaper path '${IMAGE_PATH}' extracted from ~/.cache/awww/0.12.1/DP-1" >&2
+    echo "generate-colors.sh: cannot read wallpaper path '${IMAGE_PATH}' extracted from ~/.cache/awww/0.12.1/DP-1" >&2
     exit 1
 fi
 

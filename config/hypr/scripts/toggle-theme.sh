@@ -21,4 +21,4 @@ kwriteconfig6 --file kdeglobals --group General --key ColorScheme "$kde_scheme"
 
 echo "$new" > "$STATE_FILE"
 
-sh "$HOME/.config/hypr/scripts/generate_colors.sh"
+sh "$HOME/.config/hypr/scripts/generate-colors.sh"

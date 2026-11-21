@@ -5,4 +5,4 @@ bg=$(find "$WALLPAPER_DIR" -type f \( -name "*.jpg" -o -name "*.png" -o -name "*
 
 sh "$HOME/.config/hypr/scripts/set-wallpaper.sh" "$bg"
 
-sh "$HOME/.config/hypr/scripts/generate_colors.sh"
+sh "$HOME/.config/hypr/scripts/generate-colors.sh"

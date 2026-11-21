@@ -9,8 +9,8 @@
 - [config/hypr/hyprsunset.conf](file:///home/sakura/.local/share/kolir/config/hypr/hyprsunset.conf): Valid hyprlang config for the blue-light filter. Runtime control and the automatic schedule are owned by Quickshell (`HyprsunsetService`), so native `profile { ... }` blocks should stay commented out.
 - [config/hypr/scripts/](file:///home/sakura/.local/share/kolir/config/hypr/scripts): Helper scripts:
   - `set-wallpaper.sh`: applies an image with `awww img -t random --transition-fps 180`.
-  - `select-wallpaper.sh` / `random-wallpaper.sh`: pick a wallpaper with Zenity or `find`+`shuf`, then call `set-wallpaper.sh` and `generate_colors.sh`.
-  - `generate_colors.sh`: reads the awww cache and theme state, then runs Matugen with the neutral scheme.
+  - `select-wallpaper.sh` / `random-wallpaper.sh`: pick a wallpaper with Zenity or `find`+`shuf`, then call `set-wallpaper.sh` and `generate-colors.sh`.
+  - `generate-colors.sh`: reads the awww cache and theme state, then runs Matugen with the neutral scheme.
   - `toggle-theme.sh`: flips `~/.cache/current_theme`, updates GTK/KDE theme names, and regenerates colors.
   - `brightness.sh`: adjusts the internal panel with `brightnessctl` and the external monitor through Quickshell IPC.
   - `screen-record.sh`: recording toggle/setup/start with `wf-recorder` (fallback `wl-screenrec`), audio mixing, encoder selection, and state files under `$XDG_RUNTIME_DIR/kolir`.
@@ -37,11 +37,11 @@
 Wallpaper (SUPER+CTRL+T select / SUPER+CTRL+ALT+T random)
         └─> select-wallpaper.sh / random-wallpaper.sh
               └─> set-wallpaper.sh (awww img)
-                    └─> generate_colors.sh
+                    └─> generate-colors.sh
 Theme toggle (Bar ThemeToggle.qml)
         └─> toggle-theme.sh (~/.cache/current_theme, GTK/KDE theme)
-              └─> generate_colors.sh
-generate_colors.sh
+              └─> generate-colors.sh
+generate-colors.sh
   reads ~/.cache/awww/0.12.1/DP-1 and ~/.cache/current_theme
   runs: matugen image <path> --source-color-index 0 -m <theme> -t scheme-neutral
         ├─> ~/.config/foot/colors.ini
@@ -50,9 +50,9 @@ generate_colors.sh
         ├─> ~/.config/hypr/colors.lua    ──> hyprctl reload
         └─> ~/.config/quickshell/colors.json (only if the active Matugen config defines it)
 ```
-- **Wallpaper Trigger**: The Hyprland binds run `config/hypr/scripts/select-wallpaper.sh` or `random-wallpaper.sh`. Both call `set-wallpaper.sh` (`awww img`) and then `generate_colors.sh`.
-- **Theme Trigger**: `ThemeToggle.qml` watches `~/.cache/current_theme` and calls `toggle-theme.sh`. The script flips `light`/`dark`, updates GNOME/GTK and KDE theme settings, writes the state file, and calls `generate_colors.sh`.
-- **Palette Generation**: `generate_colors.sh` is zsh-based and currently hardcodes the awww cache path (`~/.cache/awww/0.12.1/DP-1`) and monitor (`DP-1`). It runs Matugen with `--source-color-index 0` and `-t scheme-neutral` (the contrast branch is commented out).
+- **Wallpaper Trigger**: The Hyprland binds run `config/hypr/scripts/select-wallpaper.sh` or `random-wallpaper.sh`. Both call `set-wallpaper.sh` (`awww img`) and then `generate-colors.sh`.
+- **Theme Trigger**: `ThemeToggle.qml` watches `~/.cache/current_theme` and calls `toggle-theme.sh`. The script flips `light`/`dark`, updates GNOME/GTK and KDE theme settings, writes the state file, and calls `generate-colors.sh`.
+- **Palette Generation**: `generate-colors.sh` is zsh-based and currently hardcodes the awww cache path (`~/.cache/awww/0.12.1/DP-1`) and monitor (`DP-1`). It runs Matugen with `--source-color-index 0` and `-t scheme-neutral` (the contrast branch is commented out).
 - **Consumer Updates**:
   - **Quickshell**: `config/quickshell/theme/Colors.qml` watches `~/.config/quickshell/colors.json` with `FileView`, parses it in `onLoaded`, and maps snake_case keys to camelCase QML properties without restarting the shell.
   - **Foot**: Matugen writes `~/.cache/terminal-sequences`; its `post_hook` tees ANSI color sequences into open pseudo-terminals. New Foot instances read `~/.config/foot/colors.ini`.
@@ -110,7 +110,7 @@ generate_colors.sh
 - **Runtime Dependencies**: `install.sh` covers the base desktop stack, but the code also expects tools not guaranteed by its package list: `cliphist` (launcher clipboard), `nmcli`/NetworkManager (Internet settings page), BlueZ (Bluetooth settings page and `Quickshell.Bluetooth`), and the `ffmpeg` binary (recording encoder probing). `pactl` comes from `libpulse`, which `pipewire-pulse` pulls in.
 - **Known Quirks & Pitfalls**:
   - **Hardcoded paths in Launcher**: `config/quickshell/launcher/Launcher.qml` hardcodes `/home/sakura/.local/share/kolir/config/quickshell/launcher/cliphist-*.py` for its daemons and image preview generation.
-  - **Hardcoded monitor & cache version**: `config/hypr/scripts/generate_colors.sh` hardcodes monitor `DP-1` and awww version `0.12.1` in `~/.cache/awww/0.12.1/DP-1`. Changing the monitor port or upgrading awww breaks wallpaper path discovery. The script uses `-t scheme-neutral`; the old contrast logic is commented out.
+  - **Hardcoded monitor & cache version**: `config/hypr/scripts/generate-colors.sh` hardcodes monitor `DP-1` and awww version `0.12.1` in `~/.cache/awww/0.12.1/DP-1`. Changing the monitor port or upgrading awww breaks wallpaper path discovery. The script uses `-t scheme-neutral`; the old contrast logic is commented out.
   - **Matugen template divergence**: The active `~/.config/matugen/config.toml` and templates may contain `quickshell-colors.json`, `gtk3`, `gtk4`, `zen-colors`, and `obsidian` entries that are not tracked in the repo. Because `install.sh` symlinks the repo config/templates, those extra outputs disappear on a fresh deployment unless committed.
   - **Lua Configuration**: Hyprland uses the modern Lua API (`hl.config`, `hl.bind`, `hl.window_rule`, `hl.layer_rule`), not traditional `hyprland.conf` directives.
   - **Hybrid Brightness**: `brightness.sh` adjusts the internal display via `brightnessctl` and the external display via Quickshell IPC calling `BrightnessService.qml`, which throttles `ddcutil setvcp 10`.
