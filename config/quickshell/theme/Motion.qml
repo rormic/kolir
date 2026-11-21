@@ -28,5 +28,5 @@ QtObject {
     readonly property int listEnter: 180
     readonly property int listExit: 140
     // OSD reveal and hide.
-    readonly property int osd: 180
+    readonly property int osd: 160
 }
