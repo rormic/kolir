@@ -25,6 +25,7 @@ QtObject {
     readonly property string brightnessMedium: "brightness_5"
     readonly property string brightnessHigh: "brightness_6"
     readonly property string nightlight: "nightlight"
+    readonly property string caffeine: "local_cafe"
 
     readonly property string chevronUp: "keyboard_arrow_up"
     readonly property string chevronDown: "keyboard_arrow_down"

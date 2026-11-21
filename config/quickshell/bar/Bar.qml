@@ -1,4 +1,5 @@
 import "../theme"
+import "../services"
 import "../settings"
 import "./components"
 import Quickshell
@@ -155,10 +156,21 @@ PanelWindow {
 
             Tray            { anchors.verticalCenter: parent.verticalCenter }
             RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
+            CaffeineIndicator {
+                anchors.verticalCenter: parent.verticalCenter
+                onActivated: settingsMenu.open("main")
+            }
             Brightness      { anchors.verticalCenter: parent.verticalCenter }
             Volume          { anchors.verticalCenter: parent.verticalCenter }
             ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
         }
+    }
+
+    // Keeps hypridle from locking, blanking or suspending the session while
+    // the keep-awake toggle is enabled. Manual lock/suspend still works.
+    IdleInhibitor {
+        enabled: CaffeineService.enabled
+        window: bar
     }
 
     // Settings panel overlay. It fills the bar window, sits above the strip

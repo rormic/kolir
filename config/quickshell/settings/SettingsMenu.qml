@@ -40,7 +40,7 @@ Item {
     readonly property bool modal: opened || reveal > 0.001
 
     readonly property int popupWidth: 424
-    readonly property int mainHeight: 222
+    readonly property int mainHeight: 328
     readonly property int bluetoothHeight: 520
     readonly property int internetHeight: 520
 

@@ -12,7 +12,7 @@ Item {
     property int topInset: 0
 
     implicitWidth: 388
-    implicitHeight: 222
+    implicitHeight: 328
 
     readonly property var entries: [
         {
@@ -196,6 +196,10 @@ Item {
                     }
                 }
             }
+        }
+
+        CaffeineCard {
+            width: parent.width
         }
     }
 }

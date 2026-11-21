@@ -27,8 +27,14 @@ QtObject {
         return dir && dir.length > 0 ? dir : "/tmp";
     }
 
+    // Ephemeral session state shared with the Hyprland helper scripts.
+    readonly property string runtimeStateDir: runtimeDir + "/kolir"
+
     // Recorder state watched by RecordingStatus.
-    readonly property string recordingState: runtimeDir + "/kolir/recording.json"
+    readonly property string recordingState: runtimeStateDir + "/recording.json"
+
+    // Keep-awake state owned by CaffeineService.
+    readonly property string caffeineState: runtimeStateDir + "/caffeine.json"
 
     // Image previews generated for clipboard entries.
     readonly property string clipboardPreviewDir: "/tmp/qs-clip-previews"
