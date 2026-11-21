@@ -15,10 +15,14 @@ Item {
     signal dragUpdated(real value)
     signal wheelMoved(real value)
 
-    implicitHeight: 32
-    implicitWidth: 200
-    opacity: slider.interactive ? 1.0 : 0.45
+    implicitHeight: slider.preferredHeight
+    implicitWidth: slider.preferredWidth
+    opacity: slider.interactive ? 1.0 : slider.disabledOpacity
 
+    readonly property int preferredHeight: 32
+    readonly property int preferredWidth: 200
+    readonly property real disabledOpacity: 0.45
+    readonly property int wheelStep: 2
     readonly property int trackHeight: 16
     readonly property int handleWidth: 4
     readonly property int handleHeight: 24
@@ -144,7 +148,7 @@ Item {
             const delta = wheel.angleDelta.y;
             if (delta === 0)
                 return;
-            const step = 2;
+            const step = slider.wheelStep;
             const next = Math.max(0, Math.min(100, slider.value + (delta > 0 ? step : -step)));
             wheel.accepted = true;
             slider.value = next;
