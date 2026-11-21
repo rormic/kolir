@@ -1,6 +1,6 @@
 pkgbase = kolir-git
 	pkgdesc = Material 3 desktop configuration for Hyprland and Quickshell
-	pkgver = r157.e43417b
+	pkgver = r160.dbe9741
 	pkgrel = 1
 	url = https://github.com/ZaViBiS/kolir
 	install = kolir.install

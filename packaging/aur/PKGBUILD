@@ -1,7 +1,7 @@
 # Maintainer: ZaViBiS <ZaViBiS@users.noreply.github.com>
 
 pkgname=kolir-git
-pkgver=r157.e43417b
+pkgver=r160.dbe9741
 pkgrel=1
 pkgdesc='Material 3 desktop configuration for Hyprland and Quickshell'
 arch=('any')
