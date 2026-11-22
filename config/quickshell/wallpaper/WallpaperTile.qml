@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 // One wallpaper cell: cached 16:9 thumbnail, file name and the keyboard/mouse
@@ -15,11 +16,10 @@ Item {
 
     readonly property int inset: 6
     readonly property int labelHeight: 28
-    // Previews are generated at 480x270. Decoding them at ~1.5x the on-screen
-    // tile width keeps the grid sharp (including HiDPI) without paying for the
-    // full preview bitmap on every scroll.
+    // Previews are generated at 480x270. Decoding only as many pixels as the
+    // tile needs (scaled by the output's DPR) keeps scrolling cheap while
+    // staying sharp; the full preview bitmap is never decoded.
     readonly property int thumbnailPixelWidth: 480
-    readonly property real thumbnailDecodeScale: 1.5
     readonly property int folderIconSize: 42
 
     implicitWidth: 220
@@ -60,7 +60,7 @@ Item {
             source: root.thumbnailSource !== "" ? "file://" + root.thumbnailSource : ""
             sourceSize.width: Math.min(
                 root.thumbnailPixelWidth,
-                Math.ceil(root.width * root.thumbnailDecodeScale))
+                Math.ceil(root.width * Screen.devicePixelRatio))
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             visible: !root.folder && root.thumbnailSource !== ""

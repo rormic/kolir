@@ -41,9 +41,9 @@ Scope {
     readonly property int tileLabelHeight: 28
     readonly property real thumbnailAspect: 16 / 9
     readonly property int focusDelay: 20
-    // Extra rows kept alive above/below the viewport so a fling does not have
-    // to build and decode a delegate on the frame it appears.
-    readonly property int prefetchRows: 2
+    // One extra row above/below the viewport smooths a fling without decoding
+    // several offscreen rows up front.
+    readonly property int prefetchRows: 1
 
     // GridView positions cells on a fixed pitch, so the pitch has to fit the
     // content width exactly; the visible tile is one spacing narrower.
@@ -451,12 +451,6 @@ Scope {
             opacity: root.reveal
             transform: Translate { y: -(1.0 - root.reveal) * 8 }
 
-            // Dimmed backdrop: keeps the grid readable over any wallpaper.
-            Rectangle {
-                anchors.fill: parent
-                color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.45)
-            }
-
             Surface {
                 id: panel
 
@@ -604,10 +598,11 @@ Scope {
                     cellWidth: root.cellWidth
                     cellHeight: root.tileHeight + root.tileSpacing
 
-                    // Flickable's default wheel step is a few dozen pixels,
-                    // which feels stuck in a grid of ~170px cells. Mouse wheel
-                    // moves a whole row per notch; touchpad pixel deltas stay
-                    // 1:1 for a native feel.
+                    // Wheel degrees are always provided, including by
+                    // high-resolution wheels; translate them proportionally
+                    // (120 = one detent = one row) instead of stepping a
+                    // whole row per fractional event. pixelDelta is only a
+                    // fallback for devices that report pixels without angles.
                     WheelHandler {
                         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                         onWheel: event => {
@@ -615,11 +610,11 @@ Scope {
                             const angle = event.angleDelta.y;
 
                             grid.cancelFlick();
-                            if (pixel !== 0)
-                                grid.contentY = root.clampScroll(grid.contentY - pixel);
-                            else if (angle !== 0)
+                            if (angle !== 0)
                                 grid.contentY = root.clampScroll(
-                                    grid.contentY - Math.sign(angle) * grid.cellHeight);
+                                    grid.contentY - angle / 120 * grid.cellHeight);
+                            else if (pixel !== 0)
+                                grid.contentY = root.clampScroll(grid.contentY - pixel);
                             event.accepted = true;
                         }
                     }
