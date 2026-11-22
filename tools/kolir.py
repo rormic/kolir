@@ -666,6 +666,10 @@ def render_reload_units(root: Path) -> tuple[str, str]:
         "\n"
         "[Service]\n"
         "Type=oneshot\n"
+        "# The reload starts Quickshell as a child process. Without this, the\n"
+        "# default KillMode=control-group tears the new shell down together\n"
+        "# with the finished unit's cgroup, leaving the session without a bar.\n"
+        "KillMode=process\n"
         f"ExecStart={reload_cli_command(root)} reload\n"
     )
 
