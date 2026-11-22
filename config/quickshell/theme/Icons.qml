@@ -39,6 +39,7 @@ QtObject {
 
     readonly property string search: "search"
     readonly property string searchOff: "search_off"
+    readonly property string warning: "error"
     readonly property string close: "close"
     readonly property string contentPaste: "content_paste"
     readonly property string calculate: "calculate"

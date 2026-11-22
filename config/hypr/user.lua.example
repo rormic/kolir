@@ -54,16 +54,21 @@ hl.config({
 
 local mainMod = "SUPER"
 
+-- Binds can carry a `description`; the Quickshell shortcuts sheet (SUPER+D)
+-- reads it from `hyprctl binds -j` and shows it next to the key.
+-- example:
+-- hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Pick a color" })
+
 -- volume step 2% (overrides the shared 5% bindings)
 hl.unbind("XF86AudioRaiseVolume")
 hl.unbind("XF86AudioLowerVolume")
 hl.bind(
 	"XF86AudioRaiseVolume",
 	hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 2%+"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Raise the volume" }
 )
 hl.bind(
 	"XF86AudioLowerVolume",
 	hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Lower the volume" }
 )

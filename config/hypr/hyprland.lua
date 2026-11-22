@@ -46,6 +46,10 @@ end
 local terminal = "foot"
 local fileManager = "nautilus"
 local menu = "sh ~/.config/hypr/scripts/qs-ipc.sh launcher toggle"
+-- Opens the Quickshell shortcut cheat sheet. The list inside the shell is read
+-- live from `hyprctl binds -j`, so the descriptions below are what the window
+-- shows next to each key.
+local shortcuts = "sh ~/.config/hypr/scripts/qs-ipc.sh shortcuts toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
 -- Opens the Quickshell wallpaper grid; select-wallpaper.sh (Zenity) is the
 -- fallback when the shell is not running.
@@ -270,108 +274,114 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 
 -- TODO: set also for print screen button
 -- my binds --
+-- Every bind carries a `description`: the Quickshell shortcut sheet reads it
+-- from `hyprctl binds -j` and shows it next to the key. Keep the wording short
+-- and imperative, and mirror it for binds added in user.lua.
 -- screenshot --
-hl.bind(mainMod .. " + X", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'))
-hl.bind(mainMod .. " + SHIFT + X", hl.dsp.exec_cmd("grim - | wl-copy"))
+hl.bind(mainMod .. " + X", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'), { description = "Screenshot a region" })
+hl.bind(mainMod .. " + SHIFT + X", hl.dsp.exec_cmd("grim - | wl-copy"), { description = "Screenshot the screen" })
 
 -- wallpaper --
-hl.bind(mainMod .. " + CTRL + ALT + T", hl.dsp.exec_cmd(random_wallpaper))
-hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd(select_wallpaper))
+hl.bind(mainMod .. " + CTRL + ALT + T", hl.dsp.exec_cmd(random_wallpaper), { description = "Random wallpaper" })
+hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd(select_wallpaper), { description = "Wallpaper picker" })
 
 -- video recording toggle: first press selects a region, second press saves --
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh"))
+hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh"), { description = "Toggle recording" })
 -- one-off recording settings: opens Quickshell menu, then starts recording --
-hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh --setup"))
+hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh --setup"), { description = "Recording settings" })
 
 -- lock screen
-hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"))
+hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"), { description = "Lock the session" })
 -- lock when the laptop lid closes; logind handles the actual suspend
-hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd("loginctl lock-session"))
+hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd("loginctl lock-session"), { description = "Lock when the lid closes" })
 
 -- Example binds, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
-hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
-local closeWindowBind = hl.bind(mainMod .. " + C", hl.dsp.window.close())
+hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal), { description = "Open the terminal" })
+local closeWindowBind = hl.bind(mainMod .. " + C", hl.dsp.window.close(), { description = "Close the window" })
 -- closeWindowBind:set_enabled(false)
 hl.bind(
 	mainMod .. " + M",
-	hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'")
+	hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"),
+	{ description = "Exit the session" }
 )
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
-hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
-hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(menu))
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager), { description = "Open the file manager" })
+hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }), { description = "Toggle floating" })
+hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(shortcuts), { description = "Show keyboard shortcuts" })
 -- Launcher on a lone SUPER tap (both sides). The release flag defers the bind
 -- to the SUPER release, where Hyprland only fires it if no other key, mouse
 -- button or scroll was used meanwhile, so SUPER+Space (layout switch),
 -- SUPER+1 (workspace), SUPER+scroll and SUPER+drag never open the launcher.
-hl.bind(mainMod .. " + SUPER_L", hl.dsp.exec_cmd(menu), { release = true })
-hl.bind(mainMod .. " + SUPER_R", hl.dsp.exec_cmd(menu), { release = true })
-hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
+hl.bind(mainMod .. " + SUPER_L", hl.dsp.exec_cmd(menu), { release = true, description = "Open the launcher" })
+hl.bind(mainMod .. " + SUPER_R", hl.dsp.exec_cmd(menu), { release = true, description = "Open the launcher" })
+hl.bind(mainMod .. " + P", hl.dsp.window.pseudo(), { description = "Toggle pseudo tiling" })
 -- HACK: i dont know what is this doing, but i need j
 -- hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
 
 -- Move focus with mainMod + arrow keys
-hl.bind(mainMod .. " + h", hl.dsp.focus({ direction = "left" }))
-hl.bind(mainMod .. " + l", hl.dsp.focus({ direction = "right" }))
-hl.bind(mainMod .. " + k", hl.dsp.focus({ direction = "up" }))
-hl.bind(mainMod .. " + j", hl.dsp.focus({ direction = "down" }))
+hl.bind(mainMod .. " + h", hl.dsp.focus({ direction = "left" }), { description = "Focus left" })
+hl.bind(mainMod .. " + l", hl.dsp.focus({ direction = "right" }), { description = "Focus right" })
+hl.bind(mainMod .. " + k", hl.dsp.focus({ direction = "up" }), { description = "Focus up" })
+hl.bind(mainMod .. " + j", hl.dsp.focus({ direction = "down" }), { description = "Focus down" })
 
 -- Switch workspaces with mainMod + [0-9]
 -- Move active window to a workspace with mainMod + SHIFT + [0-9]
 for i = 1, 10 do
 	local key = i % 10 -- 10 maps to key 0
-	hl.bind(mainMod .. " + " .. key, hl.dsp.focus({ workspace = i }))
-	hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
+	hl.bind(mainMod .. " + " .. key, hl.dsp.focus({ workspace = i }), { description = "Switch to workspace " .. i })
+	hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }),
+		{ description = "Move window to workspace " .. i })
 end
 
 -- Example special workspace (scratchpad)
-hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"))
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
+hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"), { description = "Toggle the scratchpad" })
+hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }),
+	{ description = "Move window to the scratchpad" })
 
 -- Scroll through existing workspaces with mainMod + scroll
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
+hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }), { description = "Next workspace" })
+hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }), { description = "Previous workspace" })
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true, description = "Drag the window" })
+hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true, description = "Resize the window" })
 
 -- Laptop multimedia keys for volume and LCD brightness
 hl.bind(
 	"XF86AudioRaiseVolume",
 	hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 2%+"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Raise the volume" }
 )
 hl.bind(
 	"XF86AudioLowerVolume",
 	hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Lower the volume" }
 )
 hl.bind(
 	"XF86AudioMute",
 	hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Mute the audio output" }
 )
 hl.bind(
 	"XF86AudioMicMute",
 	hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Mute the microphone" }
 )
 hl.bind(
 	"XF86MonBrightnessUp",
 	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/brightness.sh up"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Raise the brightness" }
 )
 hl.bind(
 	"XF86MonBrightnessDown",
 	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/brightness.sh down"),
-	{ locked = true, repeating = true }
+	{ locked = true, repeating = true, description = "Lower the brightness" }
 )
 
 -- Requires playerctl
-hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
+hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true, description = "Next track" })
+hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true, description = "Play or pause" })
+hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true, description = "Play or pause" })
+hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true, description = "Previous track" })
 
 --------------------------------
 ---- WINDOWS AND WORKSPACES ----
@@ -455,6 +465,13 @@ hl.layer_rule({
 hl.layer_rule({
 	name = "launcher-blur",
 	match = { namespace = "launcher" },
+	blur = true,
+	ignore_alpha = 0,
+})
+
+hl.layer_rule({
+	name = "shortcuts-blur",
+	match = { namespace = "shortcuts" },
 	blur = true,
 	ignore_alpha = 0,
 })

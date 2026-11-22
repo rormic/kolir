@@ -4,6 +4,7 @@ import "launcher"
 import "notification"
 import "osd"
 import "recording"
+import "shortcuts"
 import "wallpaper"
 
 ShellRoot {
@@ -16,6 +17,7 @@ ShellRoot {
     VolumeOsd {}
     BrightnessOsd {}
     RecordingSetup {}
+    Shortcuts {}
     WallpaperPicker {}
 
 }
