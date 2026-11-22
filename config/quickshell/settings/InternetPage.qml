@@ -16,7 +16,11 @@ Item {
     property int topInset: 0
 
     implicitWidth: 380
-    implicitHeight: 520
+    // Tall enough for the resting page (Ethernet + Wi-Fi + actions + network
+    // list ≈ 424 px of body) so it does not start with a few pixels of scroll;
+    // the expanded Ethernet details and the connection form still scroll.
+    // Mirrored by `internetHeight` in SettingsMenu.qml.
+    implicitHeight: 546
 
     NetworkController {
         id: net
@@ -162,13 +166,27 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 36
                     radius: Dimensions.radius.full
-                    color: scanBtn.hovered ? Colors.stateLayer(Colors.primary, 0.16) : Colors.surfaceContainerHigh
+                    color: Colors.surfaceContainerHigh
                     border.width: 1
                     border.color: scanBtn.hovered
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
                     opacity: net.wifiEnabled ? 1.0 : 0.5
                     Behavior on color { ColorAnimation { duration: 150 } }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: Colors.stateLayer(Colors.primary, 0.16)
+                        opacity: scanBtn.hovered ? 1.0 : 0.0
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 150
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
 
                     Row {
                         anchors.centerIn: parent

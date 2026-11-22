@@ -28,6 +28,9 @@ QtObject {
     property color outline: "#89938e"
     property color outlineVariant: "#3f4945"
 
+    // Material 3 modal scrim, used by the embedded sheets.
+    property color scrim: "#000000"
+
     function snakeToCamel(str) {
         return str.replace(/_([a-z])/g, function (match, letter) {
             return letter.toUpperCase();

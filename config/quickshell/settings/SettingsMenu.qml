@@ -15,23 +15,26 @@ Item {
     id: root
 
     property string page: "main"
-    property string pendingPage: "main"
+    // Page sliding in during a navigation transition. Empty while idle, so
+    // `page` is then the only visible page.
+    property string incomingPage: ""
     property bool opened: false
 
-    // 0 = hidden, 1 = fully visible. Drives the panel clip and the content
-    // fade/slide. The panel is inside the already-mapped bar surface, so no
-    // Wayland resize or first-frame wait is needed.
+    // 0 = hidden, 1 = fully visible. Drives the panel clip, the scrim and the
+    // content fade/slide. The panel is inside the already-mapped bar surface,
+    // so no Wayland resize or first-frame wait is needed.
     property real reveal: 0
 
-    // Opacity of the page tree. Page switches fade it out, morph the empty
-    // panel background to the new size, then fade the new page back in.
-    // Page layout itself is never animated.
-    property real contentOpacity: 1
+    // Shared-axis page transition: 0 = only the outgoing page, 1 = only the
+    // incoming one. `pageDirection` is +1 forward (main to subpage) and -1
+    // back, so the outgoing page slides out opposite to the incoming one.
+    property real pageProgress: 1
+    property int pageDirection: 1
     property int revealTick: 0
 
     // Height of the visible panel itself. The panel background morphs between
-    // pages while the page content is faded out, so no layout animation is
-    // visible. The backing surface is the bar window and never resizes.
+    // pages while the pages slide, so no layout animation is visible. The
+    // backing surface is the bar window and never resizes.
     property real panelHeight: mainHeight
 
     // Exposed for the bar input mask. While the menu is open it behaves like a
@@ -42,9 +45,18 @@ Item {
     readonly property int popupWidth: 424
     readonly property int mainHeight: 328
     readonly property int bluetoothHeight: 520
-    readonly property int internetHeight: 520
+    readonly property int internetHeight: 546
 
-    readonly property real targetHeight: heightForPage(page)
+    // Distance a page travels during a navigation transition. Local optical
+    // offset, not a shared metric.
+    readonly property int pageSlide: 40
+
+    // Height of the page viewport. Both pages keep their intrinsic height
+    // during a transition, so the viewport is the taller of the two and
+    // neither page is clipped or reflowed while it slides.
+    readonly property real targetHeight: root.incomingPage !== ""
+        ? Math.max(root.heightForPage(root.page), root.heightForPage(root.incomingPage))
+        : root.heightForPage(root.page)
 
     // The sheet is flush with the physical screen edge (left body edge x = 0),
     // so while the menu is open it covers the decorative frame ring and the
@@ -125,24 +137,49 @@ Item {
         return mainHeight;
     }
 
+    // Shared-axis geometry for one page. Both pages stay laid out at their
+    // final size; only x and opacity animate, so no page layout moves.
+    function pageX(name) {
+        if (root.incomingPage === "")
+            return 0;
+        if (name === root.page)
+            return -root.pageDirection * root.pageSlide * root.pageProgress;
+        if (name === root.incomingPage)
+            return root.pageDirection * root.pageSlide * (1.0 - root.pageProgress);
+        return 0;
+    }
+
+    function pageOpacity(name) {
+        if (root.incomingPage === "")
+            return name === root.page ? 1.0 : 0.0;
+        if (name === root.page)
+            return 1.0 - root.pageProgress;
+        if (name === root.incomingPage)
+            return root.pageProgress;
+        return 0.0;
+    }
+
+    function pageVisible(name) {
+        return name === root.page || name === root.incomingPage;
+    }
+
     function open(page) {
         const target = page ?? "main";
 
         if (!root.opened) {
-            fadeOutAnim.stop();
-            fadeInAnim.stop();
+            pageProgressAnim.stop();
             panelHeightAnim.stop();
             revealAnim.stop();
 
-            root.contentOpacity = 1;
-            root.pendingPage = target;
             root.page = target;
+            root.incomingPage = "";
+            root.pageProgress = 1;
             root.panelHeight = root.heightForPage(target);
             root.reveal = 0;
             root.opened = true;
             root.revealTick++;
             root.forceActiveFocus();
-            root.animateReveal(1, 240, Easing.OutQuint);
+            root.animateReveal(1, Motion.sheetEnter, [0.2, 0, 0, 1]);
         } else {
             root.navigate(target);
         }
@@ -154,8 +191,7 @@ Item {
 
         root.opened = false;
         revealAnim.stop();
-        fadeOutAnim.stop();
-        fadeInAnim.stop();
+        pageProgressAnim.stop();
         panelHeightAnim.stop();
 
         if (root.reveal <= 0.01) {
@@ -164,7 +200,7 @@ Item {
             return;
         }
 
-        root.animateReveal(0, 160, Easing.InCubic);
+        root.animateReveal(0, Motion.sheetExit, [0.3, 0, 1, 1]);
     }
 
     function toggle() {
@@ -174,56 +210,101 @@ Item {
             root.open("main");
     }
 
-    // Page-to-page navigation: fade the old content out, morph the empty
-    // panel background to the new size, then fade the new page in.
+    // Page-to-page navigation: a shared-axis slide. The outgoing page slides
+    // out and fades while the incoming one slides in from the opposite side,
+    // and the empty panel background morphs to the new height at the same
+    // time. Layout itself never animates.
     function navigate(page) {
         if (!root.opened)
             return;
 
-        if (root.page === page) {
-            if (root.pendingPage === page)
+        if (root.incomingPage !== "") {
+            // Already heading to the requested page.
+            if (page === root.incomingPage && pageProgressAnim.to === 1)
                 return;
 
-            // A transition away from this page is still running; cancel it
-            // and fade the current page back in.
-            root.pendingPage = page;
-            fadeOutAnim.stop();
-            panelHeightAnim.stop();
-            fadeInAnim.restart();
-            return;
+            // Already heading back to the anchor page.
+            if (page === root.page && pageProgressAnim.to === 0)
+                return;
+
+            // The requested page is one of the two in flight: reverse the
+            // running transition instead of snapping to a committed state.
+            if (page === root.page || page === root.incomingPage) {
+                const toAnchor = page === root.page;
+                const height = root.heightForPage(page);
+
+                if (Math.abs(root.panelHeight - height) > 0.5) {
+                    panelHeightAnim.stop();
+                    panelHeightAnim.to = height;
+                    panelHeightAnim.duration = Motion.pageBack;
+                    panelHeightAnim.start();
+                } else {
+                    root.panelHeight = height;
+                }
+
+                pageProgressAnim.stop();
+                pageProgressAnim.to = toAnchor ? 0 : 1;
+                pageProgressAnim.duration = toAnchor ? Motion.pageBack : Motion.pageForward;
+                pageProgressAnim.start();
+                return;
+            }
+
+            // A different page was requested: commit the running
+            // destination, then start the new transition from there.
+            root.page = root.incomingPage;
+            root.incomingPage = "";
+            root.pageProgress = 1;
         }
 
-        if (root.pendingPage === page)
+        if (root.page === page)
             return;
 
-        root.pendingPage = page;
-        fadeInAnim.stop();
-        panelHeightAnim.stop();
-        fadeOutAnim.restart();
+        const forward = root.page === "main";
+        const duration = forward ? Motion.pageForward : Motion.pageBack;
+
+        root.pageDirection = forward ? 1 : -1;
+        root.incomingPage = page;
+        root.pageProgress = 0;
+
+        const targetHeight = root.heightForPage(page);
+        if (Math.abs(root.panelHeight - targetHeight) > 0.5) {
+            panelHeightAnim.stop();
+            panelHeightAnim.to = targetHeight;
+            panelHeightAnim.duration = duration;
+            panelHeightAnim.start();
+        } else {
+            root.panelHeight = targetHeight;
+        }
+
+        pageProgressAnim.stop();
+        pageProgressAnim.to = 1;
+        pageProgressAnim.duration = duration;
+        pageProgressAnim.start();
     }
 
-    function animateReveal(to, duration, easing) {
+    function animateReveal(to, duration, curve) {
         revealAnim.stop();
         revealAnim.to = to;
         revealAnim.duration = duration;
-        revealAnim.easing.type = easing;
+        revealAnim.easing.type = Easing.Bezier;
+        revealAnim.easing.bezierCurve = curve;
         revealAnim.start();
     }
 
     function reset() {
         revealAnim.stop();
-        fadeOutAnim.stop();
-        fadeInAnim.stop();
+        pageProgressAnim.stop();
         panelHeightAnim.stop();
-        root.contentOpacity = 1;
         root.panelHeight = root.mainHeight;
         root.page = "main";
-        root.pendingPage = "main";
+        root.incomingPage = "";
+        root.pageProgress = 1;
         root.reveal = 0;
     }
 
     Keys.onEscapePressed: function (event) {
-        if (root.page === "bluetooth" || root.page === "internet")
+        const current = root.incomingPage !== "" ? root.incomingPage : root.page;
+        if (current === "bluetooth" || current === "internet")
             root.navigate("main");
         else
             root.close();
@@ -236,8 +317,9 @@ Item {
 
         target: root
         property: "reveal"
-        duration: 240
-        easing.type: Easing.OutQuint
+        duration: Motion.sheetEnter
+        easing.type: Easing.Bezier
+        easing.bezierCurve: [0.2, 0, 0, 1]
 
         onFinished: {
             if (!root.opened) {
@@ -247,45 +329,32 @@ Item {
         }
     }
 
-    // Fade-through: old page out, morph the empty panel background to the
-    // new size, then fade the new page in. Pagination itself never animates
-    // layout because the content is invisible while `page` changes.
+    // Shared-axis page slide. `panelHeight` morphs alongside it, and the
+    // incoming page is committed when the slide finishes.
     NumberAnimation {
-        id: fadeOutAnim
+        id: pageProgressAnim
 
         target: root
-        property: "contentOpacity"
-        to: 0
-        duration: 80
-        easing.type: Easing.OutCubic
+        property: "pageProgress"
+        to: 1
+        duration: Motion.pageForward
+        easing.type: Easing.Bezier
+        easing.bezierCurve: [0.2, 0, 0, 1]
 
         onFinished: {
-            if (!root.opened || root.page === root.pendingPage)
+            if (root.incomingPage === "")
                 return;
 
-            root.page = root.pendingPage;
+            const target = root.incomingPage;
+            const reversed = pageProgressAnim.to === 0;
+            root.incomingPage = "";
+            root.pageProgress = 1;
 
-            const target = root.heightForPage(root.page);
-            if (Math.abs(root.panelHeight - target) < 0.5) {
-                root.panelHeight = target;
-                fadeInAnim.restart();
-                return;
-            }
-
-            panelHeightAnim.stop();
-            panelHeightAnim.to = target;
-            panelHeightAnim.start();
+            // A reversed transition settles back on its anchor page; a
+            // forward one commits to the incoming page.
+            if (!reversed)
+                root.page = target;
         }
-    }
-
-    NumberAnimation {
-        id: fadeInAnim
-
-        target: root
-        property: "contentOpacity"
-        to: 1
-        duration: 140
-        easing.type: Easing.OutCubic
     }
 
     // Only the empty rounded panel is visible while this runs, so this is a
@@ -295,13 +364,9 @@ Item {
 
         target: root
         property: "panelHeight"
-        duration: 200
-        easing.type: Easing.OutCubic
-
-        onFinished: {
-            if (root.opened && root.page === root.pendingPage)
-                fadeInAnim.restart();
-        }
+        duration: Motion.pageForward
+        easing.type: Easing.Bezier
+        easing.bezierCurve: [0.2, 0, 0, 1]
     }
 
     IpcHandler {
@@ -339,6 +404,25 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         z: 0
         onClicked: root.close()
+    }
+
+    // Modal scrim over the desktop below the bar strip. It fades in with the
+    // reveal so the sheet reads as a modal surface, while the bar strip stays
+    // crisp and the sheet keeps pouring out of it. The bar surface is on the
+    // Top layer, so this dims windows and the decorative frame too.
+    Rectangle {
+        id: scrim
+
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+        }
+        height: parent.height - Dimensions.bar.height
+        color: Colors.withAlpha(Colors.scrim, 0.3)
+        opacity: root.reveal
+        visible: root.modal
+        z: 1
     }
 
     // Panel viewport. Its height is the revealed part of the panel; the page
@@ -401,22 +485,23 @@ Item {
                 z: 0
             }
 
-            // Page tree fades away during navigation while the panel
-            // background stays visible and morphs to the new size.
+            // Page tree. The wrapper only fades and settles while the sheet
+            // itself reveals; page navigation is a shared-axis slide driven by
+            // each page's x/opacity bindings.
             Item {
                 id: content
 
                 anchors.fill: parent
                 z: 1
-                opacity: root.contentOpacity * root.contentReveal
+                opacity: root.contentReveal
                 transform: Translate { y: (1.0 - root.contentReveal) * -10 }
 
                 Item {
                     id: pages
 
                     // Pages are laid out at their final size immediately.
-                    // The background panel morphs around them while the
-                    // content is hidden, so no page layout is animated.
+                    // The background panel morphs around them while they
+                    // slide, so no page layout is animated.
                     anchors {
                         top: parent.top
                         left: parent.left
@@ -425,26 +510,39 @@ Item {
                         rightMargin: root.contentRightInset
                     }
                     height: root.targetHeight
+                    clip: true
 
                     MainPage {
-                        anchors.fill: parent
+                        x: root.pageX("main")
+                        y: 0
+                        width: parent.width
+                        height: root.heightForPage("main")
                         topInset: root.contentTopInset
                         revealTick: root.revealTick
-                        visible: root.page === "main"
+                        visible: root.pageVisible("main")
+                        opacity: root.pageOpacity("main")
                         onOpen: page => root.navigate(page)
                     }
 
                     BluetoothPage {
-                        anchors.fill: parent
+                        x: root.pageX("bluetooth")
+                        y: 0
+                        width: parent.width
+                        height: root.heightForPage("bluetooth")
                         topInset: root.contentTopInset
-                        visible: root.page === "bluetooth"
+                        visible: root.pageVisible("bluetooth")
+                        opacity: root.pageOpacity("bluetooth")
                         onBack: root.navigate("main")
                     }
 
                     InternetPage {
-                        anchors.fill: parent
+                        x: root.pageX("internet")
+                        y: 0
+                        width: parent.width
+                        height: root.heightForPage("internet")
                         topInset: root.contentTopInset
-                        visible: root.page === "internet"
+                        visible: root.pageVisible("internet")
+                        opacity: root.pageOpacity("internet")
                         onBack: root.navigate("main")
                     }
                 }

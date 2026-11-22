@@ -211,9 +211,7 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             radius: Dimensions.radius.full
-            color: addDevice.hovered
-                ? Colors.stateLayer(Colors.primary, 0.16)
-                : Colors.surfaceContainerHigh
+            color: Colors.surfaceContainerHigh
             border.width: 1
             border.color: addDevice.hovered
                 ? Colors.withAlpha(Colors.primary, 0.6)
@@ -221,6 +219,22 @@ Item {
 
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
+
+            // Hover state layer, faded on its own so the opaque button colour
+            // never interpolates through the translucent state layer.
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: Colors.stateLayer(Colors.primary, 0.16)
+                opacity: addDevice.hovered ? 1.0 : 0.0
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
 
             Row {
                 anchors.centerIn: parent

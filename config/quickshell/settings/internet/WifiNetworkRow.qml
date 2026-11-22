@@ -127,6 +127,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         anchors.rightMargin: row.hovered && row.saved ? 36 : 0
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: row.connectRequested()
     }

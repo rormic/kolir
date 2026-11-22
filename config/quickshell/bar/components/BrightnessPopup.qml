@@ -15,6 +15,11 @@ import "nightLight"
 Item {
     id: root
 
+    // A closed sheet must not exist for input purposes: a full-window
+    // dismissal MouseArea left in the tree kept winning Qt's cursor lookup,
+    // so the settings rows never got their pointing-hand cursor.
+    visible: root.opened || root.reveal > 0.001
+
     property bool opened: false
 
     // 0 = hidden, 1 = fully visible. Only this surface is animated; the bar

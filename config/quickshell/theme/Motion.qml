@@ -29,4 +29,10 @@ QtObject {
     readonly property int listExit: 140
     // OSD reveal and hide.
     readonly property int osd: 160
+    // Embedded settings sheet reveal and dismissal (Material 3 emphasized).
+    readonly property int sheetEnter: 300
+    readonly property int sheetExit: 200
+    // Settings page navigation (shared axis), forward and back.
+    readonly property int pageForward: 260
+    readonly property int pageBack: 220
 }

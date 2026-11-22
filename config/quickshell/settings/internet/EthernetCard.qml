@@ -119,6 +119,7 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         z: -1
+        hoverEnabled: true
         enabled: root.connectionState === "Connected"
         cursorShape: root.connectionState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: root.toggleExpanded()

@@ -769,6 +769,7 @@ Scope {
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.IBeamCursor
                                     onClicked: root.beginPathEdit()
                                 }

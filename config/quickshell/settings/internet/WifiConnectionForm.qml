@@ -120,6 +120,7 @@ Rectangle {
 
                     MouseArea {
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.securityIndexSelected(securityChip.index)
                     }
@@ -173,6 +174,7 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.cancelRequested()
                 }
@@ -198,6 +200,7 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
+                    hoverEnabled: true
                     enabled: !root.busy && (root.mode !== "hidden" || !!root.ssid)
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.submitRequested()

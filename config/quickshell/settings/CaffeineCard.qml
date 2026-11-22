@@ -118,11 +118,7 @@ Rectangle {
                     width: chipLabel.implicitWidth + 16
                     height: 24
                     radius: Dimensions.radius.full
-                    color: chip.selected
-                        ? Colors.withAlpha(Colors.primary, 0.22)
-                        : chip.hovered
-                            ? Colors.stateLayer(Colors.primary, 0.12)
-                            : Colors.surfaceContainerHighest
+                    color: Colors.surfaceContainerHighest
                     border.width: 1
                     border.color: chip.selected
                         ? Colors.withAlpha(Colors.primary, 0.7)
@@ -132,6 +128,25 @@ Rectangle {
 
                     Behavior on color { ColorAnimation { duration: Motion.hover } }
                     Behavior on border.color { ColorAnimation { duration: Motion.hover } }
+
+                    // Selected/hover state layer. Fading an own fill avoids a
+                    // colour transition from an opaque chip to a translucent
+                    // state layer, which would flash through opaque grey.
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: chip.selected
+                            ? Colors.withAlpha(Colors.primary, 0.22)
+                            : Colors.stateLayer(Colors.primary, 0.12)
+                        opacity: chip.selected || chip.hovered ? 1.0 : 0.0
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Motion.hover
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
 
                     Text {
                         id: chipLabel

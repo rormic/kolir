@@ -95,6 +95,7 @@ Surface {
         id: body
 
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
 
         onClicked: controller.togglePlaying()

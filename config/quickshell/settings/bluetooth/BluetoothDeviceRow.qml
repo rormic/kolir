@@ -157,6 +157,7 @@ Item {
         id: rowMouse
 
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             if (row.connected)
