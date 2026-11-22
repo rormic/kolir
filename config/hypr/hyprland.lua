@@ -47,7 +47,9 @@ local terminal = "foot"
 local fileManager = "nautilus"
 local menu = "sh ~/.config/hypr/scripts/qs-ipc.sh launcher toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
-local select_wallpaper = "sh ~/.config/hypr/scripts/select-wallpaper.sh"
+-- Opens the Quickshell wallpaper grid; select-wallpaper.sh (Zenity) is the
+-- fallback when the shell is not running.
+local select_wallpaper = "sh ~/.config/hypr/scripts/open-wallpaper-picker.sh"
 
 -------------------
 ---- AUTOSTART ----
@@ -447,6 +449,13 @@ hl.layer_rule({
 hl.layer_rule({
 	name = "launcher-blur",
 	match = { namespace = "launcher" },
+	blur = true,
+	ignore_alpha = 0,
+})
+
+hl.layer_rule({
+	name = "wallpaper-blur",
+	match = { namespace = "wallpaper" },
 	blur = true,
 	ignore_alpha = 0,
 })
