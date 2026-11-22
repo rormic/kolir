@@ -1394,6 +1394,18 @@ def check_deployment(report: Report, root: Path) -> None:
     wallpaper_dir = home_dir() / WALLPAPER_DIR
     if wallpaper_dir.is_dir():
         report.ok(f"wallpaper folder: {wallpaper_dir}")
+        images = [
+            entry
+            for entry in wallpaper_dir.iterdir()
+            if entry.is_file()
+            and entry.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
+        ]
+        if not images:
+            report.note(
+                f"wallpaper folder: no images yet; pick one with SUPER+CTRL+T "
+                "(until then the desktop keeps the plain compositor background "
+                "and the shipped palette snapshot)"
+            )
     else:
         report.warn(
             f"wallpaper folder: missing {wallpaper_dir} "
@@ -1500,6 +1512,26 @@ def check_matugen_config(report: Report) -> None:
         )
 
 
+def hyprland_option(hyprctl: str, option: str) -> str | None:
+    """Return the value reported by `hyprctl getoption` for a bool option."""
+    try:
+        result = subprocess.run(
+            [hyprctl, "getoption", option],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    for line in (result.stdout or "").splitlines():
+        line = line.strip()
+        if line.startswith("bool:"):
+            return line.split(":", 1)[1].strip()
+    return None
+
+
 def check_hyprland(report: Report) -> None:
     step("Hyprland")
     hyprctl = shutil.which("hyprctl")
@@ -1534,6 +1566,19 @@ def check_hyprland(report: Report) -> None:
         report.error(f"Hyprland config errors:\n{output}")
     else:
         report.ok("hyprctl configerrors is empty")
+
+    logo = hyprland_option(hyprctl, "misc:disable_hyprland_logo")
+    if logo == "true":
+        report.ok("desktop background: awww only (disable_hyprland_logo = true)")
+    elif logo == "false":
+        report.warn(
+            "misc:disable_hyprland_logo is false; Hyprland still paints its "
+            "logo/anime background under the awww wallpaper. Check that "
+            "~/.config/hypr/hyprland.lua links to the kolir root and run "
+            "'hyprctl reload'"
+        )
+    else:
+        report.note("could not read misc:disable_hyprland_logo; skipped the check")
 
 
 def check_quickshell(report: Report, root: Path) -> None:
