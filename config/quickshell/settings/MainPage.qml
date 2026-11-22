@@ -13,7 +13,7 @@ Item {
     property int topInset: 0
 
     implicitWidth: 388
-    implicitHeight: 328
+    implicitHeight: 394
 
     readonly property var entries: [
         {
@@ -29,6 +29,13 @@ Item {
             subtitle: "Networks & Ethernet",
             soon: false,
             page: "internet",
+        },
+        {
+            icon: Icons.palette,
+            title: "Appearance",
+            subtitle: "Palette & theme mode",
+            soon: false,
+            page: "appearance",
         },
     ]
 

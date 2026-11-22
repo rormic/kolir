@@ -7,6 +7,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(readlink -f -- "$SCRIPT_DIR/../../..")
 . "$SCRIPT_DIR/lib/monitors.sh"
 . "$SCRIPT_DIR/lib/awww.sh"
+. "$SCRIPT_DIR/lib/theme.sh"
 
 warn() {
     printf 'generate-colors.sh: %s\n' "$*" >&2
@@ -74,6 +75,91 @@ case $CURRENT_THEME in
         CURRENT_THEME=dark
         ;;
 esac
+
+# --- Appearance settings ----------------------------------------------------
+# The Appearance settings page owns ~/.cache/quickshell/appearance.json:
+#   {"type":"scheme-neutral","contrast":0,"mode":"auto"}
+# `mode` is the user intent (auto/light/dark). Auto follows the sunrise/sunset
+# schedule in AppearanceService, which passes the resolved light/dark; light
+# and dark are explicit and also update the resolved current_theme. Environment
+# variables win so a caller can regenerate without writing the state file.
+APPEARANCE_FILE=$HOME/.cache/quickshell/appearance.json
+
+appearance_string() {
+    [[ -r $APPEARANCE_FILE ]] || return 0
+    sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$APPEARANCE_FILE" 2>/dev/null | head -n 1
+}
+
+appearance_number() {
+    [[ -r $APPEARANCE_FILE ]] || return 0
+    sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*\([-0-9.]\+\).*/\1/p' \
+        "$APPEARANCE_FILE" 2>/dev/null | head -n 1
+}
+
+SCHEME_TYPE=${KOLIR_MATUGEN_TYPE:-}
+[[ -n $SCHEME_TYPE ]] || SCHEME_TYPE=$(appearance_string type)
+# An empty value means "unset"; contrast 0 is a real value, not a fallback.
+if [[ -z ${KOLIR_MATUGEN_CONTRAST+x} ]]; then
+    CONTRAST=$(appearance_number contrast)
+else
+    CONTRAST=$KOLIR_MATUGEN_CONTRAST
+fi
+MODE_INTENT=${KOLIR_MATUGEN_MODE:-}
+[[ -n $MODE_INTENT ]] || MODE_INTENT=$(appearance_string mode)
+
+case $SCHEME_TYPE in
+    scheme-content | scheme-expressive | scheme-fidelity | scheme-fruit-salad \
+        | scheme-monochrome | scheme-neutral | scheme-rainbow \
+        | scheme-tonal-spot | scheme-vibrant | scheme-smart) ;;
+    "")
+        SCHEME_TYPE=scheme-neutral
+        ;;
+    *)
+        warn "ignoring unknown scheme type '$SCHEME_TYPE'; using scheme-neutral"
+        SCHEME_TYPE=scheme-neutral
+        ;;
+esac
+
+if [[ -n $CONTRAST ]] \
+    && ! awk -v c="$CONTRAST" 'BEGIN {
+        exit !(c ~ /^-?[0-9]+([.][0-9]+)?$/ && c >= -1 && c <= 1)
+    }'; then
+    warn "ignoring contrast '$CONTRAST' (expected -1..1); using 0"
+    CONTRAST=0
+fi
+CONTRAST=${CONTRAST:-0}
+
+case $MODE_INTENT in
+    auto | light | dark) ;;
+    "")
+        MODE_INTENT=$CURRENT_THEME
+        ;;
+    *)
+        warn "ignoring unknown mode '$MODE_INTENT'; using '$CURRENT_THEME'"
+        MODE_INTENT=$CURRENT_THEME
+        ;;
+esac
+
+if [[ $MODE_INTENT == auto ]]; then
+    # AppearanceService owns the sunrise/sunset schedule and passes the
+    # resolved light/dark in KOLIR_MATUGEN_MODE. A bare auto (for example from
+    # a wallpaper change while the shell is down) keeps the last resolved
+    # theme instead of letting matugen choose from the image.
+    MATUGEN_MODE=$CURRENT_THEME
+    kolir_apply_system_theme "$CURRENT_THEME"
+else
+    MATUGEN_MODE=$MODE_INTENT
+    # An explicit mode is authoritative: keep the bar icon, GTK and KDE in
+    # sync with the palette that is about to be generated.
+    if [[ $CURRENT_THEME != $MODE_INTENT ]]; then
+        if kolir_apply_theme_mode "$MODE_INTENT"; then
+            CURRENT_THEME=$MODE_INTENT
+        else
+            warn "could not write the theme state for '$MODE_INTENT'"
+        fi
+    fi
+fi
 
 # --- Template pre-validation ------------------------------------------------
 # Print "<template>\t<resolved input path>" for every template whose input is
@@ -245,17 +331,22 @@ else
 fi
 
 # --- Generation -------------------------------------------------------------
-if ! run_matugen image "$IMAGE_PATH" --source-color-index 0 -m "$CURRENT_THEME" -t scheme-neutral -c "$MAIN_CONFIG"; then
+if ! run_matugen image "$IMAGE_PATH" --source-color-index 0 \
+    --mode "$MATUGEN_MODE" --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
+    -c "$MAIN_CONFIG"; then
     warn "matugen failed while generating the desktop palette from '$IMAGE_PATH' with $MAIN_CONFIG"
     exit 1
 fi
 
 # The lock screen always uses a dark palette so white typography stays
 # readable over the blurred wallpaper, even when the desktop theme is light.
-# The lock palette is optional: a failed lock run must not turn an otherwise
-# successful wallpaper/theme change into a reported failure.
+# It follows the selected scheme type and contrast so the lock palette belongs
+# to the same family. The lock palette is optional: a failed lock run must not
+# turn an otherwise successful wallpaper/theme change into a reported failure.
 if [[ $LOCK_READY == true ]]; then
-    if ! run_matugen image "$IMAGE_PATH" --source-color-index 0 -m dark -t scheme-neutral -c "$LOCK_CONFIG"; then
+    if ! run_matugen image "$IMAGE_PATH" --source-color-index 0 \
+        --mode dark --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
+        -c "$LOCK_CONFIG"; then
         warn "matugen failed while generating the lock palette from '$IMAGE_PATH' with $LOCK_CONFIG; desktop colors were generated, continuing"
     fi
 fi

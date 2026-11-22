@@ -7,6 +7,8 @@ QtObject {
 
     readonly property string lightMode: "light_mode"
     readonly property string darkMode: "dark_mode"
+    readonly property string brightnessAuto: "brightness_auto"
+    readonly property string palette: "palette"
     readonly property string wallpaper: "wallpaper"
     readonly property string shuffle: "shuffle"
     readonly property string folder: "folder"

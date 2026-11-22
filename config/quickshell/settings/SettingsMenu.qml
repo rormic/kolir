@@ -27,11 +27,13 @@ EmbeddedSheet {
     // Height of the visible panel, morphed between pages while they slide.
     panelHeight: mainHeight
 
-    readonly property int mainHeight: 328
+    readonly property int mainHeight: 394
     readonly property int bluetoothHeight: 520
     // Tall enough for the Internet page's resting content, so it does not open
     // with a sliver of scroll (mirrors InternetPage.implicitHeight).
     readonly property int internetHeight: 546
+    // Mirrors AppearancePage.implicitHeight.
+    readonly property int appearanceHeight: 744
 
     // Distance a page travels during a navigation transition. Local optical
     // offset, not a shared metric.
@@ -49,6 +51,8 @@ EmbeddedSheet {
             return bluetoothHeight;
         if (name === "internet")
             return internetHeight;
+        if (name === "appearance")
+            return appearanceHeight;
         return mainHeight;
     }
 
@@ -199,7 +203,7 @@ EmbeddedSheet {
 
     Keys.onEscapePressed: function (event) {
         const current = root.incomingPage !== "" ? root.incomingPage : root.page;
-        if (current === "bluetooth" || current === "internet")
+        if (current !== "main")
             root.navigate("main");
         else
             root.close();
@@ -266,6 +270,10 @@ EmbeddedSheet {
             root.open("internet");
         }
 
+        function openAppearance(): void {
+            root.open("appearance");
+        }
+
         function close(): void {
             root.close();
         }
@@ -316,6 +324,18 @@ EmbeddedSheet {
             topInset: root.contentTopInset
             visible: root.pageVisible("internet")
             opacity: root.pageOpacity("internet")
+            onBack: root.navigate("main")
+        }
+
+        AppearancePage {
+            x: root.pageX("appearance")
+            y: 0
+            width: parent.width
+            height: root.heightForPage("appearance")
+            topInset: root.contentTopInset
+            active: root.opened
+            visible: root.pageVisible("appearance")
+            opacity: root.pageOpacity("appearance")
             onBack: root.navigate("main")
         }
     }

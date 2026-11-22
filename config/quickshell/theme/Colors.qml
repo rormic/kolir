@@ -12,6 +12,8 @@ QtObject {
     property color primaryContainer: "#005141"
     property color onPrimaryContainer: ("#a2f2d9")
 
+    property color secondary: "#a2cfc1"
+
     property color tertiary: "#a9cbe3"
 
     property color error: "#ffb4ab"

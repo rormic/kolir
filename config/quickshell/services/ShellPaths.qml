@@ -24,8 +24,14 @@ QtObject {
     readonly property string deviceBatteryScript: Quickshell.shellPath("scripts/device-battery/main.py")
     readonly property string deviceBatteryState: home + "/.cache/quickshell/device-battery.json"
 
+    // Quickshell cache directory shared by the persisted UI state files.
+    readonly property string quickshellCache: home + "/.cache/quickshell"
+
     // Matugen-generated palette consumed by Colors.qml.
     readonly property string colorsJson: home + "/.config/quickshell/colors.json"
+
+    // Matugen scheme type, contrast and mode owned by AppearanceService.
+    readonly property string appearanceState: quickshellCache + "/appearance.json"
 
     // Night-light persistence owned by HyprsunsetService.
     readonly property string hyprsunsetState: home + "/.cache/quickshell/hyprsunset.json"
@@ -64,6 +70,10 @@ QtObject {
 
     // Thumbnail worker bundled inside the shell config.
     readonly property string wallpaperThumbnails: Quickshell.shellPath("scripts/wallpaper-thumbnails.sh")
+
+    // Per-scheme palette previews for the Appearance page.
+    readonly property string palettePreviews: Quickshell.shellPath("scripts/palette-previews.sh")
+    readonly property string palettePreviewsCache: quickshellCache + "/palette-previews.json"
 
     // Directory suggestions for the wallpaper picker's path field.
     readonly property string completeDirs: Quickshell.shellPath("scripts/complete-dirs.sh")
