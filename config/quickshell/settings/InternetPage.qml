@@ -18,7 +18,7 @@ Item {
     implicitWidth: 380
     // Tall enough for the resting page (Ethernet + Wi-Fi + actions + network
     // list ≈ 424 px of body) so it does not start with a few pixels of scroll;
-    // the expanded Ethernet details and the connection form still scroll.
+    // the expanded Ethernet/Wi-Fi details and the connection form still scroll.
     // Mirrored by `internetHeight` in SettingsMenu.qml.
     implicitHeight: 546
 
@@ -77,81 +77,27 @@ Item {
             }
 
             // Wi-Fi adapter card
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: wifiCard.implicitHeight + 24
-                radius: Dimensions.radius.medium
-                color: Colors.surfaceContainerHigh
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.outlineVariant, 0.22)
-
-                ColumnLayout {
-                    id: wifiCard
-                    anchors { fill: parent; margins: 12 }
-                    spacing: 8
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Rectangle {
-                            Layout.preferredWidth: 36
-                            Layout.preferredHeight: 36
-                            radius: Dimensions.radius.small + 2
-                            color: net.wifiEnabled ? Colors.primaryContainer : Colors.surfaceContainerHighest
-                            Text {
-                                anchors.centerIn: parent
-                                text: net.wifiEnabled ? Icons.wifi : Icons.wifiOff
-                                color: net.wifiEnabled ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
-                                font.family: Typography.iconFont
-                                font.pixelSize: Dimensions.icon.large
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-                            Text {
-                                Layout.fillWidth: true
-                                text: "Wi-Fi"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                font.weight: Typography.weight.medium
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: {
-                                    if (!net.hasWifiDevice) return "No adapter found";
-                                    if (!net.wifiEnabled) return "Disabled";
-                                    if (net.activeWifi) return "Connected · " + net.activeWifi;
-                                    return "Enabled";
-                                }
-                                color: net.wifiConnected ? Colors.primary : Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        Toggle {
-                            Layout.alignment: Qt.AlignVCenter
-                            checked: net.wifiEnabled
-                            interactive: net.hasWifiDevice
-                            onToggled: value => net.setWifiEnabled(value)
-                        }
-                    }
-
-                    Text {
-                        visible: net.lastError !== ""
-                        Layout.fillWidth: true
-                        text: net.lastError
-                        color: Colors.error
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.labelSmall
-                        wrapMode: Text.Wrap
-                    }
-                }
+            WifiCard {
+                wifiEnabled: net.wifiEnabled
+                hasWifiDevice: net.hasWifiDevice
+                connected: net.wifiConnected
+                connection: net.activeWifi
+                ssid: net.wifiSsid
+                bssid: net.wifiBssid
+                device: net.wifiDevice
+                mac: net.wifiMac
+                ip4: net.wifiIp4
+                gateway4: net.wifiGateway4
+                dns: net.wifiDns
+                ip6: net.wifiIp6
+                security: net.wifiSecurity
+                channel: net.wifiChannel
+                rate: net.wifiRate
+                signal: net.wifiSignal
+                error: net.lastError
+                expanded: net.wifiDetailsExpanded
+                onToggleExpanded: net.wifiDetailsExpanded = !net.wifiDetailsExpanded
+                onEnabledToggled: enabled => net.setWifiEnabled(enabled)
             }
 
             // Actions row

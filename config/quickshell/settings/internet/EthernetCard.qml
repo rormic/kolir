@@ -1,10 +1,12 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../theme"
+import "../../bar/components"
 
 // Ethernet status card for the Internet page. The page supplies the nmcli
 // state and owns the expanded flag; the card only renders it and reports the
-// click on the summary row.
+// click on the summary row. Only the summary row toggles the card, so the
+// detail values stay free for CopyableValue (click to copy).
 Rectangle {
     id: root
 
@@ -33,56 +35,70 @@ Rectangle {
         anchors { fill: parent; margins: 10 }
         spacing: 8
 
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            spacing: 10
+            Layout.preferredHeight: summaryRow.implicitHeight
 
-            Rectangle {
-                Layout.preferredWidth: 32
-                Layout.preferredHeight: 32
-                radius: 8
-                color: root.connectionState === "Connected"
-                    ? Colors.primaryContainer : Colors.surfaceContainerHighest
-                Text {
-                    anchors.centerIn: parent
-                    text: Icons.ethernet
+            RowLayout {
+                id: summaryRow
+                anchors.fill: parent
+                spacing: 10
+
+                Rectangle {
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
+                    radius: 8
                     color: root.connectionState === "Connected"
-                        ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
+                        ? Colors.primaryContainer : Colors.surfaceContainerHighest
+                    Text {
+                        anchors.centerIn: parent
+                        text: Icons.ethernet
+                        color: root.connectionState === "Connected"
+                            ? Colors.onPrimaryContainer : Colors.onSurfaceVariant
+                        font.family: Typography.iconFont
+                        font.pixelSize: Dimensions.icon.medium
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Text {
+                        text: "Ethernet"
+                        color: Colors.onSurface
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.bodyMedium
+                        font.weight: Typography.weight.medium
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.connectionState
+                            + (root.connection ? " · " + root.connection : "")
+                            + (root.device ? " (" + root.device + ")" : "")
+                        color: root.connectionState === "Connected" ? Colors.primary : Colors.onSurfaceVariant
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelSmall
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Text {
+                    visible: root.connectionState === "Connected"
+                    text: root.expanded ? Icons.chevronLeft : Icons.chevronRight
+                    rotation: root.expanded ? -90 : 90
+                    color: Colors.onSurfaceVariant
                     font.family: Typography.iconFont
                     font.pixelSize: Dimensions.icon.medium
+                    Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 }
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    text: "Ethernet"
-                    color: Colors.onSurface
-                    font.family: Typography.barFont
-                    font.pixelSize: Typography.size.bodyMedium
-                    font.weight: Typography.weight.medium
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: root.connectionState
-                        + (root.connection ? " · " + root.connection : "")
-                        + (root.device ? " (" + root.device + ")" : "")
-                    color: root.connectionState === "Connected" ? Colors.primary : Colors.onSurfaceVariant
-                    font.family: Typography.barFont
-                    font.pixelSize: Typography.size.labelSmall
-                    elide: Text.ElideRight
-                }
-            }
-
-            Text {
-                visible: root.connectionState === "Connected"
-                text: root.expanded ? Icons.chevronLeft : Icons.chevronRight
-                rotation: root.expanded ? -90 : 90
-                color: Colors.onSurfaceVariant
-                font.family: Typography.iconFont
-                font.pixelSize: Dimensions.icon.medium
-                Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                enabled: root.connectionState === "Connected"
+                cursorShape: root.connectionState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked: root.toggleExpanded()
             }
         }
 
@@ -94,34 +110,25 @@ Rectangle {
             visible: root.connectionState === "Connected" && root.expanded
 
             Text { text: "Device"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { Layout.fillWidth: true; text: root.device || "—"; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
+            CopyableValue { value: root.device }
 
             Text { visible: root.ip4 !== ""; text: "IPv4"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { visible: root.ip4 !== ""; Layout.fillWidth: true; text: root.ip4; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
+            CopyableValue { visible: root.ip4 !== ""; value: root.ip4 }
 
             Text { visible: root.gateway4 !== ""; text: "Gateway"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { visible: root.gateway4 !== ""; Layout.fillWidth: true; text: root.gateway4; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
+            CopyableValue { visible: root.gateway4 !== ""; value: root.gateway4 }
 
             Text { visible: root.dns !== ""; text: "DNS"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { visible: root.dns !== ""; Layout.fillWidth: true; text: root.dns; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
+            CopyableValue { visible: root.dns !== ""; value: root.dns; wrap: true }
 
             Text { visible: root.mac !== ""; text: "MAC"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { visible: root.mac !== ""; Layout.fillWidth: true; text: root.mac; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight }
+            CopyableValue { visible: root.mac !== ""; value: root.mac }
 
             Text { visible: root.speed !== ""; text: "Link"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { visible: root.speed !== ""; Layout.fillWidth: true; text: root.speed; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
+            CopyableValue { visible: root.speed !== ""; value: root.speed; wrap: true }
 
             Text { visible: root.ip6 !== ""; text: "IPv6"; color: Colors.onSurfaceVariant; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall }
-            Text { visible: root.ip6 !== ""; Layout.fillWidth: true; text: root.ip6; color: Colors.onSurface; font.family: Typography.barFont; font.pixelSize: Typography.size.labelSmall; elide: Text.ElideRight; wrapMode: Text.Wrap }
+            CopyableValue { visible: root.ip6 !== ""; value: root.ip6; wrap: true }
         }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        z: -1
-        hoverEnabled: true
-        enabled: root.connectionState === "Connected"
-        cursorShape: root.connectionState === "Connected" ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: root.toggleExpanded()
     }
 }

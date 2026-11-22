@@ -42,6 +42,7 @@ QtObject {
     readonly property string warning: "error"
     readonly property string close: "close"
     readonly property string contentPaste: "content_paste"
+    readonly property string contentCopy: "content_copy"
     readonly property string calculate: "calculate"
     readonly property string keyboardReturn: "keyboard_return"
     readonly property string chevronLeft: "chevron_left"

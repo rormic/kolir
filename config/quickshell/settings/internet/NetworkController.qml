@@ -29,6 +29,21 @@ Item {
     property string ethernetDns: ""
     property string ethernetIp6: ""
     property bool ethernetDetailsExpanded: false
+    // Connected Wi-Fi details. The address block comes from
+    // `nmcli device show <wifiDev>`, while SSID/BSSID/signal/channel/rate come
+    // from the scanned entry marked IN-USE.
+    property string wifiSsid: ""
+    property string wifiBssid: ""
+    property string wifiSecurity: ""
+    property int wifiSignal: 0
+    property string wifiChannel: ""
+    property string wifiRate: ""
+    property string wifiMac: ""
+    property string wifiIp4: ""
+    property string wifiGateway4: ""
+    property string wifiDns: ""
+    property string wifiIp6: ""
+    property bool wifiDetailsExpanded: false
     property bool scanning: false
     property bool busy: false
     property string lastError: ""
@@ -50,6 +65,67 @@ Item {
 
     function isSecure(sec) {
         return !!sec && sec !== "" && sec !== "--";
+    }
+
+    // Single source for the scanned Wi-Fi fields, so every refresh asks for the
+    // same columns (indexes 0…8 are consumed in scanProc).
+    function wifiScanCommand(rescan) {
+        return [
+            "nmcli", "-t",
+            "-f", "IN-USE,SSID,SECURITY,SIGNAL,BSSID,DEVICE,CHAN,FREQ,RATE",
+            "device", "wifi", "list",
+            "--rescan", rescan ? "yes" : "no"
+        ];
+    }
+
+    // "36" + "5180 MHz" -> "36 · 5.18 GHz"; either half stands alone.
+    function channelLabel(channel, frequency) {
+        const mhz = parseInt(frequency, 10) || 0;
+        const ghz = mhz > 0 ? (mhz / 1000).toFixed(2) + " GHz" : "";
+        if (channel && ghz)
+            return channel + " · " + ghz;
+        return channel || ghz;
+    }
+
+    function clearWifiDetails() {
+        root.wifiSsid = "";
+        root.wifiBssid = "";
+        root.wifiSecurity = "";
+        root.wifiSignal = 0;
+        root.wifiChannel = "";
+        root.wifiRate = "";
+        root.wifiMac = "";
+        root.wifiIp4 = "";
+        root.wifiGateway4 = "";
+        root.wifiDns = "";
+        root.wifiIp6 = "";
+        root.wifiDetailsExpanded = false;
+    }
+
+    // Parses `nmcli -t device show <dev>` once for both cards; the ethernet-only
+    // keys (speed, carrier) stay unused on the Wi-Fi side.
+    function parseDeviceDetails(text) {
+        const lines = text.split("\n");
+        const out = {
+            mac: "", speed: "", carrier: "",
+            ip4: "", gateway4: "", dns: [], ip6: []
+        };
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line) continue;
+            const idx = line.indexOf(":");
+            if (idx < 0) continue;
+            const key = line.slice(0, idx);
+            const val = line.slice(idx + 1);
+            if (key === "GENERAL.HWADDR") out.mac = val;
+            else if (key === "ETHERNET.SPEED") out.speed = val;
+            else if (key === "WIRED-PROPERTIES.CARRIER") out.carrier = val;
+            else if (key.indexOf("IP4.ADDRESS") === 0 && !out.ip4) out.ip4 = val;
+            else if (key === "IP4.GATEWAY" && val && val !== "--") out.gateway4 = val;
+            else if (key.indexOf("IP4.DNS") === 0 && val) out.dns.push(val);
+            else if (key.indexOf("IP6.ADDRESS") === 0 && out.ip6.length < 1 && val) out.ip6.push(val);
+        }
+        return out;
     }
 
     function parseNmcli(text) {
@@ -87,11 +163,7 @@ Item {
         savedProc.running = true;
         if (root.wifiEnabled || rescan) {
             scanProc.buffer = "";
-            scanProc.command = [
-                "nmcli", "-t",
-                "-f", "IN-USE,SSID,SECURITY,SIGNAL,BSSID,DEVICE",
-                "device", "wifi", "list"
-            ].concat(rescan ? ["--rescan", "yes"] : ["--rescan", "no"]);
+            scanProc.command = root.wifiScanCommand(rescan);
             if (!scanProc.running) {
                 scanProc.running = true;
                 if (rescan)
@@ -103,6 +175,12 @@ Item {
             ethDetailProc.command = ["nmcli", "-t", "device", "show", root.ethernetDevice];
             if (!ethDetailProc.running)
                 ethDetailProc.running = true;
+        }
+        if (root.wifiConnected && root.wifiDevice) {
+            wifiDetailProc.buffer = "";
+            wifiDetailProc.command = ["nmcli", "-t", "device", "show", root.wifiDevice];
+            if (!wifiDetailProc.running)
+                wifiDetailProc.running = true;
         }
     }
 
@@ -217,7 +295,7 @@ Item {
             radioProc.buffer = "";
             if (root.active && root.wifiEnabled && !scanProc.running) {
                 scanProc.buffer = "";
-                scanProc.command = ["nmcli", "-t", "-f", "IN-USE,SSID,SECURITY,SIGNAL,BSSID,DEVICE", "device", "wifi", "list", "--rescan", "no"];
+                scanProc.command = root.wifiScanCommand(false);
                 scanProc.running = true;
             } else if (!root.wifiEnabled) {
                 root.wifiNetworks = [];
@@ -268,6 +346,8 @@ Item {
                 }
             }
             const ethChanged = root.ethernetDevice !== ethDev;
+            const wifiChanged = root.wifiDevice !== wifiDev;
+            const activeChanged = root.activeWifi !== active;
             root.ethernetState = ethState;
             root.ethernetConnection = ethConn;
             root.ethernetDevice = ethDev;
@@ -291,6 +371,17 @@ Item {
                 root.ethernetDns = "";
                 root.ethernetIp6 = "";
                 root.ethernetDetailsExpanded = false;
+            }
+
+            if (active && wifiDev) {
+                if (activeChanged || wifiChanged || root.wifiIp4 === "") {
+                    wifiDetailProc.buffer = "";
+                    wifiDetailProc.command = ["nmcli", "-t", "device", "show", wifiDev];
+                    if (!wifiDetailProc.running)
+                        wifiDetailProc.running = true;
+                }
+            } else {
+                root.clearWifiDetails();
             }
         }
     }
@@ -322,7 +413,7 @@ Item {
     Process {
         id: scanProc
         property string buffer: ""
-        command: ["nmcli", "-t", "-f", "IN-USE,SSID,SECURITY,SIGNAL,BSSID,DEVICE", "device", "wifi", "list", "--rescan", "no"]
+        command: root.wifiScanCommand(false)
         stdout: SplitParser {
             onRead: line => scanProc.buffer += line + "\n"
         }
@@ -351,6 +442,9 @@ Item {
                     signal: signal,
                     bssid: bssid,
                     device: device,
+                    channel: r[6] || "",
+                    frequency: r[7] || "",
+                    rate: r[8] || "",
                     connected: inUse,
                     saved: !!root.savedWifi[ssid]
                 };
@@ -375,6 +469,23 @@ Item {
                 if (a.saved !== b.saved) return a.saved ? -1 : 1;
                 return b.signal - a.signal;
             });
+            // The IN-USE row is the access point the interface is associated
+            // with, so it carries the SSID/BSSID/channel/rate the details show.
+            let connectedItem = null;
+            for (let k = 0; k < list.length; k++) {
+                if (list[k].connected) {
+                    connectedItem = list[k];
+                    break;
+                }
+            }
+            if (connectedItem) {
+                root.wifiSsid = connectedItem.ssid;
+                root.wifiBssid = connectedItem.bssid;
+                root.wifiSecurity = connectedItem.security;
+                root.wifiSignal = connectedItem.signal;
+                root.wifiChannel = root.channelLabel(connectedItem.channel, connectedItem.frequency);
+                root.wifiRate = connectedItem.rate;
+            }
             root.wifiNetworks = list;
             scanProc.buffer = "";
         }
@@ -421,36 +532,40 @@ Item {
                 ethDetailProc.buffer = "";
                 return;
             }
-            const lines = ethDetailProc.buffer.split("\n");
-            let mac = "", speed = "", carrier = "", ip4 = "", gw4 = "";
-            let dns = [], ip6 = [];
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (!line) continue;
-                const idx = line.indexOf(":");
-                if (idx < 0) continue;
-                const key = line.slice(0, idx);
-                const val = line.slice(idx + 1);
-                if (key === "GENERAL.HWADDR") mac = val;
-                else if (key === "ETHERNET.SPEED") speed = val;
-                else if (key === "WIRED-PROPERTIES.CARRIER") carrier = val;
-                else if (key.indexOf("IP4.ADDRESS") === 0 && !ip4) ip4 = val;
-                else if (key === "IP4.GATEWAY" && val && val !== "--") gw4 = val;
-                else if (key.indexOf("IP4.DNS") === 0 && val) dns.push(val);
-                else if (key.indexOf("IP6.ADDRESS") === 0 && ip6.length < 1 && val) ip6.push(val);
-            }
-            root.ethernetMac = mac;
-            if (speed && speed !== "unknown")
-                root.ethernetSpeed = speed + " Mb/s" + (carrier ? " · carrier: " + carrier : "");
-            else if (carrier)
-                root.ethernetSpeed = "carrier: " + carrier;
+            const detail = root.parseDeviceDetails(ethDetailProc.buffer);
+            root.ethernetMac = detail.mac;
+            if (detail.speed && detail.speed !== "unknown")
+                root.ethernetSpeed = detail.speed + " Mb/s"
+                    + (detail.carrier ? " · carrier: " + detail.carrier : "");
+            else if (detail.carrier)
+                root.ethernetSpeed = "carrier: " + detail.carrier;
             else
                 root.ethernetSpeed = "";
-            root.ethernetIp4 = ip4;
-            root.ethernetGateway4 = gw4;
-            root.ethernetDns = dns.join(", ");
-            root.ethernetIp6 = ip6.join(", ");
+            root.ethernetIp4 = detail.ip4;
+            root.ethernetGateway4 = detail.gateway4;
+            root.ethernetDns = detail.dns.join(", ");
+            root.ethernetIp6 = detail.ip6.join(", ");
             ethDetailProc.buffer = "";
+        }
+    }
+
+    Process {
+        id: wifiDetailProc
+        property string buffer: ""
+        command: ["nmcli", "-t", "device", "show"]
+        stdout: SplitParser { onRead: line => wifiDetailProc.buffer += line + "\n" }
+        onExited: code => {
+            if (code !== 0) {
+                wifiDetailProc.buffer = "";
+                return;
+            }
+            const detail = root.parseDeviceDetails(wifiDetailProc.buffer);
+            root.wifiMac = detail.mac;
+            root.wifiIp4 = detail.ip4;
+            root.wifiGateway4 = detail.gateway4;
+            root.wifiDns = detail.dns.join(", ");
+            root.wifiIp6 = detail.ip6.join(", ");
+            wifiDetailProc.buffer = "";
         }
     }
 }
