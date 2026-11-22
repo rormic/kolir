@@ -1,4 +1,5 @@
 import QtQuick
+import "../bar/components"
 import "../theme"
 
 // Main settings grid. Entries are data-driven so future categories only
@@ -105,23 +106,9 @@ Item {
 
                         Behavior on color { ColorAnimation { duration: 150 } }
 
-                        // Hover state layer. It fades in as its own fill instead
-                        // of animating the row colour: a colour transition from
-                        // an opaque base to a translucent state layer also
-                        // interpolates the alpha, so the row would flash bright
-                        // and opaque in the middle of the fade.
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            color: Colors.stateLayer(Colors.primary, 0.14)
-                            opacity: row.hovered ? 1.0 : 0.0
-
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    duration: 150
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
+                        StateLayer {
+                            shown: row.hovered
+                            strength: 0.14
                         }
                     }
 

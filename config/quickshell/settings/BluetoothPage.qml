@@ -220,20 +220,9 @@ Item {
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
 
-            // Hover state layer, faded on its own so the opaque button colour
-            // never interpolates through the translucent state layer.
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                color: Colors.stateLayer(Colors.primary, 0.16)
-                opacity: addDevice.hovered ? 1.0 : 0.0
-
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 150
-                        easing.type: Easing.OutCubic
-                    }
-                }
+            StateLayer {
+                shown: addDevice.hovered
+                strength: 0.16
             }
 
             Row {

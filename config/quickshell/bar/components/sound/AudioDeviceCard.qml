@@ -130,9 +130,7 @@ Rectangle {
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
                 radius: Dimensions.radius.full
-                color: muteButton.hovered
-                    ? Colors.stateLayer(Colors.primary, 0.16)
-                    : Colors.surfaceContainerLowest
+                color: Colors.surfaceContainerLowest
                 border.width: 1
                 border.color: root.deviceMuted
                     ? Colors.withAlpha(Colors.error, 0.7)
@@ -143,6 +141,11 @@ Rectangle {
 
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                StateLayer {
+                    shown: muteButton.hovered
+                    strength: 0.16
+                }
 
                 Text {
                     anchors.centerIn: parent

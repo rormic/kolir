@@ -129,23 +129,9 @@ Rectangle {
                     Behavior on color { ColorAnimation { duration: Motion.hover } }
                     Behavior on border.color { ColorAnimation { duration: Motion.hover } }
 
-                    // Selected/hover state layer. Fading an own fill avoids a
-                    // colour transition from an opaque chip to a translucent
-                    // state layer, which would flash through opaque grey.
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: chip.selected
-                            ? Colors.withAlpha(Colors.primary, 0.22)
-                            : Colors.stateLayer(Colors.primary, 0.12)
-                        opacity: chip.selected || chip.hovered ? 1.0 : 0.0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: Motion.hover
-                                easing.type: Easing.OutCubic
-                            }
-                        }
+                    StateLayer {
+                        shown: chip.selected || chip.hovered
+                        strength: chip.selected ? 0.22 : 0.12
                     }
 
                     Text {

@@ -244,9 +244,7 @@ Rectangle {
         radius: Dimensions.radius.full
         color: modeChip.active
             ? Colors.primaryContainer
-            : modeChip.hovered
-                ? Colors.stateLayer(Colors.primary, 0.12)
-                : Colors.surfaceContainerLowest
+            : Colors.surfaceContainerLowest
         border.width: 1
         border.color: modeChip.active
             ? Colors.withAlpha(Colors.primary, 0.7)
@@ -254,6 +252,12 @@ Rectangle {
 
         Behavior on color { ColorAnimation { duration: 120 } }
         Behavior on border.color { ColorAnimation { duration: 120 } }
+
+        StateLayer {
+            shown: modeChip.hovered && !modeChip.active
+            strength: 0.12
+            duration: Motion.fade
+        }
 
         Text {
             anchors.centerIn: parent

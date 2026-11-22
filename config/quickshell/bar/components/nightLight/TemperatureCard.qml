@@ -143,9 +143,7 @@ Rectangle {
                     radius: Dimensions.radius.full
                     color: presetChip.active
                         ? Colors.primaryContainer
-                        : presetChip.hovered
-                            ? Colors.stateLayer(Colors.primary, 0.12)
-                            : Colors.surfaceContainerLowest
+                        : Colors.surfaceContainerLowest
                     border.width: 1
                     border.color: presetChip.active
                         ? Colors.withAlpha(Colors.primary, 0.7)
@@ -153,6 +151,12 @@ Rectangle {
 
                     Behavior on color { ColorAnimation { duration: 120 } }
                     Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                    StateLayer {
+                        shown: presetChip.hovered && !presetChip.active
+                        strength: 0.12
+                        duration: Motion.fade
+                    }
 
                     Text {
                         anchors.centerIn: parent

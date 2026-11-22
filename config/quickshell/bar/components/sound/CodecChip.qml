@@ -1,4 +1,5 @@
 import QtQuick
+import ".."
 import "../../../theme"
 
 // One Bluetooth codec chip in the sound popup. The caller resolves the label
@@ -18,9 +19,7 @@ Rectangle {
     radius: Dimensions.radius.full
     color: root.active
         ? Colors.primaryContainer
-        : root.hovered
-            ? Colors.stateLayer(Colors.primary, 0.12)
-            : Colors.surfaceContainerLowest
+        : Colors.surfaceContainerLowest
     border.width: 1
     border.color: root.active
         ? Colors.withAlpha(Colors.primary, 0.7)
@@ -30,6 +29,12 @@ Rectangle {
     Behavior on border.color { ColorAnimation { duration: 120 } }
 
     HoverHandler { id: chipHover }
+
+    StateLayer {
+        shown: root.hovered && !root.active
+        strength: 0.12
+        duration: Motion.fade
+    }
 
     Text {
         id: chipText

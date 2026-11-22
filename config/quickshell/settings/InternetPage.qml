@@ -174,18 +174,9 @@ Item {
                     opacity: net.wifiEnabled ? 1.0 : 0.5
                     Behavior on color { ColorAnimation { duration: 150 } }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: Colors.stateLayer(Colors.primary, 0.16)
-                        opacity: scanBtn.hovered ? 1.0 : 0.0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 150
-                                easing.type: Easing.OutCubic
-                            }
-                        }
+                    StateLayer {
+                        shown: scanBtn.hovered
+                        strength: 0.16
                     }
 
                     Row {
@@ -229,13 +220,18 @@ Item {
                     Layout.preferredWidth: 36
                     Layout.preferredHeight: 36
                     radius: Dimensions.radius.full
-                    color: hiddenBtn.hovered ? Colors.stateLayer(Colors.primary, 0.16) : Colors.surfaceContainerHigh
+                    color: Colors.surfaceContainerHigh
                     border.width: 1
                     border.color: hiddenBtn.hovered
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
                     opacity: net.wifiEnabled ? 1.0 : 0.5
                     Behavior on color { ColorAnimation { duration: 150 } }
+
+                    StateLayer {
+                        shown: hiddenBtn.hovered
+                        strength: 0.16
+                    }
 
                     Text {
                         anchors.centerIn: parent
