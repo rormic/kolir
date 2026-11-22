@@ -19,10 +19,12 @@ PanelWindow {
     WlrLayershell.namespace: "bar"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.exclusiveZone: Dimensions.bar.height
-    // The settings popout lives in this surface instead of a separate window.
-    // OnDemand lets the menu receive keyboard focus (Escape, Wi-Fi password)
-    // after it is clicked without stealing focus when it is closed.
-    WlrLayershell.keyboardFocus: settingsMenu.opened ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // The embedded settings and night-light sheets live in this surface
+    // instead of separate windows. OnDemand lets them receive keyboard focus
+    // (Escape) after they are clicked without stealing focus while closed.
+    WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened)
+        ? WlrKeyboardFocus.OnDemand
+        : WlrKeyboardFocus.None
 
     anchors {
         top: true
@@ -47,8 +49,8 @@ PanelWindow {
         height: Dimensions.bar.height
     }
 
-    // While the settings popout is open the whole surface becomes modal, so
-    // the full-window dismissal layer can receive outside clicks.
+    // While an embedded sheet is open the whole surface becomes modal, so its
+    // full-window dismissal layer can receive outside clicks.
     readonly property Region modalMask: Region {
         x: 0
         y: 0
@@ -56,7 +58,7 @@ PanelWindow {
         height: bar.height
     }
 
-    mask: settingsMenu.modal ? modalMask : barMask
+    mask: (settingsMenu.modal || brightnessPopup.modal) ? modalMask : barMask
 
     // Bar strip background. The decorative frame below starts at
     // Dimensions.bar.height (see Frame.qml), so the strip is never painted
@@ -107,7 +109,10 @@ PanelWindow {
             iconOffsetY: 1
             active: settingsMenu.opened
             rotation: settingsMenu.opened ? 90 : 0
-            onClicked: settingsMenu.toggle()
+            onClicked: {
+                brightnessPopup.close();
+                settingsMenu.toggle();
+            }
 
             Behavior on rotation {
                 NumberAnimation { duration: Motion.rotate; easing.type: Easing.OutCubic }
@@ -161,10 +166,22 @@ PanelWindow {
             RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
             CaffeineIndicator {
                 anchors.verticalCenter: parent.verticalCenter
-                onActivated: settingsMenu.open("main")
+                onActivated: {
+                    brightnessPopup.close();
+                    settingsMenu.open("main");
+                }
             }
             Battery         { anchors.verticalCenter: parent.verticalCenter }
-            Brightness      { anchors.verticalCenter: parent.verticalCenter }
+            Brightness      {
+                id: brightnessChip
+
+                anchors.verticalCenter: parent.verticalCenter
+                popupActive: brightnessPopup.modal
+                onActivated: {
+                    settingsMenu.close();
+                    brightnessPopup.toggle();
+                }
+            }
             Volume          { anchors.verticalCenter: parent.verticalCenter }
             ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
         }
@@ -184,5 +201,34 @@ PanelWindow {
         id: settingsMenu
         anchors.fill: parent
         z: 1
+    }
+
+    // Night-light sheet overlay. It fills the bar window, sits above the strip
+    // background but below the bar content, and mirrors the settings sheet to
+    // the right edge as a single connected surface.
+    BrightnessPopup {
+        id: brightnessPopup
+        anchors.fill: parent
+        z: 1
+    }
+
+    // The two embedded sheets are mutually exclusive, whichever way one was
+    // opened (chip click or IPC): opening one closes the other.
+    Connections {
+        target: brightnessPopup
+
+        function onOpenedChanged() {
+            if (brightnessPopup.opened)
+                settingsMenu.close();
+        }
+    }
+
+    Connections {
+        target: settingsMenu
+
+        function onOpenedChanged() {
+            if (settingsMenu.opened)
+                brightnessPopup.close();
+        }
     }
 }

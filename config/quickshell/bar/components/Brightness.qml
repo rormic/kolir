@@ -2,9 +2,16 @@ import QtQuick
 import "../../theme"
 import "../../services"
 
-// Brightness chip: neon icon, progress accent bar.
+// Brightness chip: neon icon, progress accent bar. The night-light sheet is
+// owned by Bar (it lives in the bar surface), so the chip only reports left
+// clicks through `activated`.
 Pill {
     id: root
+
+    signal activated()
+
+    // Bound by Bar to the embedded popup's modal state.
+    property bool popupActive: false
 
     implicitWidth: 68
     visible: BrightnessService.available
@@ -20,7 +27,7 @@ Pill {
     textColor: Colors.onSurface
     surfaceColor: Colors.surfaceContainerHigh
     spacing: 4
-    active: popup.visible
+    active: root.popupActive
 
     // A subtle tertiary ring while the blue-light filter is active. The
     // normal primary ring still wins on hover and while the popup is open.
@@ -35,16 +42,11 @@ Pill {
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: popup.toggle()
+        onClicked: root.activated()
         onWheel: wheel => {
             if (wheel.angleDelta.y > 0) BrightnessService.adjust(5);
             else if (wheel.angleDelta.y < 0) BrightnessService.adjust(-5);
         }
-    }
-
-    BrightnessPopup {
-        id: popup
-        anchorItem: root
     }
 
     // Material 3 linear progress indicator along the bottom edge.

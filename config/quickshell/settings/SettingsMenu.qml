@@ -46,10 +46,12 @@ Item {
 
     readonly property real targetHeight: heightForPage(page)
 
-    // The popup starts at the screen edge so the left body edge can stay at
-    // frame thickness while an outward foot is drawn into the frame. The sheet
-    // begins exactly at the bar's bottom edge; its opaque fill matches the bar
-    // and the frame ring, so the junction is seamless and nothing shows through.
+    // The sheet is flush with the physical screen edge (left body edge x = 0),
+    // so while the menu is open it covers the decorative frame ring and the
+    // compositor's active-window border just like the night-light sheet on the
+    // right. It begins exactly at the bar's bottom edge; its opaque fill matches
+    // the bar and the frame ring, so the junction is seamless and nothing shows
+    // through.
     readonly property int popoutX: 0
     readonly property int popoutY: Dimensions.bar.height
 
@@ -60,10 +62,9 @@ Item {
     // frame read as one continuous surface.
     readonly property int panelMelt: Dimensions.radius.extraExtraLarge
     // Distance from the popup width to the sheet's body edge, which is also the
-    // page content's right inset. The shoulder is safe to draw over the 4px
-    // frame ring only because the sheet, the bar and the frame all use the same
-    // opaque fill: a translucent sheet turned the flare into a pale, fringed
-    // notch.
+    // page content's right inset. The shoulder is safe to draw over the frame
+    // ring only because the sheet, the bar and the frame all use the same opaque
+    // fill: a translucent sheet turned the flare into a pale, fringed notch.
     readonly property int panelFlare: 32
     // The shoulder is the same quarter circle as the lower right corner, only
     // concave: it starts at the bottom edge of the frame ring and meets the
@@ -72,9 +73,11 @@ Item {
     // top edge.
     readonly property int panelShoulderRadius: panelBottomRadius
     readonly property int panelShoulderDrop: Dimensions.frame.thickness + panelShoulderRadius
-    readonly property int panelBodyLeft: Dimensions.frame.thickness
+    // Body geometry reaches the physical screen edge; the page viewport keeps
+    // one frame thickness of visual padding inside it.
+    readonly property int panelBodyLeft: 0
     readonly property int contentTopInset: panelShoulderDrop + 8
-    readonly property int contentLeftInset: panelBodyLeft
+    readonly property int contentLeftInset: Dimensions.frame.thickness
     readonly property int contentRightInset: panelFlare
 
     // The sheet grows out of the trigger: width first, then height, so it does
