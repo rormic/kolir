@@ -107,4 +107,8 @@ QtObject {
     // Audio helper bundled inside the shell config: keeps a single pactl
     // subscriber alive across shell restarts.
     readonly property string pactlSubscribe: Quickshell.shellPath("scripts/pactl-subscribe.sh")
+
+    // Obsidian quick-note helper bundled inside the shell config: resolves the
+    // vault/daily note and appends the typed text (see launcher note mode).
+    readonly property string quickNoteScript: Quickshell.shellPath("scripts/quick-note.py")
 }

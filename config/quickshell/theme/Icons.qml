@@ -50,6 +50,7 @@ QtObject {
     readonly property string image: "image"
     readonly property string movie: "movie"
     readonly property string calculate: "calculate"
+    readonly property string addTask: "add_task"
     readonly property string keyboardReturn: "keyboard_return"
     readonly property string chevronLeft: "chevron_left"
     readonly property string chevronRight: "chevron_right"

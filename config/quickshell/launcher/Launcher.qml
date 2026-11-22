@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
 import "../bar/components"
+import "../services"
 import "../theme"
 import "SearchLogic.js" as SearchLogic
 
@@ -48,6 +49,7 @@ Scope {
         readonly property int compactHeight: 40
         readonly property int expandedHeight: 520
         readonly property int calcCardHeight: 44
+        readonly property int noteCardHeight: 58
 
         // Відступи всередині панелі: зверху під рядком пошуку і знизу під списком
         readonly property int contentGap: 10
@@ -74,10 +76,12 @@ Scope {
         // Калькулятор не потребує списку — тримаємо панель компактною
         readonly property int targetHeight: !searching
             ? compactHeight
-            : (mathResult !== null
-                ? compactHeight + contentGap + calcCardHeight + contentBottom
-                : compactHeight + contentGap
-                    + Math.max(listHeight, emptyListHeight) + contentBottom)
+            : (isNoteMode
+                ? compactHeight + contentGap + noteCardHeight + contentBottom
+                : (mathResult !== null
+                    ? compactHeight + contentGap + calcCardHeight + contentBottom
+                    : compactHeight + contentGap
+                        + Math.max(listHeight, emptyListHeight) + contentBottom))
 
         function rowHeightFor(item) {
             return (isClipboardMode && item && item.isImage) ? imageRowHeight : appRowHeight
@@ -103,19 +107,113 @@ Scope {
         WlrLayershell.exclusiveZone: 0
 
         readonly property bool isClipboardMode: search.text.startsWith(";")
+        readonly property bool isNoteMode: search.text.startsWith(".")
+        readonly property string noteText: isNoteMode ? search.text.substring(1).trim() : ""
         readonly property string clipQuery: isClipboardMode ? search.text.substring(1).trim().toLowerCase() : ""
-        readonly property var mathResult: !isClipboardMode ? SearchLogic.evalMath(search.text) : null
+        readonly property var mathResult: (!isClipboardMode && !isNoteMode) ? SearchLogic.evalMath(search.text) : null
+
+        // ── Швидка задача в щоденну нотатку Obsidian ──
+        // Хелпер сам знаходить vault, формат і теку щоденних нотаток, тож QML
+        // не будує жодних шляхів. Результат завжди один JSON-об'єкт.
+        property var noteTarget: null
+        property string noteError: ""
+        property bool noteBusy: false
+
+        function refreshNoteTarget() {
+            noteTarget = null
+            noteError = ""
+            noteTargetProc.command = [ShellPaths.quickNoteScript, "target"]
+            noteTargetProc.running = true
+        }
+
+        function submitNote() {
+            if (!isNoteMode || noteBusy || noteText === "") return
+            noteError = ""
+            noteBusy = true
+            noteAddProc.command = [ShellPaths.quickNoteScript, "add", noteText]
+            noteAddProc.running = true
+        }
+
+        function handleNoteResult(result) {
+            noteBusy = false
+            if (result && result.ok) {
+                noteTarget = result
+                win.visible = false
+            } else {
+                noteError = (result && result.error) ? result.error : "Could not save the note"
+            }
+        }
+
+        function failNote(message) {
+            noteBusy = false
+            noteError = message
+        }
+
+        function noteStatusText() {
+            if (noteError !== "") return noteError
+            if (noteBusy) return "Saving…"
+            if (!noteTarget) return "Looking up the Obsidian vault…"
+            if (!noteTarget.ok) return noteTarget.error || "Obsidian vault not found"
+            const kind = noteTarget.exists ? "Daily note" : "New daily note"
+            return kind + " · " + noteTarget.note
+        }
+
+        Process {
+            id: noteTargetProc
+            running: false
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const raw = text.trim()
+                    if (!raw) return
+                    try {
+                        win.noteTarget = JSON.parse(raw)
+                    } catch (e) {
+                        win.noteTarget = { ok: false, error: "Unexpected quick-note output" }
+                    }
+                }
+            }
+            onExited: (exitCode, exitStatus) => {
+                if (exitCode !== 0 && !win.noteTarget)
+                    win.noteTarget = { ok: false, error: "Quick-note helper failed" }
+            }
+        }
+
+        Process {
+            id: noteAddProc
+            running: false
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const raw = text.trim()
+                    if (!raw) return
+                    try {
+                        win.handleNoteResult(JSON.parse(raw))
+                    } catch (e) {
+                        win.failNote("Unexpected quick-note output")
+                    }
+                }
+            }
+            onExited: (exitCode, exitStatus) => {
+                // Немає придатної відповіді (хелпер упав) — лишаємо поле відкритим.
+                if (win.noteBusy)
+                    win.failNote("Could not save the note")
+            }
+        }
 
         onVisibleChanged: {
             if (visible) {
                 search.text = ""
                 searching = false
                 list.currentIndex = 0
+                noteTarget = null
+                noteError = ""
+                noteBusy = false
                 clipboard.refresh()
                 search.forceActiveFocus()
             } else {
                 // Згортаємо одразу, поки вікно приховане — без видимого стрибка
                 searching = false
+                noteTargetProc.running = false
+                noteAddProc.running = false
             }
         }
 
@@ -191,10 +289,14 @@ Scope {
                                 leftMargin: 14
                                 verticalCenter: parent.verticalCenter
                             }
-                            text: win.isClipboardMode
-                                ? Icons.contentPaste
-                                : (win.mathResult !== null ? Icons.calculate : Icons.search)
-                            color: search.activeFocus ? Colors.primary : Colors.onSurfaceVariant
+                            text: win.isNoteMode
+                                ? Icons.addTask
+                                : win.isClipboardMode
+                                    ? Icons.contentPaste
+                                    : (win.mathResult !== null ? Icons.calculate : Icons.search)
+                            color: search.activeFocus || win.isNoteMode
+                                ? Colors.primary
+                                : Colors.onSurfaceVariant
                             font.family: Typography.iconFont
                             font.pixelSize: 18
                             font.weight: Font.Normal
@@ -216,7 +318,7 @@ Scope {
                             visible: search.text === ""
                             text: win.isClipboardMode
                                 ? "Search clipboard history…"
-                                : "Search apps or type math (e.g. 2+2)…"
+                                : "Search apps or type math (e.g. 2+2), ; for clipboard, > for a note…"
                             color: Colors.onSurfaceVariant
                             opacity: 0.78
                             font.family: Typography.barFont
@@ -255,6 +357,12 @@ Scope {
                             }
 
                             Keys.onReturnPressed: {
+                                // 0. Швидка задача в щоденну нотатку Obsidian
+                                if (win.isNoteMode) {
+                                    win.submitNote()
+                                    return
+                                }
+
                                 // 1. Пріоритет: Результат математичного калькулятора
                                 if (win.mathResult && list.currentIndex === -1) {
                                     directCopyProc.command = ["wl-copy", win.mathResult.result]
@@ -293,7 +401,16 @@ Scope {
                             onTextChanged: {
                                 win.searching = search.text.trim() !== ""
                                 list.currentIndex = 0
-                                if (search.text.startsWith(";")) {
+                                if (win.noteError !== "")
+                                    win.noteError = ""
+                                // Check the text directly: win.isNoteMode is a
+                                // binding that may still be stale inside this
+                                // signal handler.
+                                const typed = search.text
+                                if (typed.startsWith(".")) {
+                                    if (win.noteTarget === null && !noteTargetProc.running)
+                                        win.refreshNoteTarget()
+                                } else if (typed.startsWith(";")) {
                                     clipboard.refresh()
                                 }
                             }
@@ -375,6 +492,111 @@ Scope {
                     }
 
                     // ══════════════════════════════════════════════════════
+                    // 3b. Швидка задача в щоденну нотатку Obsidian (префікс ".")
+                    // ══════════════════════════════════════════════════════
+                    Rectangle {
+                        id: noteCard
+                        anchors {
+                            top: searchField.bottom
+                            topMargin: win.contentGap
+                            left: parent.left
+                            leftMargin: 14
+                            right: parent.right
+                            rightMargin: 14
+                        }
+                        height: win.noteCardHeight
+                        visible: win.isNoteMode
+                        radius: Dimensions.radius.medium
+                        color: noteMouse.containsMouse || win.noteBusy
+                            ? Colors.stateLayer(Colors.primary, 0.12)
+                            : "transparent"
+                        border.width: 1
+                        border.color: win.noteError !== ""
+                            ? Colors.withAlpha(Colors.error, 0.60)
+                            : noteMouse.containsMouse
+                                ? Colors.withAlpha(Colors.primary, 0.45)
+                                : Colors.withAlpha(Colors.outlineVariant, 0.22)
+
+                        Behavior on color {
+                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on border.color {
+                            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                        }
+
+                        Text {
+                            id: noteIcon
+                            anchors {
+                                left: parent.left
+                                leftMargin: 14
+                                top: parent.top
+                                topMargin: 13
+                            }
+                            text: win.noteError !== "" ? Icons.warning : Icons.addTask
+                            color: win.noteError !== "" ? Colors.error : Colors.primary
+                            font.family: Typography.iconFont
+                            font.pixelSize: 18
+                        }
+
+                        Column {
+                            anchors {
+                                left: noteIcon.right
+                                leftMargin: 10
+                                right: noteEnter.left
+                                rightMargin: 8
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 3
+
+                            Text {
+                                width: parent.width
+                                text: win.noteText !== "" ? win.noteText : "Type a task…"
+                                color: win.noteText !== "" ? Colors.onSurface : Colors.onSurfaceVariant
+                                opacity: win.noteText !== "" ? 1 : 0.78
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.bodyMedium
+                                font.weight: win.noteText !== ""
+                                    ? Typography.weight.medium
+                                    : Typography.weight.regular
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: win.noteStatusText()
+                                color: win.noteError !== "" ? Colors.error : Colors.onSurfaceVariant
+                                opacity: 0.8
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                elide: Text.ElideMiddle
+                            }
+                        }
+
+                        Text {
+                            id: noteEnter
+                            anchors {
+                                right: parent.right
+                                rightMargin: 14
+                                verticalCenter: parent.verticalCenter
+                            }
+                            visible: win.noteText !== "" && !win.noteBusy
+                            text: Icons.keyboardReturn
+                            color: Colors.primary
+                            font.family: Typography.iconFont
+                            font.pixelSize: 16
+                        }
+
+                        MouseArea {
+                            id: noteMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+
+                            onClicked: win.submitNote()
+                        }
+                    }
+
+                    // ══════════════════════════════════════════════════════
                     // 4. Список програм / буфера обміну
                     // ══════════════════════════════════════════════════════
                     Rectangle {
@@ -391,7 +613,7 @@ Scope {
                         color: "transparent"
                         border.width: 0
                         clip: true
-                        visible: win.mathResult === null
+                        visible: win.mathResult === null && !win.isNoteMode
 
                         ListView {
                             id: list
@@ -404,6 +626,7 @@ Scope {
 
                             // Модель динамічно перемикається між буфером обміну та програмами
                             model: {
+                                if (win.isNoteMode) return []
                                 if (win.isClipboardMode) {
                                     if (win.clipQuery === "") {
                                         return clipboard.items
