@@ -4,6 +4,7 @@ import "launcher"
 import "notification"
 import "osd"
 import "recording"
+import "wallpaper"
 
 ShellRoot {
     // Decorative Bottom-layer screen frame; the bar and its popout stay above
@@ -15,5 +16,6 @@ ShellRoot {
     VolumeOsd {}
     BrightnessOsd {}
     RecordingSetup {}
+    WallpaperPicker {}
 
 }
