@@ -56,8 +56,10 @@ local mainMod = "SUPER"
 
 -- Binds can carry a `description`; the Quickshell shortcuts sheet (SUPER+D)
 -- reads it from `hyprctl binds -j` and shows it next to the key.
+-- SUPER+I already runs `hyprpicker -a` from the shared config; add your own
+-- personal binds below.
 -- example:
--- hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Pick a color" })
+-- hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("foot -e btop"), { description = "Open system monitor" })
 
 -- volume step 2% (overrides the shared 5% bindings)
 hl.unbind("XF86AudioRaiseVolume")

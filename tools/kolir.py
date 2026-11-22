@@ -76,7 +76,7 @@ OPTIONAL_CHECKS = (
     (("nmcli",), "Internet settings page", "NetworkManager"),
     (("bluetoothctl",), "Bluetooth settings page", "bluez"),
     (("upower",), "battery indicator (UPower daemon)", "upower"),
-    (("hyprpicker",), "colour picker bind", "hyprpicker"),
+    (("hyprpicker",), "colour picker bind (SUPER+I)", "hyprpicker"),
     (("wl-screenrec",), "fallback screen recorder", "wl-screenrec"),
     (("zenity",), "wallpaper picker", "zenity"),
     (("nautilus",), "file manager", "nautilus"),

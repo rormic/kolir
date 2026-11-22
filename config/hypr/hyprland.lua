@@ -313,6 +313,9 @@ hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"), { des
 -- lock when the laptop lid closes; logind handles the actual suspend
 hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd("loginctl lock-session"), { description = "Lock when the lid closes" })
 
+-- colour picker (optional hyprpicker; copies the picked colour to the clipboard)
+hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Pick a colour" })
+
 -- Example binds, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal), { description = "Open the terminal" })
 local closeWindowBind = hl.bind(mainMod .. " + C", hl.dsp.window.close(), { description = "Close the window" })
