@@ -9,6 +9,7 @@ Item {
     required property string thumbnailSource
     required property string fileName
     required property bool selected
+    required property bool folder
 
     signal activated()
 
@@ -19,6 +20,7 @@ Item {
     // full preview bitmap on every scroll.
     readonly property int thumbnailPixelWidth: 480
     readonly property real thumbnailDecodeScale: 1.5
+    readonly property int folderIconSize: 42
 
     implicitWidth: 220
     implicitHeight: 170
@@ -61,12 +63,23 @@ Item {
                 Math.ceil(root.width * root.thumbnailDecodeScale))
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            visible: root.thumbnailSource !== ""
+            visible: !root.folder && root.thumbnailSource !== ""
         }
 
         Text {
             anchors.centerIn: parent
-            visible: root.thumbnailSource === ""
+            visible: root.folder
+            text: Icons.folder
+            color: root.selected
+                ? Colors.primary
+                : Colors.withAlpha(Colors.primary, 0.72)
+            font.family: Typography.iconFont
+            font.pixelSize: root.folderIconSize
+        }
+
+        Text {
+            anchors.centerIn: parent
+            visible: !root.folder && root.thumbnailSource === ""
             text: Icons.wallpaper
             color: Colors.withAlpha(Colors.onSurfaceVariant, 0.55)
             font.family: Typography.iconFont

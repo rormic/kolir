@@ -4,7 +4,8 @@
 # Використання: wallpaper-thumbnails.sh <wallpaper-dir> <cache-dir>
 #
 # Друкує по одному запису на рядок, розділяючи поля табуляцією:
-#   total<TAB><кількість>
+#   dir<TAB><шлях-до-підтеки>
+#   total<TAB><кількість-шпалер>
 #   <шлях-до-шпалер><TAB><шлях-до-мініатюри>
 #
 # Готові мініатюри друкуються першими, тому панель показує те, що вже є в
@@ -51,12 +52,13 @@ for cmdline in /proc/[0-9]*/cmdline; do
 done
 
 list_file="$cache/.list.$$"
+dir_file="$cache/.dirs.$$"
 plan_file="$cache/.plan.$$"
 thumb_tmp=""
 ffmpeg_pid=""
 
 cleanup() {
-    rm -f "$list_file" "$plan_file"
+    rm -f "$list_file" "$dir_file" "$plan_file"
     if [ -n "$thumb_tmp" ]; then
         rm -f "$thumb_tmp"
     fi
@@ -74,6 +76,15 @@ cancel() {
 trap cleanup EXIT
 trap cancel TERM INT HUP
 
+# Підтеки для навігації: видимі каталоги першого рівня, без прихованих.
+find "$src" -mindepth 1 -maxdepth 1 -type d ! -name '.*' \
+    -print 2>/dev/null | LC_ALL=C sort > "$dir_file" || true
+
+while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    printf 'dir\t%s\n' "$dir"
+done < "$dir_file"
+
 # Ті самі розширення, що й у random-wallpaper.sh, щоб список і випадковий
 # вибір бачили однаковий набір файлів.
 find "$src" -maxdepth 1 -type f \
@@ -83,13 +94,20 @@ find "$src" -maxdepth 1 -type f \
 total=$(wc -l < "$list_file" | tr -d ' ')
 printf 'total\t%s\n' "$total"
 
+: > "$plan_file"
+# The plan is written through an open descriptor: a SIGTERM from a folder
+# switch runs cleanup (which unlinks the plan) while this loop may still be
+# between iterations, and writing to the still-open unlinked inode must not
+# produce an error.
+exec 3>> "$plan_file"
 while IFS= read -r path; do
     [ -n "$path" ] || continue
     mtime=$(stat -c '%Y' -- "$path" 2>/dev/null) || mtime=0
     digest=$(printf '%s\n%s\n' "$path" "$mtime" | sha1sum)
     digest=${digest%% *}
-    printf '%s\t%s\t%s\n' "$mtime" "$cache/${digest}-${mtime}.jpg" "$path" >> "$plan_file"
+    printf '%s\t%s\t%s\n' "$mtime" "$cache/${digest}-${mtime}.jpg" "$path" >&3
 done < "$list_file"
+exec 3>&-
 
 # Перший прохід: усе, що вже закешовано, віддаємо негайно.
 while IFS='	' read -r mtime thumb path; do

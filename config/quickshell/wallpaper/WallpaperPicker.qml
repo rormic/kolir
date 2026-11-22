@@ -9,9 +9,14 @@ import "../services"
 import "../theme"
 
 // Wallpaper picker overlay. Replaces the Zenity file dialog for SUPER+CTRL+T:
-// a grid of cached 16:9 thumbnails from ~/Pictures/wallpaper, keyboard and
-// mouse selection, a Random action, and Escape/outside-click dismissal that
+// a grid of cached 16:9 thumbnails, keyboard and mouse selection, folder
+// navigation, a Random action, and Escape/outside-click dismissal that
 // applies nothing (the same contract as cancelling the Zenity picker).
+//
+// The grid starts in ShellPaths.wallpaperDir and can walk into subfolders
+// (shown as folder tiles), back to the parent with Backspace/the up button, or
+// straight to the default library with the home button. Navigation lasts for
+// the lifetime of the shell.
 //
 // Thumbnails are produced by scripts/wallpaper-thumbnails.sh into the
 // Quickshell cache: the picker never decodes a full-size wallpaper, existing
@@ -54,10 +59,51 @@ Scope {
     property real reveal: 0
     property bool scanning: false
     property int total: 0
+    property int fileCount: 0
     property string scanError: ""
 
+    // Folder being browsed. Initialised to the shared wallpaper library and
+    // kept across open/close for the lifetime of this shell.
+    property string currentDir: ShellPaths.wallpaperDir
+    readonly property string parentDir: {
+        const dir = root.currentDir;
+
+        if (dir === "" || dir === "/")
+            return "";
+
+        const slash = dir.lastIndexOf("/");
+        return slash <= 0 ? "/" : dir.substring(0, slash);
+    }
+
+    // Index of the first wallpaper tile. Directories are listed first, but
+    // opening the panel should start on a wallpaper when the folder has one.
+    property int firstFileIndex: -1
+    // Set while a running folder scan is being stopped for a new directory.
+    property bool restartPending: false
+    // Ignore buffered stdout from the folder that is being left behind.
+    property bool discardingEntries: false
+
+    function displayName(path) {
+        const name = path.substring(path.lastIndexOf("/") + 1);
+        return name === "" ? path : name;
+    }
+
     function consumeLine(line) {
+        if (root.discardingEntries)
+            return;
+
         const parts = line.split("\t");
+
+        if (parts[0] === "dir") {
+            if (parts[1])
+                wallpaperModel.append({
+                    kind: "dir",
+                    path: parts[1],
+                    thumb: "",
+                    name: root.displayName(parts[1]),
+                });
+            return;
+        }
 
         if (parts[0] === "total") {
             root.total = Number(parts[1]) || 0;
@@ -68,25 +114,73 @@ Scope {
 
         const path = parts[0];
         wallpaperModel.append({
+            kind: "file",
             path: path,
             thumb: parts[1] || "",
-            name: path.substring(path.lastIndexOf("/") + 1),
+            name: root.displayName(path),
         });
+        root.fileCount += 1;
 
-        if (wallpaperModel.count === 1)
-            grid.currentIndex = 0;
+        if (root.firstFileIndex < 0) {
+            root.firstFileIndex = wallpaperModel.count - 1;
+            grid.currentIndex = root.firstFileIndex;
+        }
+    }
+
+    function resetModel() {
+        wallpaperModel.clear();
+        grid.currentIndex = -1;
+        root.total = 0;
+        root.fileCount = 0;
+        root.firstFileIndex = -1;
+        root.scanError = "";
+    }
+
+    function beginScan() {
+        root.scanning = true;
+        scanProc.running = true;
     }
 
     function startScan() {
         if (scanProc.running)
             return;
 
-        wallpaperModel.clear();
-        grid.currentIndex = -1;
-        root.total = 0;
-        root.scanError = "";
-        root.scanning = true;
-        scanProc.running = true;
+        root.resetModel();
+        root.beginScan();
+    }
+
+    function navigateTo(path) {
+        if (path === "" || path === root.currentDir)
+            return;
+
+        root.currentDir = path;
+        root.resetModel();
+
+        if (scanProc.running) {
+            // The worker cannot be retargeted: stop it and start the new
+            // directory from onExited, so its stdout never mixes two folders.
+            root.discardingEntries = true;
+            root.restartPending = true;
+            scanProc.running = false;
+        } else {
+            root.beginScan();
+        }
+    }
+
+    function goUp() {
+        if (root.parentDir !== "")
+            root.navigateTo(root.parentDir);
+    }
+
+    function goHome() {
+        root.navigateTo(ShellPaths.wallpaperDir);
+    }
+
+    function activateEntry(kind, path) {
+        if (kind === "dir")
+            root.navigateTo(path);
+        else
+            root.applyWallpaper(path);
     }
 
     function open() {
@@ -120,7 +214,8 @@ Scope {
         if (grid.currentIndex < 0 || grid.currentIndex >= wallpaperModel.count)
             return;
 
-        root.applyWallpaper(wallpaperModel.get(grid.currentIndex).path);
+        const entry = wallpaperModel.get(grid.currentIndex);
+        root.activateEntry(entry.kind, entry.path);
     }
 
     function clampScroll(y) {
@@ -145,11 +240,27 @@ Scope {
         applyProc.running = true;
     }
 
-    // Mirrors random-wallpaper.sh: pick from the same set, apply, regenerate.
+    // In the default library this stays exactly random-wallpaper.sh. In any
+    // other folder, pick one of that folder's wallpapers and use the same
+    // set-wallpaper.sh + generate-colors.sh chain.
     function applyRandom() {
-        root.close();
-        randomProc.command = ["sh", ShellPaths.hyprScripts + "/random-wallpaper.sh"];
-        randomProc.running = true;
+        if (root.currentDir === ShellPaths.wallpaperDir) {
+            root.close();
+            randomProc.command = ["sh", ShellPaths.hyprScripts + "/random-wallpaper.sh"];
+            randomProc.running = true;
+            return;
+        }
+
+        const files = [];
+        for (let i = 0; i < wallpaperModel.count; i++) {
+            const entry = wallpaperModel.get(i);
+            if (entry.kind === "file")
+                files.push(entry.path);
+        }
+        if (files.length === 0)
+            return;
+
+        root.applyWallpaper(files[Math.floor(Math.random() * files.length)]);
     }
 
     IpcHandler {
@@ -170,6 +281,18 @@ Scope {
         function random(): void {
             root.applyRandom();
         }
+
+        function openDir(path: string): void {
+            root.navigateTo(path);
+        }
+
+        function up(): void {
+            root.goUp();
+        }
+
+        function home(): void {
+            root.goHome();
+        }
     }
 
     ListModel {
@@ -183,7 +306,7 @@ Scope {
         command: [
             "sh",
             ShellPaths.wallpaperThumbnails,
-            ShellPaths.wallpaperDir,
+            root.currentDir,
             ShellPaths.wallpaperPreviewDir,
         ]
 
@@ -200,7 +323,17 @@ Scope {
         }
 
         onExited: code => {
+            if (root.restartPending) {
+                root.restartPending = false;
+                root.discardingEntries = false;
+                root.resetModel();
+                root.beginScan();
+                return;
+            }
+
             root.scanning = false;
+            if (wallpaperModel.count > 0 && grid.currentIndex < 0)
+                grid.currentIndex = 0;
         }
     }
 
@@ -362,26 +495,59 @@ Scope {
                         font.pixelSize: Dimensions.icon.extraLarge
                     }
 
-                    Text {
+                    Column {
+                        id: titleColumn
+
                         anchors {
                             left: parent.left
                             leftMargin: 52
+                            right: headerControls.left
+                            rightMargin: 12
                             verticalCenter: parent.verticalCenter
                         }
-                        text: "Wallpaper"
-                        color: Colors.onSurface
-                        font.family: Typography.barFont
-                        font.pixelSize: Typography.size.titleSmall
-                        font.weight: Typography.weight.bold
+                        spacing: 1
+
+                        Text {
+                            text: "Wallpaper"
+                            color: Colors.onSurface
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.titleSmall
+                            font.weight: Typography.weight.bold
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: root.currentDir
+                            color: Colors.onSurfaceVariant
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.labelSmall
+                            elide: Text.ElideMiddle
+                        }
                     }
 
                     Row {
+                        id: headerControls
+
                         anchors {
                             right: parent.right
                             rightMargin: 14
                             verticalCenter: parent.verticalCenter
                         }
                         spacing: 10
+
+                        IconButton {
+                            icon: Icons.chevronUp
+                            iconSize: Dimensions.icon.medium
+                            visible: root.parentDir !== ""
+                            onClicked: root.goUp()
+                        }
+
+                        IconButton {
+                            icon: Icons.home
+                            iconSize: Dimensions.icon.medium
+                            visible: root.currentDir !== ShellPaths.wallpaperDir
+                            onClicked: root.goHome()
+                        }
 
                         Pill {
                             id: randomPill
@@ -461,9 +627,16 @@ Scope {
                     Keys.onReturnPressed: root.applyCurrent()
                     Keys.onEnterPressed: root.applyCurrent()
                     Keys.onEscapePressed: root.close()
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Backspace) {
+                            root.goUp();
+                            event.accepted = true;
+                        }
+                    }
 
                     delegate: WallpaperTile {
                         required property int index
+                        required property string kind
                         required property string path
                         required property string thumb
                         required property string name
@@ -472,9 +645,10 @@ Scope {
                         height: grid.cellHeight - root.tileSpacing
                         thumbnailSource: thumb
                         fileName: name
+                        folder: kind === "dir"
                         selected: GridView.isCurrentItem
 
-                        onActivated: root.applyWallpaper(path)
+                        onActivated: root.activateEntry(kind, path)
                     }
                 }
 
@@ -495,7 +669,7 @@ Scope {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.scanning
                             ? "Preparing previews…"
-                            : "No wallpapers in " + ShellPaths.wallpaperDir
+                            : "No wallpapers in " + root.currentDir
                         color: Colors.onSurfaceVariant
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelMedium
@@ -528,7 +702,7 @@ Scope {
                             leftMargin: 20
                             verticalCenter: parent.verticalCenter
                         }
-                        text: "[Arrows] Select   [Enter] Apply   [Esc] Close"
+                        text: "[Arrows] Select   [Enter] Open/Apply   [Backspace] Up   [Esc] Close"
                         color: Colors.onSurfaceVariant
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelSmall
@@ -547,7 +721,7 @@ Scope {
                             width: 120
                             visible: root.scanning
                             value: root.total > 0
-                                ? wallpaperModel.count / root.total * 100
+                                ? root.fileCount / root.total * 100
                                 : 0
                             animated: false
                         }
@@ -555,10 +729,10 @@ Scope {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.scanning
-                                ? "Previews " + wallpaperModel.count
+                                ? "Previews " + root.fileCount
                                     + (root.total > 0 ? " / " + root.total : "")
-                                : wallpaperModel.count
-                                    + (wallpaperModel.count === 1 ? " wallpaper" : " wallpapers")
+                                : root.fileCount
+                                    + (root.fileCount === 1 ? " wallpaper" : " wallpapers")
                             color: Colors.onSurfaceVariant
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.labelSmall
