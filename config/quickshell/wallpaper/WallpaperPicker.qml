@@ -543,18 +543,24 @@ Scope {
                         }
                         spacing: 10
 
+                        // Home always occupies the same slot to the left of
+                        // Back, so navigating never shifts the Back button.
+                        // In the default library it is dimmed and a click is
+                        // a no-op (navigateTo already ignores the same path).
+                        IconButton {
+                            icon: Icons.home
+                            iconSize: Dimensions.icon.medium
+                            iconColor: root.currentDir === ShellPaths.wallpaperDir
+                                ? Colors.withAlpha(Colors.onSurfaceVariant, 0.45)
+                                : Colors.onSurface
+                            onClicked: root.goHome()
+                        }
+
                         IconButton {
                             icon: Icons.chevronUp
                             iconSize: Dimensions.icon.medium
                             visible: root.parentDir !== ""
                             onClicked: root.goUp()
-                        }
-
-                        IconButton {
-                            icon: Icons.home
-                            iconSize: Dimensions.icon.medium
-                            visible: root.currentDir !== ShellPaths.wallpaperDir
-                            onClicked: root.goHome()
                         }
 
                         Pill {
