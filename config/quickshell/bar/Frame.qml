@@ -75,7 +75,11 @@ PanelWindow {
         layer.samples: 4
 
         ShapePath {
-            fillColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+            // Opaque on purpose: the frame ring is part of the same chrome as
+            // the bar and the settings sheet, so it must not tint with the
+            // wallpaper. A translucent ring reads as a see-through outline in
+            // the dark theme, where 6% of a bright wallpaper is very visible.
+            fillColor: Colors.surfaceContainerLow
             strokeWidth: 0
             fillRule: ShapePath.OddEvenFill
 

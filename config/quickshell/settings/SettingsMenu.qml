@@ -47,9 +47,11 @@ Item {
     readonly property real targetHeight: heightForPage(page)
 
     // The popup starts at the screen edge so the left body edge can stay at
-    // frame thickness while an outward foot is drawn into the frame.
+    // frame thickness while an outward foot is drawn into the frame. The sheet
+    // begins exactly at the bar's bottom edge; its opaque fill matches the bar
+    // and the frame ring, so the junction is seamless and nothing shows through.
     readonly property int popoutX: 0
-    readonly property int popoutY: Dimensions.bar.height - 1
+    readonly property int popoutY: Dimensions.bar.height
 
     readonly property int panelBottomRadius: Dimensions.radius.extraLarge
     // The sheet sits on the desktop frame. Its lower left corner pours down
@@ -57,12 +59,21 @@ Item {
     // the frame and melts into it over this many pixels, so the panel and the
     // frame read as one continuous surface.
     readonly property int panelMelt: Dimensions.radius.extraExtraLarge
-    // Right shoulder at the top, plus the left body edge that stays flush with
-    // the desktop frame.
+    // Distance from the popup width to the sheet's body edge, which is also the
+    // page content's right inset. The shoulder is safe to draw over the 4px
+    // frame ring only because the sheet, the bar and the frame all use the same
+    // opaque fill: a translucent sheet turned the flare into a pale, fringed
+    // notch.
     readonly property int panelFlare: 32
-    readonly property int panelShoulderHeight: 32
+    // The shoulder is the same quarter circle as the lower right corner, only
+    // concave: it starts at the bottom edge of the frame ring and meets the
+    // sheet's right edge one radius lower, so both ends of the sheet round the
+    // same way. `panelShoulderDrop` is where the shoulder ends below the sheet's
+    // top edge.
+    readonly property int panelShoulderRadius: panelBottomRadius
+    readonly property int panelShoulderDrop: Dimensions.frame.thickness + panelShoulderRadius
     readonly property int panelBodyLeft: Dimensions.frame.thickness
-    readonly property int contentTopInset: panelShoulderHeight + 8
+    readonly property int contentTopInset: panelShoulderDrop + 8
     readonly property int contentLeftInset: panelBodyLeft
     readonly property int contentRightInset: panelFlare
 
@@ -75,26 +86,28 @@ Item {
     // Rounded body of the sheet. Keep the contour valid while the panel is
     // only a few pixels tall.
     readonly property real panelBodyHeight: Math.max(
-        panelShoulderHeight + panelBottomRadius + 16,
+        panelShoulderDrop + panelBottomRadius + 16,
         panelHeight * reveal)
     // The pour grows in once the sheet has dropped, so it never stretches the
     // opening animation into a long tail.
     readonly property real panelMeltHeight: panelMelt * contentReveal
     readonly property real panelShapeHeight: panelBodyHeight + panelMeltHeight
 
-    // Right shoulder curves outward into the bar. The left edge stays on the
-    // frame; the bottom edge bends down at the left and flows into that frame
-    // strip, so no rounded corner or notch is left where the two meet.
+    // Right shoulder arcs outward into the chrome's bottom edge with the same
+    // radius as the lower right corner. The left edge stays on the frame; the
+    // bottom edge bends down at the left and flows into that frame strip, so no
+    // rounded corner or notch is left where the two meet.
     readonly property string panelFillPath: {
-        const w = panelShapeWidth;
+        const w = panelShapeWidth - panelFlare;
         const h = panelBodyHeight;
         const m = panelMeltHeight;
         const r = panelBottomRadius;
-        const f = panelFlare;
-        const sh = panelShoulderHeight;
+        const sr = panelShoulderRadius;
+        const top = Dimensions.frame.thickness;
         const bl = panelBodyLeft;
-        return `M ${bl} 0 H ${w} Q ${w - f} 0 ${w - f} ${sh} V ${h - r}`
-            + ` Q ${w - f} ${h} ${w - f - r} ${h} H ${bl + m}`
+        return `M ${bl} 0 H ${w + sr} V ${top}`
+            + ` A ${sr} ${sr} 0 0 0 ${w} ${top + sr} V ${h - r}`
+            + ` Q ${w} ${h} ${w - r} ${h} H ${bl + m}`
             + ` C ${bl + m * 0.375} ${h} ${bl} ${h} ${bl} ${h + m}`
             + ` V 0 Z`;
     }
@@ -353,7 +366,7 @@ Item {
                 preferredRendererType: Shape.CurveRenderer
 
                 ShapePath {
-                    fillColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.94)
+                    fillColor: Colors.surfaceContainerLow
                     strokeWidth: 0
 
                     PathSvg {
@@ -370,7 +383,7 @@ Item {
                     left: parent.left
                     right: parent.right
                 }
-                height: root.panelShoulderHeight
+                height: root.panelShoulderDrop
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 z: 0
             }
