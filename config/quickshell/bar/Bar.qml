@@ -160,6 +160,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 onActivated: settingsMenu.open("main")
             }
+            Battery         { anchors.verticalCenter: parent.verticalCenter }
             Brightness      { anchors.verticalCenter: parent.verticalCenter }
             Volume          { anchors.verticalCenter: parent.verticalCenter }
             ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }

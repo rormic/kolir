@@ -12,6 +12,10 @@ QtObject {
     // Hyprland helper scripts installed under ~/.config/hypr/scripts.
     readonly property string hyprScripts: home + "/.config/hypr/scripts"
 
+    // SMBIOS chassis type, used by BatteryService to tell a laptop (where a
+    // missing battery is a problem) from a desktop (where it is normal).
+    readonly property string chassisType: "/sys/class/dmi/id/chassis_type"
+
     // Theme state shared with the Hyprland scripts.
     readonly property string currentTheme: home + "/.cache/current_theme"
 
