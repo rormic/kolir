@@ -24,7 +24,7 @@ Item {
     implicitWidth: 380
     // Mirrors `appearanceHeight` in SettingsMenu.qml. Tall enough for the
     // resting cards so the page does not open with a sliver of scroll.
-    implicitHeight: 744
+    implicitHeight: 785
 
     // Local slider position while dragging or after a wheel change, so the
     // handle follows the pointer without waiting for a regeneration.
@@ -635,6 +635,43 @@ Item {
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelSmall
                         wrapMode: Text.Wrap
+                    }
+
+                    // Palette crossfade. Colors.qml animates every generated
+                    // color; switching this off applies them instantly, which
+                    // is the escape hatch for slow machines.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Crossfade palette"
+                                color: Colors.onSurface
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.bodyMedium
+                                font.weight: Typography.weight.medium
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Animate color changes between themes"
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Toggle {
+                            Layout.alignment: Qt.AlignVCenter
+                            checked: AppearanceService.crossfade
+                            onToggled: value => AppearanceService.setCrossfade(value)
+                        }
                     }
                 }
             }

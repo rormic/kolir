@@ -16,7 +16,9 @@ import "."
 // to ~/.cache/current_theme by generate-colors.sh, so the bar's theme toggle
 // and GTK/KDE stay in sync. Changes regenerate the palette through
 // generate-colors.sh, which writes colors.json in place; Colors.qml watches
-// that file, so the shell updates without a restart.
+// that file, so the shell crossfades to the new palette without a restart.
+// `crossfade` is the only non-Matugen choice here: it lets Colors.qml apply
+// the palette instantly on slow machines.
 QtObject {
     id: root
 
@@ -42,6 +44,10 @@ QtObject {
     // Derived from ~/.cache/current_theme while no saved state exists, so the
     // page reflects the live theme instead of pretending Auto is selected.
     property string mode: "dark"
+    // Crossfade of the generated palette, read by Colors.qml. On by default;
+    // turning it off keeps every generated color but applies it instantly,
+    // which is the escape hatch for slow machines.
+    property bool crossfade: true
 
     readonly property string schemeLabel: root.labelFor(root.schemeType)
 
@@ -263,6 +269,16 @@ QtObject {
         root.commit();
     }
 
+    // Palette crossfade is a Colors.qml option, not a Matugen input: persist it
+    // without regenerating the palette.
+    function setCrossfade(value) {
+        if (root.crossfade === value)
+            return;
+
+        root.crossfade = value;
+        root.saveTimer.restart();
+    }
+
     function commit() {
         root.hasSavedMode = true;
         root.now = new Date();
@@ -292,6 +308,9 @@ QtObject {
                     root.mode = parsed.mode;
                     root.hasSavedMode = true;
                 }
+
+                if (typeof parsed.crossfade === "boolean")
+                    root.crossfade = parsed.crossfade;
             } catch (error) {
                 console.warn("AppearanceService: invalid state file:", error);
             }
@@ -308,6 +327,7 @@ QtObject {
             type: root.schemeType,
             contrast: Number(root.contrast.toFixed(2)),
             mode: root.mode,
+            crossfade: root.crossfade,
         }));
     }
 
@@ -497,6 +517,10 @@ QtObject {
             root.setMode(value);
         }
 
+        function setCrossfade(value: string): void {
+            root.setCrossfade(value === "true" || value === "on" || value === "1");
+        }
+
         function regenerate(): void {
             root.regenerateTimer.stop();
             root.regenerate();
@@ -508,6 +532,7 @@ QtObject {
                 contrast: root.contrast,
                 mode: root.mode,
                 resolved: root.effectiveMode(),
+                crossfade: root.crossfade,
                 auto: root.autoActive,
                 autoPaused: root.autoPaused,
                 autoStatus: root.autoStatusText,

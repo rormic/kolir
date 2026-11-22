@@ -78,11 +78,12 @@ esac
 
 # --- Appearance settings ----------------------------------------------------
 # The Appearance settings page owns ~/.cache/quickshell/appearance.json:
-#   {"type":"scheme-neutral","contrast":0,"mode":"auto"}
+#   {"type":"scheme-neutral","contrast":0,"mode":"auto","crossfade":true}
 # `mode` is the user intent (auto/light/dark). Auto follows the sunrise/sunset
 # schedule in AppearanceService, which passes the resolved light/dark; light
 # and dark are explicit and also update the resolved current_theme. Environment
 # variables win so a caller can regenerate without writing the state file.
+# `crossfade` is read only by the shell (Colors.qml) and is ignored here.
 APPEARANCE_FILE=$HOME/.cache/quickshell/appearance.json
 
 appearance_string() {

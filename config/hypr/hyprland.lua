@@ -182,6 +182,11 @@ hl.curve("easy", { type = "spring", mass = 1, stiffness = 238.1191, dampening = 
 
 hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = "default" })
 hl.animation({ leaf = "border", enabled = true, speed = 5.39, bezier = "easeOutQuint" })
+-- The active/inactive border colours come from the generated colors.lua, so
+-- the `border` leaf above is what crossfades them after a theme toggle.
+-- `borderangle` only matters for gradient borders, but without it an angle
+-- change would step instead of animating; keep it on the same curve family.
+hl.animation({ leaf = "borderangle", enabled = true, speed = 8, bezier = "linear", style = "loop" })
 hl.animation({ leaf = "windows", enabled = true, speed = 4.79, spring = "easy" })
 hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, spring = "easy", style = "popin 87%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = "linear", style = "popin 87%" })

@@ -51,9 +51,10 @@ kolir_apply_theme_mode() {
 }
 
 # Keep the persisted Appearance mode in sync when the bar toggle flips the
-# theme. AppearanceService owns the file as one-line JSON with exactly "type",
-# "contrast" and "mode"; a missing file means the Appearance page was never
-# used, so the legacy current_theme path still applies.
+# theme. AppearanceService owns the file as one-line JSON; this helper rewrites
+# only "mode" and leaves the other keys (type, contrast, crossfade) alone. A
+# missing file means the Appearance page was never used, so the legacy
+# current_theme path still applies.
 kolir_sync_appearance_mode() {
 	_kolir_appearance="${HOME}/.cache/quickshell/appearance.json"
 	[ -r "$_kolir_appearance" ] || return 0

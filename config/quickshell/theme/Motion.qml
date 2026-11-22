@@ -7,6 +7,14 @@ import QtQuick
 QtObject {
     // Theme color changes (Surface, Pill text, Toggle track).
     readonly property int color: 140
+    // Crossfade of the generated palette when Matugen rewrites colors.json
+    // (theme toggle, new wallpaper, Appearance change). Long enough to read as
+    // one transition, short enough to stay out of the way of the bar controls,
+    // which use `color`. Colors.qml applies it to every palette entry.
+    readonly property int theme: 360
+    // Easing of the palette crossfade. Matches the OutCubic curve the rest of
+    // the shell uses for color changes.
+    readonly property int themeEasing: Easing.OutCubic
     // Pointer hover accents (Pill border and icon).
     readonly property int hover: 150
     // Press feedback (IconButton scale and colors).

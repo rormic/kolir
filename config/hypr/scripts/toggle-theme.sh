@@ -11,6 +11,15 @@ current=$(cat "$STATE_FILE" 2>/dev/null)
 [[ "$current" == "light" ]] && new="dark" || new="light"
 
 kolir_sync_appearance_mode "$new"
-kolir_apply_theme_mode "$new"
+
+# Shell first, then the instant parts. Writing the state makes the bar icon
+# follow the tap and lets generate-colors.sh regenerate the palette without
+# applying the GTK/KDE theme names itself (its mode already matches), so
+# Colors.qml crossfades the new palette before GTK and KDE snap to it.
+kolir_write_theme_state "$new"
 
 zsh "$SCRIPT_DIR/generate-colors.sh"
+status=$?
+
+kolir_apply_system_theme "$new"
+exit $status

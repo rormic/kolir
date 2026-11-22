@@ -33,7 +33,7 @@ EmbeddedSheet {
     // with a sliver of scroll (mirrors InternetPage.implicitHeight).
     readonly property int internetHeight: 546
     // Mirrors AppearancePage.implicitHeight.
-    readonly property int appearanceHeight: 744
+    readonly property int appearanceHeight: 785
 
     // Distance a page travels during a navigation transition. Local optical
     // offset, not a shared metric.
