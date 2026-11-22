@@ -3,7 +3,7 @@
 A Material You desktop for Arch Linux on Wayland: Hyprland (Lua config) plus a
 custom Quickshell bar, launcher, notifications, OSDs, and settings. Matugen
 derives a neutral palette from the wallpaper and updates Hyprland, Foot,
-Neovim, GTK, and Quickshell.
+GTK, and Quickshell.
 
 **Phase 1:** install from a git checkout with `kolir setup`. There is no AUR
 package yet, and the CLI never installs packages or writes outside your home
