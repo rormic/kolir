@@ -9,10 +9,6 @@ input_path = '~/.config/matugen/templates/terminal-sequences'
 output_path = '~/.cache/terminal-sequences'
 post_hook = 'tee /dev/pts/[0-9]* < ~/.cache/terminal-sequences > /dev/null 2>&1'
 
-[templates.nvim]
-input_path = '~/.config/matugen/templates/nvim-colors.lua'
-output_path = '~/.local/share/nvim/matugen-colors.lua'
-
 [templates.hyprland]
 input_path = '~/.config/matugen/templates/hyprland-colors.lua'
 output_path = '~/.config/hypr/colors.lua'

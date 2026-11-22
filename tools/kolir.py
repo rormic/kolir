@@ -410,6 +410,22 @@ class Deployer:
         self._write(path, content)
 
     # -- feature blocks ----------------------------------------------------
+    def prune_dangling_templates(self, dst: Path, src: Path) -> None:
+        """Drop links into this root whose shipped template no longer exists."""
+        root = Path(os.path.realpath(src)).parents[2]
+        for entry in sorted(dst.iterdir()):
+            if not entry.is_symlink() or entry.exists():
+                continue
+            target = lexical_link_target(entry)
+            if not is_under(target, root):
+                continue
+            self._change(
+                f"removed dangling template link {entry} -> {target}",
+                f"remove dangling template link {entry} -> {target}",
+            )
+            if not self.dry_run:
+                entry.unlink()
+
     def configure_matugen_templates(self, dst: Path, src: Path) -> None:
         """Link the whole directory, or fill a real local directory per file."""
         dst = Path(dst)
@@ -417,6 +433,7 @@ class Deployer:
             self.ensure_symlink(dst, src)
             return
         if dst.is_dir():
+            self.prune_dangling_templates(dst, src)
             for template in sorted(src.iterdir()):
                 if not template.is_file():
                     continue
@@ -441,6 +458,29 @@ class Deployer:
                     local.symlink_to(template)
             return
         self.ensure_symlink(dst, src)
+
+    def drop_matugen_section(self, config_path: Path, section: str) -> None:
+        """Remove a template entry that the shipped config no longer defines."""
+        try:
+            original = config_path.read_text(encoding="utf-8")
+        except OSError:
+            return
+        updated = remove_toml_section(original, f"templates.{section}")
+        if updated == original:
+            return
+        if config_path.is_symlink():
+            self.backup(config_path)
+            self.note(
+                f"matugen: replaced the {config_path} symlink with a local copy "
+                f"before dropping [templates.{section}]"
+            )
+        else:
+            self.backup(config_path)
+        self._change(
+            f"dropped [templates.{section}] from {config_path}",
+            f"drop [templates.{section}] from {config_path}",
+        )
+        self._write(config_path, updated)
 
     def configure_obsidian(self, config_path: Path, output: str) -> None:
         output_path = Path(output)
@@ -485,6 +525,40 @@ def toml_value(value: str) -> str:
         return f"'{value}'"
     escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
     return f'"{escaped}"'
+
+
+def remove_toml_section(text: str, section: str) -> str:
+    """Drop the [section] table, leaving every other table untouched."""
+    lines = text.splitlines()
+    header = f"[{section}]"
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == header:
+            start = index
+            break
+    if start is None:
+        return text
+
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            end = index
+            break
+
+    before = lines[:start]
+    after = lines[end:]
+    while before and not before[-1].strip():
+        before.pop()
+    while after and not after[0].strip():
+        after.pop(0)
+
+    result = before
+    if before and after:
+        result = before + [""] + after
+    elif after:
+        result = after
+    return "\n".join(result) + "\n" if result else ""
 
 
 def replace_obsidian_block(text: str, output: str) -> str:
@@ -797,7 +871,6 @@ def setup_directories(deploy: Deployer) -> None:
         config_home() / "quickshell",
         config_home() / "gtk-3.0",
         config_home() / "gtk-4.0",
-        home / ".local/share/nvim",
         cache_home(),
         cache_home() / "kolir",
     ):
@@ -852,6 +925,7 @@ def setup_matugen(deploy: Deployer, root: Path, obsidian_output: str | None) -> 
     deploy.copy_if_absent(
         root / MATUGEN_CONFIG_REL, config_path, "matugen config.toml"
     )
+    deploy.drop_matugen_section(config_path, "nvim")
     deploy.configure_matugen_templates(
         matugen / "templates", root / MATUGEN_TEMPLATES_REL
     )
