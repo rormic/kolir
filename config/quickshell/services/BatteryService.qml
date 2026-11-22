@@ -48,8 +48,10 @@ QtObject {
     readonly property bool expected: root.present
         || (root.chassisPortable && (root.upowerReady || root.startupSettled))
 
+    // Quickshell exposes UPower's 0-100 Percentage as a 0.0-1.0 fraction
+    // (DBusDataTransform<PowerPercentage>), so scale it back for the bar.
     readonly property int percentage: root.present
-        ? Math.max(0, Math.min(100, Math.round(root.display.percentage)))
+        ? Math.max(0, Math.min(100, Math.round(root.display.percentage * 100)))
         : 0
 
     readonly property bool charging: root.present
