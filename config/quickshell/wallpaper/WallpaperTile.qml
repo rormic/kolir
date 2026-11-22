@@ -22,6 +22,15 @@ Item {
     readonly property int thumbnailPixelWidth: 480
     readonly property int folderIconSize: 42
 
+    // Hover is purely visual: it never moves the keyboard selection, so a
+    // moving grid under a stationary cursor does not churn selection state.
+    readonly property bool hovered: hover.hovered
+        && (!GridView.view || !GridView.view.moving)
+
+    HoverHandler {
+        id: hover
+    }
+
     implicitWidth: 220
     implicitHeight: 170
 
@@ -32,14 +41,18 @@ Item {
         radius: Dimensions.radius.medium
         color: root.selected
             ? Colors.stateLayer(Colors.primary, 0.16)
-            : Colors.surfaceContainerHigh
+            : root.hovered
+                ? Colors.stateLayer(Colors.primary, 0.09)
+                : Colors.surfaceContainerHigh
         border.width: root.selected ? 2 : 1
         border.color: root.selected
             ? Colors.primary
-            : Colors.withAlpha(Colors.outlineVariant, 0.22)
+            : root.hovered
+                ? Colors.withAlpha(Colors.primary, 0.5)
+                : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-        Behavior on color { ColorAnimation { duration: Motion.color } }
-        Behavior on border.color { ColorAnimation { duration: Motion.color } }
+        Behavior on color { ColorAnimation { duration: Motion.hover } }
+        Behavior on border.color { ColorAnimation { duration: Motion.hover } }
     }
 
     Item {
@@ -70,7 +83,7 @@ Item {
             anchors.centerIn: parent
             visible: root.folder
             text: Icons.folder
-            color: root.selected
+            color: root.selected || root.hovered
                 ? Colors.primary
                 : Colors.withAlpha(Colors.primary, 0.72)
             font.family: Typography.iconFont
@@ -101,10 +114,12 @@ Item {
         height: root.labelHeight
         verticalAlignment: Text.AlignVCenter
         text: root.fileName
-        color: root.selected ? Colors.onSurface : Colors.onSurfaceVariant
+        color: root.selected || root.hovered ? Colors.onSurface : Colors.onSurfaceVariant
         font.family: Typography.barFont
         font.pixelSize: Typography.size.labelSmall
-        font.weight: root.selected ? Typography.weight.medium : Typography.weight.regular
+        font.weight: root.selected || root.hovered
+            ? Typography.weight.medium
+            : Typography.weight.regular
         elide: Text.ElideMiddle
     }
 
