@@ -44,6 +44,10 @@ Scope {
     // One extra row above/below the viewport smooths a fling without decoding
     // several offscreen rows up front.
     readonly property int prefetchRows: 1
+    // Fraction of a grid row per 120 wheel units. A whole row per notch felt
+    // too fast; 0.7 keeps each notch deliberate while high-resolution wheels
+    // still accumulate smoothly.
+    readonly property real wheelRowsPerNotch: 0.7
 
     // GridView positions cells on a fixed pitch, so the pitch has to fit the
     // content width exactly; the visible tile is one spacing narrower.
@@ -600,9 +604,9 @@ Scope {
 
                     // Wheel degrees are always provided, including by
                     // high-resolution wheels; translate them proportionally
-                    // (120 = one detent = one row) instead of stepping a
-                    // whole row per fractional event. pixelDelta is only a
-                    // fallback for devices that report pixels without angles.
+                    // (120 = 0.7 row) instead of stepping a whole row per
+                    // fractional event. pixelDelta is only a fallback for
+                    // devices that report pixels without angles.
                     WheelHandler {
                         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                         onWheel: event => {
@@ -612,7 +616,8 @@ Scope {
                             grid.cancelFlick();
                             if (angle !== 0)
                                 grid.contentY = root.clampScroll(
-                                    grid.contentY - angle / 120 * grid.cellHeight);
+                                    grid.contentY - angle / 120 * grid.cellHeight
+                                        * root.wheelRowsPerNotch);
                             else if (pixel !== 0)
                                 grid.contentY = root.clampScroll(grid.contentY - pixel);
                             event.accepted = true;
