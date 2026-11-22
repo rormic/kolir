@@ -175,6 +175,7 @@ PanelWindow {
                     settingsMenu.open("main");
                 }
             }
+            DeviceBattery   { anchors.verticalCenter: parent.verticalCenter }
             Battery         { anchors.verticalCenter: parent.verticalCenter }
             Brightness      {
                 id: brightnessChip

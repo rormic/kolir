@@ -19,7 +19,8 @@ directory.
   libnotify, and wf-recorder for recording.
 - Optional: `ffmpeg` (lock background), `cliphist` (clipboard history),
   NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
-  indicator on laptops), `hyprpicker`, `wl-screenrec`, `zenity`, `nautilus`,
+  indicator on laptops), `python-dbus` + `python-gobject` (exact Bluetooth
+  headset battery), `hyprpicker`, `wl-screenrec`, `zenity`, `nautilus`,
   `playerctl` (media keys), the `mocu-xcursor` theme, and KDE Connect.
 - Fonts/icons used by the bar: Google Sans Code Nerd, DejaVu, Material Symbols,
   and Papirus.

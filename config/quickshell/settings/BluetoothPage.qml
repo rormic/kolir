@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell.Bluetooth
 import "../theme"
+import "../services"
 import "../bar/components"
 import "bluetooth"
 
@@ -21,6 +22,14 @@ Item {
     property var adapter: Bluetooth.defaultAdapter
 
     readonly property bool scanning: !!root.adapter && root.adapter.discovering
+
+    // Opening the page asks the device-battery helper for a reading, so an
+    // exact protocol value replaces BlueZ's coarse one without waiting for the
+    // next 60 s poll.
+    onVisibleChanged: {
+        if (root.visible)
+            DeviceBatteryService.refresh();
+    }
 
     // ── Header ─────────────────────────────────────────────────────────────
     SettingsPageHeader {

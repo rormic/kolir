@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Bluetooth
 import "../../theme"
+import "../../services"
 import "../../bar/components"
 
 // One device row in the Bluetooth page: state accent, glyph, name, status,
@@ -12,6 +13,35 @@ Item {
 
     readonly property bool hovered: rowHover.hovered
     readonly property bool connected: !!row.device && row.device.connected
+
+    // DeviceBatteryService speaks the exact protocols (Sony MDR…) and falls
+    // back to BlueZ on its own. The Bluetooth page prefers that reading over
+    // Quickshell's coarse `battery` value, which for Sony is rounded to 10%
+    // steps; devices without a helper reading keep the BlueZ value.
+    readonly property var exactBattery: {
+        if (!row.device || !row.connected)
+            return null;
+
+        const address = String(row.device.address || "").toUpperCase();
+        if (address === "")
+            return null;
+
+        const devices = DeviceBatteryService.devices;
+        for (let index = 0; index < devices.length; index++) {
+            const entry = devices[index];
+            if (String(entry.address).toUpperCase() === address)
+                return entry;
+        }
+        return null;
+    }
+
+    readonly property bool hasBattery: row.exactBattery !== null
+        || (!!row.device && row.device.batteryAvailable)
+    readonly property int batteryPercent: row.exactBattery !== null
+        ? row.exactBattery.percent
+        : Math.round(row.device.battery * 100)
+    readonly property bool batteryCharging: row.exactBattery !== null
+        && row.exactBattery.charging
 
     function deviceGlyph(icon) {
         switch (icon) {
@@ -177,22 +207,28 @@ Item {
             verticalCenter: parent.verticalCenter
         }
         spacing: 3
-        visible: !row.hovered && row.device.batteryAvailable
+        visible: !row.hovered && row.hasBattery
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: row.device.battery < 0.2
-                ? Icons.batteryLow
-                : Icons.batteryFull
-            color: Colors.onSurfaceVariant
+            text: row.batteryCharging
+                ? Icons.batteryChargingFull
+                : row.batteryPercent < 20
+                    ? Icons.batteryLow
+                    : Icons.batteryFull
+            color: row.batteryCharging
+                ? Colors.primary
+                : Colors.onSurfaceVariant
             font.family: Typography.iconFont
             font.pixelSize: Dimensions.icon.small + 2
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: Math.round(row.device.battery * 100) + "%"
-            color: Colors.onSurfaceVariant
+            text: row.batteryPercent + "%"
+            color: row.batteryCharging
+                ? Colors.primary
+                : Colors.onSurfaceVariant
             font.family: Typography.barFont
             font.pixelSize: Typography.size.labelSmall
         }

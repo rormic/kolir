@@ -19,6 +19,11 @@ QtObject {
     // Theme state shared with the Hyprland scripts.
     readonly property string currentTheme: home + "/.cache/current_theme"
 
+    // Bluetooth headset battery helper bundled with the shell, plus the cache
+    // it uses to avoid reconnecting to an exact-protocol device every minute.
+    readonly property string deviceBatteryScript: Quickshell.shellPath("scripts/device-battery/main.py")
+    readonly property string deviceBatteryState: home + "/.cache/quickshell/device-battery.json"
+
     // Matugen-generated palette consumed by Colors.qml.
     readonly property string colorsJson: home + "/.config/quickshell/colors.json"
 
