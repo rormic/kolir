@@ -11,6 +11,7 @@ QtObject {
     readonly property string shuffle: "shuffle"
     readonly property string folder: "folder"
     readonly property string home: "home"
+    readonly property string edit: "edit"
 
     readonly property string volumeUp: "volume_up"
     readonly property string volumeDown: "volume_down"

@@ -91,6 +91,69 @@ Scope {
             return;
         grid.currentIndex = index;
     }
+
+    // Manual path entry. The draft supports "~", absolute paths and paths
+    // relative to the folder being browsed; the validator resolves ".." and
+    // symlinks and only accepts readable directories.
+    property bool editingPath: false
+    property bool pathBusy: false
+    property string pathError: ""
+
+    function normalizePath(raw) {
+        let path = raw.trim();
+
+        if (path === "")
+            return "";
+
+        if (path === "~")
+            path = ShellPaths.home;
+        else if (path.startsWith("~/"))
+            path = ShellPaths.home + path.substring(1);
+        else if (!path.startsWith("/"))
+            path = root.currentDir + "/" + path;
+
+        if (path.length > 1)
+            path = path.replace(/\/+$/, "");
+
+        return path;
+    }
+
+    function beginPathEdit() {
+        root.pathError = "";
+        root.editingPath = true;
+        pathInput.text = root.currentDir;
+        pathInput.forceActiveFocus();
+        pathInput.selectAll();
+        pathFocusTimer.restart();
+    }
+
+    function cancelPathEdit() {
+        root.editingPath = false;
+        root.pathError = "";
+        focusTimer.restart();
+    }
+
+    function submitPath() {
+        if (root.pathBusy)
+            return;
+
+        const target = root.normalizePath(pathInput.text);
+        if (target === "") {
+            root.pathError = "Enter a folder path";
+            return;
+        }
+
+        root.pathBusy = true;
+        root.pathError = "";
+        pathCheckProc.resolved = "";
+        pathCheckProc.command = [
+            "sh", "-c",
+            'p=$(readlink -f -- "$1") || exit 1; [ -d "$p" ] && [ -r "$p" ] || exit 1; printf "%s\\n" "$p"',
+            "kolir-path",
+            target,
+        ];
+        pathCheckProc.running = true;
+    }
     // Set while a running folder scan is being stopped for a new directory.
     property bool restartPending: false
     // Ignore buffered stdout from the folder that is being left behind.
@@ -213,6 +276,12 @@ Scope {
         if (!win.visible)
             return;
 
+        root.editingPath = false;
+        root.pathError = "";
+        if (pathCheckProc.running) {
+            root.pathBusy = false;
+            pathCheckProc.running = false;
+        }
         revealIn.stop();
         revealOut.restart();
     }
@@ -307,6 +376,11 @@ Scope {
         function home(): void {
             root.goHome();
         }
+
+        function editPath(): void {
+            root.open();
+            root.beginPathEdit();
+        }
     }
 
     ListModel {
@@ -348,6 +422,36 @@ Scope {
             root.scanning = false;
             if (wallpaperModel.count > 0 && grid.currentIndex < 0)
                 grid.currentIndex = 0;
+        }
+    }
+
+    Process {
+        id: pathCheckProc
+
+        property string resolved: ""
+
+        running: false
+
+        stdout: StdioCollector {
+            onStreamFinished: pathCheckProc.resolved = text.trim()
+        }
+
+        onExited: code => {
+            root.pathBusy = false;
+
+            if (!root.editingPath)
+                return;
+
+            if (code === 0 && pathCheckProc.resolved !== "") {
+                root.editingPath = false;
+                root.pathError = "";
+                root.navigateTo(pathCheckProc.resolved);
+                focusTimer.restart();
+                return;
+            }
+
+            root.pathError = "Folder not found";
+            pathInput.forceActiveFocus();
         }
     }
 
@@ -422,6 +526,19 @@ Scope {
         interval: root.focusDelay
         repeat: false
         onTriggered: grid.forceActiveFocus()
+    }
+
+    Timer {
+        id: pathFocusTimer
+
+        interval: root.focusDelay
+        repeat: false
+        onTriggered: {
+            if (root.editingPath) {
+                pathInput.forceActiveFocus();
+                pathInput.selectAll();
+            }
+        }
     }
 
     PanelWindow {
@@ -523,13 +640,64 @@ Scope {
                             font.weight: Typography.weight.bold
                         }
 
-                        Text {
+                        Item {
+                            id: pathRow
+
                             width: parent.width
-                            text: root.currentDir
-                            color: Colors.onSurfaceVariant
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelSmall
-                            elide: Text.ElideMiddle
+                            height: 24
+
+                            Text {
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                visible: !root.editingPath
+                                text: root.currentDir
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                elide: Text.ElideMiddle
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.IBeamCursor
+                                    onClicked: root.beginPathEdit()
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: root.editingPath
+                                radius: Dimensions.radius.small
+                                color: Colors.surfaceContainerHighest
+                                border.width: 1
+                                border.color: root.pathError !== ""
+                                    ? Colors.error
+                                    : Colors.primary
+
+                                TextInput {
+                                    id: pathInput
+
+                                    anchors {
+                                        fill: parent
+                                        leftMargin: 8
+                                        rightMargin: 8
+                                    }
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    color: Colors.onSurface
+                                    selectionColor: Colors.withAlpha(Colors.primary, 0.35)
+                                    selectedTextColor: Colors.onSurface
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelMedium
+                                    clip: true
+                                    selectByMouse: true
+
+                                    Keys.onEscapePressed: root.cancelPathEdit()
+                                    Keys.onReturnPressed: root.submitPath()
+                                    Keys.onEnterPressed: root.submitPath()
+                                }
+                            }
                         }
                     }
 
@@ -542,6 +710,15 @@ Scope {
                             verticalCenter: parent.verticalCenter
                         }
                         spacing: 10
+
+                        IconButton {
+                            icon: Icons.edit
+                            iconSize: Dimensions.icon.medium
+                            active: root.editingPath
+                            onClicked: root.editingPath
+                                ? root.cancelPathEdit()
+                                : root.beginPathEdit()
+                        }
 
                         // Home always occupies the same slot to the left of
                         // Back, so navigating never shifts the Back button.
@@ -734,8 +911,14 @@ Scope {
                             leftMargin: 20
                             verticalCenter: parent.verticalCenter
                         }
-                        text: "[Arrows] Select   [Enter] Open/Apply   [Backspace] Up   [Esc] Close"
-                        color: Colors.onSurfaceVariant
+                        text: root.pathError !== ""
+                            ? root.pathError
+                            : root.editingPath
+                                ? "[Enter] Go   [Esc] Cancel"
+                                : "[Arrows] Select   [Enter] Open/Apply   [Backspace] Up   [Esc] Close"
+                        color: root.pathError !== ""
+                            ? Colors.error
+                            : Colors.onSurfaceVariant
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelSmall
                     }
