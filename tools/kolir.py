@@ -722,32 +722,51 @@ def verify_units(units: list[Path]) -> list[str]:
     return output
 
 
-def enable_idle_service(deploy: Deployer, no_systemd: bool) -> None:
-    """Enable hypridle.service, as the old installer did, unless asked not to."""
-    if no_systemd:
-        deploy.note("systemd: skipped enabling hypridle.service (--no-systemd)")
-        return
-    if deploy.dry_run:
-        deploy.note("would enable hypridle.service")
-        return
-    if not systemd_user_available():
-        deploy.note(
-            "no systemd user manager; enable hypridle.service later with "
-            "'systemctl --user enable --now hypridle.service'"
+# Session daemons that ship their own user unit and are needed by the shell.
+# `hypridle` reacts to the caffeine inhibitor, `hyprsunset` backs the night-light
+# chip and schedule, so setup enables both unless asked not to.
+SESSION_SERVICES = (
+    ("hypridle.service", "hypridle", "idle daemon"),
+    ("hyprsunset.service", "hyprsunset", "night light daemon"),
+)
+
+
+def enable_session_services(deploy: Deployer, no_systemd: bool) -> None:
+    """Enable the hypridle and hyprsunset user units, unless asked not to."""
+    user_manager: bool | None = None
+    for unit, command, purpose in SESSION_SERVICES:
+        if not shutil.which(command):
+            deploy.note(
+                f"systemd: skipped {unit}; '{command}' is not installed "
+                f"(install the {purpose} package and rerun 'kolir setup')"
+            )
+            continue
+        if no_systemd:
+            deploy.note(f"systemd: skipped enabling {unit} (--no-systemd)")
+            continue
+        if deploy.dry_run:
+            deploy.note(f"would enable {unit}")
+            continue
+        if user_manager is None:
+            user_manager = systemd_user_available()
+        if not user_manager:
+            deploy.note(
+                f"no systemd user manager; enable {unit} later with "
+                f"'systemctl --user enable --now {unit}'"
+            )
+            continue
+        result = subprocess.run(
+            ["systemctl", "--user", "enable", "--now", unit],
+            capture_output=True,
+            text=True,
         )
-        return
-    result = subprocess.run(
-        ["systemctl", "--user", "enable", "--now", "hypridle.service"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
-        ok("enabled hypridle.service")
-    else:
-        warn(
-            "could not enable hypridle.service: "
-            + (result.stderr.strip() or result.stdout.strip() or "unknown error")
-        )
+        if result.returncode == 0:
+            ok(f"enabled {unit}")
+        else:
+            warn(
+                f"could not enable {unit}: "
+                + (result.stderr.strip() or result.stdout.strip() or "unknown error")
+            )
 
 
 def install_reload_units(deploy: Deployer, no_systemd: bool) -> None:
@@ -1056,7 +1075,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
             deploy.note("zsh: skipped ~/.zshrc (pass --zsh to link it)")
 
         deploy.ensure_version()
-        enable_idle_service(deploy, args.no_systemd)
+        enable_session_services(deploy, args.no_systemd)
 
         if args.auto_reload:
             install_reload_units(deploy, args.no_systemd)
@@ -1579,33 +1598,40 @@ def check_systemd(report: Report) -> None:
 def check_user_services(report: Report) -> None:
     step("User services")
     if not systemd_user_available():
-        report.warn("no systemd user manager; cannot report hypridle.service")
-        return
-    try:
-        enabled = subprocess.run(
-            ["systemctl", "--user", "is-enabled", "hypridle.service"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        active = subprocess.run(
-            ["systemctl", "--user", "is-active", "hypridle.service"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        report.warn("could not query hypridle.service")
-        return
-    if enabled.returncode != 0:
         report.warn(
-            "hypridle.service is not enabled (run 'kolir setup' or "
-            "'systemctl --user enable --now hypridle.service')"
+            "no systemd user manager; cannot report "
+            + ", ".join(unit for unit, _, _ in SESSION_SERVICES)
         )
-    elif active.returncode != 0:
-        report.warn("hypridle.service is enabled but not active")
-    else:
-        report.ok("hypridle.service is enabled and active")
+        return
+    for unit, command, purpose in SESSION_SERVICES:
+        if not shutil.which(command):
+            report.warn(f"{unit}: '{command}' is not installed ({purpose})")
+            continue
+        try:
+            enabled = subprocess.run(
+                ["systemctl", "--user", "is-enabled", unit],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            active = subprocess.run(
+                ["systemctl", "--user", "is-active", unit],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            report.warn(f"could not query {unit}")
+            continue
+        if enabled.returncode != 0:
+            report.warn(
+                f"{unit} is not enabled (run 'kolir setup' or "
+                f"'systemctl --user enable --now {unit}')"
+            )
+        elif active.returncode != 0:
+            report.warn(f"{unit} is enabled but not active")
+        else:
+            report.ok(f"{unit} is enabled and active")
 
 
 def cmd_doctor(_args: argparse.Namespace) -> int:
