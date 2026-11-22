@@ -41,6 +41,9 @@ Scope {
     readonly property int tileLabelHeight: 28
     readonly property real thumbnailAspect: 16 / 9
     readonly property int focusDelay: 20
+    readonly property int completionDelay: 140
+    readonly property int completionRowHeight: 28
+    readonly property int maxCompletionRows: 8
     // One extra row above/below the viewport smooths a fling without decoding
     // several offscreen rows up front.
     readonly property int prefetchRows: 1
@@ -98,6 +101,10 @@ Scope {
     property bool editingPath: false
     property bool pathBusy: false
     property string pathError: ""
+    // Directory suggestions for the typed path. Index -1 means no row is
+    // highlighted; Enter then validates the text as typed.
+    property var completions: []
+    property int completionIndex: -1
 
     function normalizePath(raw) {
         let path = raw.trim();
@@ -120,14 +127,18 @@ Scope {
 
     function beginPathEdit() {
         root.pathError = "";
+        root.clearCompletions();
         root.editingPath = true;
         pathInput.text = root.currentDir;
         pathInput.forceActiveFocus();
         pathInput.selectAll();
         pathFocusTimer.restart();
+        completionTimer.restart();
     }
 
     function cancelPathEdit() {
+        completionTimer.stop();
+        root.clearCompletions();
         root.editingPath = false;
         root.pathError = "";
         focusTimer.restart();
@@ -153,6 +164,66 @@ Scope {
             target,
         ];
         pathCheckProc.running = true;
+    }
+
+    function clearCompletions() {
+        root.completions = [];
+        root.completionIndex = -1;
+    }
+
+    function requestCompletions() {
+        if (!root.editingPath)
+            return;
+
+        const query = pathInput.text;
+        completeProc.query = query;
+
+        if (completeProc.running) {
+            completeProc.restartPending = true;
+            return;
+        }
+        root.startCompletion();
+    }
+
+    function startCompletion() {
+        completeProc.activeQuery = completeProc.query;
+        completeOut.runQuery = completeProc.activeQuery;
+        completeProc.command = [
+            "sh",
+            ShellPaths.completeDirs,
+            root.currentDir,
+            completeProc.activeQuery,
+        ];
+        completeProc.running = true;
+    }
+
+    function applyCompletions(query, output) {
+        // A late answer for an older draft (or a closed field) is ignored.
+        if (!root.editingPath || query !== pathInput.text)
+            return;
+
+        const lines = output.split("\n").map(line => line.trim())
+            .filter(line => line !== "");
+        root.completions = lines.slice(0, root.maxCompletionRows);
+        root.completionIndex = -1;
+    }
+
+    function completeSuggestion(index) {
+        if (index < 0 || index >= root.completions.length)
+            return;
+
+        pathInput.text = root.completions[index] + "/";
+        pathInput.cursorPosition = pathInput.text.length;
+        root.completionIndex = -1;
+        completionTimer.restart();
+    }
+
+    function chooseSuggestion(index) {
+        if (index < 0 || index >= root.completions.length)
+            return;
+
+        pathInput.text = root.completions[index];
+        root.submitPath();
     }
     // Set while a running folder scan is being stopped for a new directory.
     property bool restartPending: false
@@ -276,6 +347,8 @@ Scope {
         if (!win.visible)
             return;
 
+        completionTimer.stop();
+        root.clearCompletions();
         root.editingPath = false;
         root.pathError = "";
         if (pathCheckProc.running) {
@@ -443,6 +516,8 @@ Scope {
                 return;
 
             if (code === 0 && pathCheckProc.resolved !== "") {
+                completionTimer.stop();
+                root.clearCompletions();
                 root.editingPath = false;
                 root.pathError = "";
                 root.navigateTo(pathCheckProc.resolved);
@@ -452,6 +527,31 @@ Scope {
 
             root.pathError = "Folder not found";
             pathInput.forceActiveFocus();
+        }
+    }
+
+    Process {
+        id: completeProc
+
+        property string query: ""
+        property string activeQuery: ""
+        property bool restartPending: false
+
+        running: false
+
+        stdout: StdioCollector {
+            id: completeOut
+
+            property string runQuery: ""
+
+            onStreamFinished: root.applyCompletions(runQuery, text)
+        }
+
+        onExited: code => {
+            if (completeProc.restartPending) {
+                completeProc.restartPending = false;
+                root.startCompletion();
+            }
         }
     }
 
@@ -539,6 +639,14 @@ Scope {
                 pathInput.selectAll();
             }
         }
+    }
+
+    Timer {
+        id: completionTimer
+
+        interval: root.completionDelay
+        repeat: false
+        onTriggered: root.requestCompletions()
     }
 
     PanelWindow {
@@ -693,9 +801,51 @@ Scope {
                                     clip: true
                                     selectByMouse: true
 
-                                    Keys.onEscapePressed: root.cancelPathEdit()
-                                    Keys.onReturnPressed: root.submitPath()
-                                    Keys.onEnterPressed: root.submitPath()
+                                    onTextChanged: {
+                                        if (!root.editingPath)
+                                            return;
+
+                                        root.completionIndex = -1;
+                                        if (text === "") {
+                                            root.clearCompletions();
+                                            return;
+                                        }
+                                        completionTimer.restart();
+                                    }
+
+                                    Keys.onPressed: event => {
+                                        const count = root.completions.length;
+
+                                        if (event.key === Qt.Key_Down && count > 0) {
+                                            root.completionIndex = (root.completionIndex + 1) % count;
+                                            event.accepted = true;
+                                        } else if (event.key === Qt.Key_Up && count > 0) {
+                                            root.completionIndex = root.completionIndex <= 0
+                                                ? count - 1
+                                                : root.completionIndex - 1;
+                                            event.accepted = true;
+                                        } else if (event.key === Qt.Key_Tab) {
+                                            if (count > 0)
+                                                root.completeSuggestion(root.completionIndex >= 0
+                                                    ? root.completionIndex
+                                                    : 0);
+                                            event.accepted = true;
+                                        } else if (event.key === Qt.Key_Escape) {
+                                            if (count > 0) {
+                                                root.clearCompletions();
+                                            } else {
+                                                root.cancelPathEdit();
+                                            }
+                                            event.accepted = true;
+                                        } else if (event.key === Qt.Key_Return
+                                                   || event.key === Qt.Key_Enter) {
+                                            if (root.completionIndex >= 0 && root.completionIndex < count)
+                                                root.chooseSuggestion(root.completionIndex);
+                                            else
+                                                root.submitPath();
+                                            event.accepted = true;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -861,6 +1011,87 @@ Scope {
                     }
                 }
 
+                Surface {
+                    id: completionPopup
+
+                    z: 10
+                    x: 52
+                    y: root.headerHeight
+                    width: titleColumn.width
+                    height: Math.min(root.completions.length, root.maxCompletionRows)
+                        * root.completionRowHeight + 8
+                    visible: root.editingPath && root.completions.length > 0
+                    radius: Dimensions.radius.medium
+                    surfaceColor: Colors.withAlpha(Colors.surfaceContainerHigh, 0.98)
+                    borderWidth: 1
+                    borderColor: Colors.withAlpha(Colors.primary, 0.35)
+
+                    ListView {
+                        anchors {
+                            fill: parent
+                            margins: 4
+                        }
+                        clip: true
+                        interactive: false
+                        model: root.completions
+
+                        delegate: Rectangle {
+                            id: completionRow
+
+                            required property string modelData
+                            required property int index
+
+                            readonly property bool highlighted: index === root.completionIndex
+
+                            width: ListView.view.width
+                            height: root.completionRowHeight
+                            radius: Dimensions.radius.small
+                            color: completionRow.highlighted
+                                ? Colors.stateLayer(Colors.primary, 0.16)
+                                : "transparent"
+
+                            Row {
+                                anchors {
+                                    fill: parent
+                                    leftMargin: 8
+                                    rightMargin: 8
+                                }
+                                spacing: 8
+
+                                Text {
+                                    id: completionIcon
+
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: Icons.folder
+                                    color: completionRow.highlighted
+                                        ? Colors.primary
+                                        : Colors.onSurfaceVariant
+                                    font.family: Typography.iconFont
+                                    font.pixelSize: Dimensions.icon.small
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - completionIcon.width - parent.spacing
+                                    text: completionRow.modelData
+                                    color: Colors.onSurface
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelSmall
+                                    elide: Text.ElideMiddle
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onEntered: root.completionIndex = completionRow.index
+                                onClicked: root.chooseSuggestion(completionRow.index)
+                            }
+                        }
+                    }
+                }
+
                 Column {
                     anchors.centerIn: grid
                     spacing: 10
@@ -914,7 +1145,9 @@ Scope {
                         text: root.pathError !== ""
                             ? root.pathError
                             : root.editingPath
-                                ? "[Enter] Go   [Esc] Cancel"
+                                ? (root.completions.length > 0
+                                    ? "[Tab] Complete   [Up/Down] Select   [Enter] Go   [Esc] Cancel"
+                                    : "[Enter] Go   [Esc] Cancel")
                                 : "[Arrows] Select   [Enter] Open/Apply   [Backspace] Up   [Esc] Close"
                         color: root.pathError !== ""
                             ? Colors.error

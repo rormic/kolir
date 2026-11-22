@@ -60,6 +60,9 @@ QtObject {
     // Thumbnail worker bundled inside the shell config.
     readonly property string wallpaperThumbnails: Quickshell.shellPath("scripts/wallpaper-thumbnails.sh")
 
+    // Directory suggestions for the wallpaper picker's path field.
+    readonly property string completeDirs: Quickshell.shellPath("scripts/complete-dirs.sh")
+
     // Audio helper bundled inside the shell config: keeps a single pactl
     // subscriber alive across shell restarts.
     readonly property string pactlSubscribe: Quickshell.shellPath("scripts/pactl-subscribe.sh")
