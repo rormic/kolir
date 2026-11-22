@@ -85,6 +85,12 @@ local select_wallpaper = "sh ~/.config/hypr/scripts/open-wallpaper-picker.sh"
 hl.env("XCURSOR_SIZE", "16")
 hl.env("HYPRCURSOR_SIZE", "16")
 
+-- GTK 4.24 creates an ext-background-effect object on every surface and sends
+-- an empty blur region, which makes Hyprland skip its own blur for those
+-- windows (translucent inactive GTK4 windows, for example Nautilus, show the
+-- wallpaper sharp). Hiding the protocol from GDK restores decoration:blur.
+hl.env("GDK_WAYLAND_DISABLE", "ext_background_effect_manager_v1")
+
 -- Cursor theme is machine-specific: set it in ~/.config/hypr/user.lua
 
 -----------------------
