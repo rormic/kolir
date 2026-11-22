@@ -1,6 +1,11 @@
 #!/bin/sh
-# Яскравість: внутрішня панель (brightnessctl) + зовнішній монітор
-# (ddcutil через Quickshell, тому зміна клавішами показує OSD).
+# Яскравість: внутрішня панель і зовнішній монітор.
+#
+# Обидва бекенди тепер належать BrightnessService (Quickshell): сервіс пише в
+# brightnessctl для панелі й у ddcutil для монітора, тому OSD і віджет у барі
+# завжди синхронні з екраном. Скрипт лише передає крок через IPC; якщо оболонка
+# не відповідає, він напряму змінює внутрішню панель, щоб клавіші працювали і
+# без запущеного Quickshell.
 #
 # Використання:
 #   brightness.sh up    — збільшити на 5%
@@ -23,17 +28,17 @@ if ! ROOT=$(kolir_root "$SCRIPT_DIR"); then
 fi
 QS_CONFIG="$ROOT/config/quickshell"
 
-case "$1" in
-	up)
-		brightnessctl -e4 -n2 set 5%+
-		qs -p "$QS_CONFIG" ipc call brightness up >/dev/null 2>&1 || true
-		;;
-	down)
-		brightnessctl -e4 -n2 set 5%-
-		qs -p "$QS_CONFIG" ipc call brightness down >/dev/null 2>&1 || true
-		;;
+case "${1:-}" in
+	up | down) ACTION=$1 ;;
 	*)
 		echo "usage: $(basename "$0") {up|down}" >&2
 		exit 1
 		;;
 esac
+
+if ! qs -p "$QS_CONFIG" ipc call brightness "$ACTION" >/dev/null 2>&1; then
+	case "$ACTION" in
+		up) brightnessctl -c backlight -e4 -n2 set 5%+ ;;
+		down) brightnessctl -c backlight -e4 -n2 set 5%- ;;
+	esac
+fi
