@@ -299,6 +299,12 @@ hl.bind(
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(menu))
+-- Launcher on a lone SUPER tap (both sides). The release flag defers the bind
+-- to the SUPER release, where Hyprland only fires it if no other key, mouse
+-- button or scroll was used meanwhile, so SUPER+Space (layout switch),
+-- SUPER+1 (workspace), SUPER+scroll and SUPER+drag never open the launcher.
+hl.bind(mainMod .. " + SUPER_L", hl.dsp.exec_cmd(menu), { release = true })
+hl.bind(mainMod .. " + SUPER_R", hl.dsp.exec_cmd(menu), { release = true })
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 -- HACK: i dont know what is this doing, but i need j
 -- hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
