@@ -453,13 +453,6 @@ hl.layer_rule({
 	ignore_alpha = 0,
 })
 
-hl.layer_rule({
-	name = "wallpaper-blur",
-	match = { namespace = "wallpaper" },
-	blur = true,
-	ignore_alpha = 0,
-})
-
 -------------------------------
 ---- USER OVERRIDES -----------
 -------------------------------

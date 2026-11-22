@@ -11,13 +11,14 @@ Item {
     required property bool selected
 
     signal activated()
-    signal hovered()
 
     readonly property int inset: 6
     readonly property int labelHeight: 28
-    // Previews are generated at 480x270; decoding them at that width keeps
-    // the grid sharp without touching the full-size source.
+    // Previews are generated at 480x270. Decoding them at ~1.5x the on-screen
+    // tile width keeps the grid sharp (including HiDPI) without paying for the
+    // full preview bitmap on every scroll.
     readonly property int thumbnailPixelWidth: 480
+    readonly property real thumbnailDecodeScale: 1.5
 
     implicitWidth: 220
     implicitHeight: 170
@@ -55,10 +56,11 @@ Item {
         Image {
             anchors.fill: parent
             source: root.thumbnailSource !== "" ? "file://" + root.thumbnailSource : ""
-            sourceSize.width: root.thumbnailPixelWidth
+            sourceSize.width: Math.min(
+                root.thumbnailPixelWidth,
+                Math.ceil(root.width * root.thumbnailDecodeScale))
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            cache: false
             visible: root.thumbnailSource !== ""
         }
 
@@ -95,9 +97,7 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onEntered: root.hovered()
         onClicked: root.activated()
     }
 }

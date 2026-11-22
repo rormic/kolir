@@ -36,6 +36,9 @@ Scope {
     readonly property int tileLabelHeight: 28
     readonly property real thumbnailAspect: 16 / 9
     readonly property int focusDelay: 20
+    // Extra rows kept alive above/below the viewport so a fling does not have
+    // to build and decode a delegate on the frame it appears.
+    readonly property int prefetchRows: 2
 
     // GridView positions cells on a fixed pitch, so the pitch has to fit the
     // content width exactly; the visible tile is one spacing narrower.
@@ -118,6 +121,11 @@ Scope {
             return;
 
         root.applyWallpaper(wallpaperModel.get(grid.currentIndex).path);
+    }
+
+    function clampScroll(y) {
+        const max = Math.max(0, grid.contentHeight - grid.height);
+        return Math.max(0, Math.min(max, y));
     }
 
     // The helper chain is the same one select-wallpaper.sh uses after Zenity
@@ -425,9 +433,30 @@ Scope {
                     currentIndex: -1
                     keyNavigationWraps: true
                     boundsBehavior: Flickable.StopAtBounds
+                    cacheBuffer: root.cellHeight * root.prefetchRows
 
                     cellWidth: root.cellWidth
                     cellHeight: root.tileHeight + root.tileSpacing
+
+                    // Flickable's default wheel step is a few dozen pixels,
+                    // which feels stuck in a grid of ~170px cells. Mouse wheel
+                    // moves a whole row per notch; touchpad pixel deltas stay
+                    // 1:1 for a native feel.
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: event => {
+                            const pixel = event.pixelDelta.y;
+                            const angle = event.angleDelta.y;
+
+                            grid.cancelFlick();
+                            if (pixel !== 0)
+                                grid.contentY = root.clampScroll(grid.contentY - pixel);
+                            else if (angle !== 0)
+                                grid.contentY = root.clampScroll(
+                                    grid.contentY - Math.sign(angle) * grid.cellHeight);
+                            event.accepted = true;
+                        }
+                    }
 
                     Keys.onReturnPressed: root.applyCurrent()
                     Keys.onEnterPressed: root.applyCurrent()
@@ -445,7 +474,6 @@ Scope {
                         fileName: name
                         selected: GridView.isCurrentItem
 
-                        onHovered: grid.currentIndex = index
                         onActivated: root.applyWallpaper(path)
                     }
                 }
