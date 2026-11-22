@@ -7,7 +7,11 @@ Surface {
     id: root
 
     implicitHeight: Dimensions.control.height
-    implicitWidth: row.implicitWidth + Dimensions.padding.chipHorizontal * 2
+    // Proportional digits make the time 2-4 px narrower or wider every second.
+    // Reserving a stable minimum keeps the chip from pulsing and gives the
+    // now-playing island an exact mirror width (see Dimensions.bar.centerSlot).
+    implicitWidth: Math.max(Dimensions.bar.centerSlot,
+        row.implicitWidth + Dimensions.padding.chipHorizontal * 2)
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
 

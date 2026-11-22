@@ -19,6 +19,11 @@ QtObject {
         // No offset from the screen edges: the bar is docked flush. Kept as a
         // token because popups offset themselves from it.
         readonly property int margin: 0
+        // Minimum width of the two chips flanking the workspaces pill (the
+        // clock and the now-playing island). The island mirrors the clock's
+        // implicit width, so the pill stays visually centered while no media
+        // is playing instead of losing its left neighbour.
+        readonly property int centerSlot: 184
     }
 
     // Screen frame drawn around the desktop, caelestia style: the bar surface

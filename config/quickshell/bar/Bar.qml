@@ -123,17 +123,20 @@ PanelWindow {
             width: Math.min(190, Math.max(120, content.width * 0.16))
         }
 
-        // Center: workspaces
+        // Center: workspaces. No optical offset: the chips on both sides of
+        // the pill now share one width, so the pill sits at the screen center.
         Workspaces {
             id: workspaces
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: workspaces.cellWidth / 2
         }
 
-        // Left of center: now playing
+        // Left of center: now playing. The island mirrors the clock width so
+        // the pill keeps a neighbour even when nothing is playing; a long
+        // title widens it past the slot, growing leftwards.
         NowPlaying {
             id: nowPlaying
             enabled: content.width >= 1100
+            slotWidth: clock.implicitWidth
             anchors.right: workspaces.left
             anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter

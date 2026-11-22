@@ -28,7 +28,16 @@ Surface {
 
     // Set from Bar.qml: hidden on narrow screens.
     property bool enabled: true
-    visible: enabled && hasPlayer && trackText !== ""
+    // Set from Bar.qml to the clock's implicit width. The island keeps at
+    // least that width so the workspaces pill stays flanked by two equally
+    // wide chips while nothing is playing.
+    property int slotWidth: 0
+
+    // No player or no track metadata: show the muted placeholder instead of
+    // unmounting the island (which would leave the bar lopsided).
+    readonly property bool idle: !hasPlayer || trackText === ""
+
+    visible: enabled
 
     readonly property bool hovered: _hover.hovered
 
@@ -57,12 +66,13 @@ Surface {
     readonly property bool assumedPlaying: controller.assumedPlaying
 
     implicitHeight: Dimensions.control.height
-    implicitWidth: content.implicitWidth + horizontalPadding * 2
+    implicitWidth: Math.max(root.slotWidth,
+        content.implicitWidth + horizontalPadding * 2)
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
 
     // Neon border on hover
-    borderColor: hovered
+    borderColor: hovered && interactive
         ? Colors.withAlpha(Colors.primary, 0.55)
         : Colors.withAlpha(Colors.outlineVariant, 0.18)
 
@@ -70,7 +80,7 @@ Surface {
         ColorAnimation { duration: 150 }
     }
 
-    scale: hovered ? 1.04 : 1.0
+    scale: hovered && interactive ? 1.04 : 1.0
 
     Behavior on scale {
         NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
@@ -99,16 +109,21 @@ Surface {
         Item {
             id: content
 
-            anchors.left: parent.left
-            anchors.leftMargin: root.horizontalPadding
-            anchors.verticalCenter: parent.verticalCenter
+            // Centered so the idle placeholder (a lone note glyph) sits in the
+            // middle of the slot instead of hugging its left edge. While a
+            // track is present the island is exactly as wide as this item plus
+            // the padding, so centering leaves the usual symmetric margins.
+            anchors.centerIn: parent
             height: Dimensions.control.height
             implicitWidth: controlsSlot.x + controlsSlot.width
 
-            // Dim while paused, unless hovered for interacting.
-            opacity: root.assumedPlaying
-                ? 1.0
-                : (root.hovered ? 1.0 : 0.6)
+            // Dim while paused, unless hovered for interacting. The idle
+            // placeholder stays muted even on hover: there is nothing to act on.
+            opacity: root.idle
+                ? 0.45
+                : (root.assumedPlaying
+                    ? 1.0
+                    : (root.hovered && root.interactive ? 1.0 : 0.6))
 
             Behavior on opacity {
                 NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
