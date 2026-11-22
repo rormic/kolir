@@ -33,12 +33,9 @@ Pill {
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: mouse => {
-            if (mouse.button === Qt.RightButton)
-                popup.toggle();
-        }
+        onClicked: popup.toggle()
         onWheel: wheel => {
             if (wheel.angleDelta.y > 0) BrightnessService.adjust(5);
             else if (wheel.angleDelta.y < 0) BrightnessService.adjust(-5);

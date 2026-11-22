@@ -6,7 +6,7 @@ import "../../theme"
 import "../../services"
 import "nightLight"
 
-// Night-light popup for the brightness pill. Right click opens it; the
+// Night-light popup for the brightness pill. Left click opens it; the
 // hyprsunset IPC is owned by HyprsunsetService.
 AnchoredPopup {
     id: root
