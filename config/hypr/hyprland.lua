@@ -3,6 +3,10 @@
 -- EDIT THIS CONFIG ACCORDING TO THE WIKI INSTRUCTIONS.  --
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
+-- SPDX-License-Identifier: GPL-3.0-only
+-- Derived from the Hyprland example config (BSD-3-Clause,
+-- Copyright (c) 2022-2026 vaxerski). See THIRD-PARTY.md.
+
 -- This is an example Hyprland Lua config file.
 -- Refer to the wiki for more information.
 -- https://wiki.hypr.land/Configuring/Start/

@@ -151,3 +151,24 @@ root. `user.lua`, the Matugen config and templates, generated colors,
 `~/.cache/current_theme`, the GTK import stubs, and `~/.zshrc` are left in
 place; timestamped `.bak.*` backups are never deleted automatically. Delete the
 checkout itself when you are done.
+
+## Credits
+
+The shell, the scripts and the configuration were written for kolir. Other
+Wayland and Quickshell setups were studied as architectural references.
+
+The desktop itself is a set of separate programs (Hyprland, Quickshell,
+Matugen, awww, Foot, …) with their own licenses and maintainers. They are not
+bundled with kolir; see [THIRD-PARTY.md](THIRD-PARTY.md) for the full list.
+
+## License
+
+kolir is Copyright (C) 2025-2026 rormic and is licensed under the
+**GNU General Public License, version 3 only** (`GPL-3.0-only`).
+See [LICENSE](LICENSE) for the full text.
+
+A small amount of third-party material is included: `zshrc` is derived from
+the Oh My Zsh template (MIT), `config/hypr/hyprland.lua` from the Hyprland
+example config (BSD-3-Clause), and `config/matugen/templates/obsidian.css` is a
+verbatim copy of the Matugen themes template (MIT). Their notices are
+reproduced in [THIRD-PARTY.md](THIRD-PARTY.md).

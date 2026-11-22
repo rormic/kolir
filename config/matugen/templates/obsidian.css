@@ -1,6 +1,10 @@
 /* Matugen Obsidian Dynamic Colors Snippet
  * Place output in: <vault>/.obsidian/snippets/matugen.css
  * Then enable it in: Settings → Appearance → CSS Snippets
+ *
+ * SPDX-License-Identifier: MIT
+ * Copied verbatim from InioX/matugen-themes templates/obsidian.css.
+ * See THIRD-PARTY.md for the full notice.
  */
 
 .theme-dark, .theme-light {

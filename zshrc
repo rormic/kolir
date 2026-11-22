@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Derived from Oh My Zsh templates/zshrc.zsh-template
+# (MIT, Copyright (c) 2009-2026 Robby Russell and contributors).
+# See THIRD-PARTY.md for the full notice.
+#
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
