@@ -17,7 +17,8 @@ directory.
 - The desktop stack: Hyprland, Quickshell, Matugen, awww, Foot, Hyprlock,
   Hypridle, Hyprsunset, brightnessctl, ddcutil, wl-clipboard, grim, slurp,
   libnotify, and wf-recorder for recording.
-- Optional: `ffmpeg` (lock background), `cliphist` (clipboard history),
+- Optional: `ffmpeg` (lock background and capture previews), `cliphist`
+  (clipboard history),
   NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
   indicator on laptops), `python-dbus` + `python-gobject` (exact Bluetooth
   headset battery), `hyprpicker`, `wl-screenrec`, `zenity`, `nautilus`,
@@ -102,6 +103,13 @@ you pass a path (or answer "yes" and enter one).
 4. Set a wallpaper with `SUPER+CTRL+ALT+T` (random) or `SUPER+CTRL+T` (picker)
    so Matugen can generate colors.
 5. Run `kolir doctor` and fix any errors before reporting problems.
+
+Screenshots (`SUPER+X`) are copied to the clipboard and saved under
+`~/Pictures/Screenshots`; recordings keep going to `~/Videos/Recordings`.
+`SUPER+SHIFT+V` opens the capture history grid, where the newest files are
+shown first: `Enter` opens, `C` copies an image (or a recording's path), and
+`Del` deletes after a second confirmation. Set `KOLIR_SHOT_DIR` or
+`KOLIR_REC_DIR` to point either helper at another folder.
 
 ## Commands
 

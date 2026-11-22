@@ -71,7 +71,7 @@ REQUIRED_COMMANDS = (
 
 OPTIONAL_CHECKS = (
     (("git",), "version reporting from a checkout", "git"),
-    (("ffmpeg",), "lock-screen background and glow", "ffmpeg"),
+    (("ffmpeg",), "lock-screen background, glow and capture previews", "ffmpeg"),
     (("cliphist",), "launcher clipboard history", "cliphist"),
     (("nmcli",), "Internet settings page", "NetworkManager"),
     (("bluetoothctl",), "Bluetooth settings page", "bluez"),

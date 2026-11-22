@@ -24,6 +24,9 @@ QS_CONFIG="$ROOT/config/quickshell"
 . "$SCRIPT_DIR/lib/monitors.sh"
 
 TMP_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+# Збережена копія для панелі Capture History; KOLIR_SHOT_DIR збігається з
+# ShellPaths.screenshotDir у Quickshell.
+SHOT_DIR="${KOLIR_SHOT_DIR:-$HOME/Pictures/Screenshots}"
 SHOT=$(mktemp --suffix=.png "$TMP_DIR/kolir-screenshot-XXXXXX") || exit 1
 CROP=""
 cleanup() {
@@ -57,6 +60,21 @@ notify_error() {
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send -a kolir "$1" "$2" >/dev/null 2>&1 || true
 	fi
+}
+
+# Копія завершеного знімка для панелі Capture History. Копіювання в буфер
+# обміну лишається головною дією; невдалий запис не має ламати скриншот.
+save_shot() {
+	[ -n "${1:-}" ] || return 0
+	mkdir -p "$SHOT_DIR" 2>/dev/null || return 0
+	base="$SHOT_DIR/shot_$(date +%Y-%m-%d_%H-%M-%S)"
+	out="$base.png"
+	n=1
+	while [ -e "$out" ]; do
+		out="${base}_$n.png"
+		n=$((n + 1))
+	done
+	cp -- "$1" "$out" 2>/dev/null || true
 }
 
 mon=$(kolir_focused_monitor_name)
@@ -102,7 +120,14 @@ else
 	# виділення, як до появи замороженого кадру.
 	live_region=$(slurp </dev/null 9>&- 2>/dev/null) || live_region=""
 	if [ -n "$live_region" ]; then
-		grim -g "$live_region" - 2>/dev/null | wl-copy -t image/png 9>&-
+		live_shot=$(mktemp --suffix=.png "$TMP_DIR/kolir-screenshot-live-XXXXXX") || live_shot=""
+		if [ -n "$live_shot" ]; then
+			if grim -g "$live_region" "$live_shot" 2>/dev/null; then
+				wl-copy -t image/png <"$live_shot" 9>&-
+				save_shot "$live_shot"
+			fi
+			rm -f "$live_shot"
+		fi
 	fi
 	exit 0
 fi
@@ -155,6 +180,7 @@ if command -v ffmpeg >/dev/null 2>&1; then
 	if [ -n "$CROP" ]; then
 		if ffmpeg -y -loglevel error -i "$SHOT" -vf "crop=$w:$h:$x:$y" -frames:v 1 "$CROP" 9>&- 2>/dev/null; then
 			wl-copy -t image/png < "$CROP" 9>&-
+			save_shot "$CROP"
 		fi
 	fi
 else
@@ -165,5 +191,12 @@ else
 	mon_y=${rest%% *}
 	gx=$((mon_x + x / scale))
 	gy=$((mon_y + y / scale))
-	grim -g "$gx,$gy ${w}x${h}" - 2>/dev/null | wl-copy -t image/png 9>&-
+	live_shot=$(mktemp --suffix=.png "$TMP_DIR/kolir-screenshot-live-XXXXXX") || live_shot=""
+	if [ -n "$live_shot" ]; then
+		if grim -g "$gx,$gy ${w}x${h}" "$live_shot" 2>/dev/null; then
+			wl-copy -t image/png <"$live_shot" 9>&-
+			save_shot "$live_shot"
+		fi
+		rm -f "$live_shot"
+	fi
 fi

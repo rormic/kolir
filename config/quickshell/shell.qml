@@ -1,5 +1,6 @@
 import Quickshell
 import "bar"
+import "capture"
 import "launcher"
 import "notification"
 import "osd"
@@ -13,6 +14,7 @@ ShellRoot {
     // it on the Top layer.
     Frame {}
     Bar {}
+    CaptureHistory {}
     Launcher {}
     Notification {}
     VolumeOsd {}

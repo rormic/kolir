@@ -57,6 +57,9 @@ local shortcuts = "sh ~/.config/hypr/scripts/qs-ipc.sh shortcuts toggle"
 -- Opens the Quickshell notification center: persisted history, per-entry
 -- delete, clear-all and the do-not-disturb switch.
 local notifications = "sh ~/.config/hypr/scripts/qs-ipc.sh notifications toggle"
+-- Opens the Quickshell capture history: the newest screenshots and screen
+-- recordings, with copy/open/delete actions.
+local capture_history = "sh ~/.config/hypr/scripts/qs-ipc.sh captureHistory toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
 -- Opens the Quickshell wallpaper grid; select-wallpaper.sh (Zenity) is the
 -- fallback when the shell is not running.
@@ -311,6 +314,9 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 -- screenshot --
 hl.bind(mainMod .. " + X", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screenshot-region.sh"), { description = "Screenshot a region" })
 hl.bind(mainMod .. " + SHIFT + X", hl.dsp.exec_cmd("grim - | wl-copy"), { description = "Screenshot the screen" })
+
+-- capture history: screenshots and recordings, newest first --
+hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(capture_history), { description = "Capture history" })
 
 -- wallpaper --
 hl.bind(mainMod .. " + CTRL + ALT + T", hl.dsp.exec_cmd(random_wallpaper), { description = "Random wallpaper" })

@@ -61,6 +61,25 @@ QtObject {
     // Image previews generated for clipboard entries.
     readonly property string clipboardPreviewDir: "/tmp/qs-clip-previews"
 
+    // Screenshot library written by screenshot-region.sh. KOLIR_SHOT_DIR is
+    // the same override the script honours.
+    readonly property string screenshotDir: {
+        const dir = Quickshell.env("KOLIR_SHOT_DIR");
+        return dir && dir.length > 0 ? dir : home + "/Pictures/Screenshots";
+    }
+
+    // Screen recordings written by screen-record.sh. KOLIR_REC_DIR is the same
+    // override the script honours.
+    readonly property string recordingsDir: {
+        const dir = Quickshell.env("KOLIR_REC_DIR");
+        return dir && dir.length > 0 ? dir : home + "/Videos/Recordings";
+    }
+
+    // Capture-history worker and its 16:9 poster cache. Kept next to the
+    // wallpaper previews for one predictable cache shared by shell restarts.
+    readonly property string captureHistoryThumbnails: Quickshell.shellPath("scripts/capture-history.sh")
+    readonly property string capturePreviewDir: quickshellCache + "/capture-previews"
+
     // Wallpaper library shared with select-wallpaper.sh/random-wallpaper.sh.
     readonly property string wallpaperDir: home + "/Pictures/wallpaper"
 
