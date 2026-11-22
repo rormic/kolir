@@ -18,14 +18,16 @@ directory.
   Hypridle, Hyprsunset, brightnessctl, ddcutil, wl-clipboard, grim, slurp,
   libnotify, and wf-recorder for recording.
 - Optional: `ffmpeg` (lock background), `cliphist` (clipboard history),
-  NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `hyprpicker`,
-  `wl-screenrec`, `zenity`, `nautilus`, `playerctl` (media keys), the
-  `mocu-xcursor` theme, and KDE Connect.
+  NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
+  indicator on laptops), `hyprpicker`, `wl-screenrec`, `zenity`, `nautilus`,
+  `playerctl` (media keys), the `mocu-xcursor` theme, and KDE Connect.
 - Fonts/icons used by the bar: Google Sans Code Nerd, DejaVu, Material Symbols,
   and Papirus.
 
 `kolir doctor` reports missing required tools as errors and missing optional
-tools as warnings. Phase 1 does not install anything; use `pacman` for now.
+tools as warnings. `kolir setup` offers to install the optional packages (and
+`kolir setup --optional` does it unattended); required packages are never
+installed by the CLI, because a checkout cannot know how your system is built.
 
 ## Install from a checkout
 
@@ -55,6 +57,8 @@ Useful options:
 | `--no-obsidian` | Leave Obsidian theming untouched |
 | `--auto-reload` | Install/enable the `kolir-reload` systemd user units |
 | `--no-systemd` | Write the units but skip `systemctl` actions |
+| `--optional` | Install the missing optional packages without asking |
+| `--no-optional` | Do not offer to install the optional packages |
 
 What it creates:
 
@@ -68,8 +72,16 @@ What it creates:
 - A stable `~/.config/foot/foot.ini` loader plus an empty
   `~/.config/foot/colors.ini` (Matugen's output).
 - `<root>/.version`, used by `kolir version` and the auto-reload unit.
+- `~/Pictures/wallpaper`, the folder the wallpaper picker opens first.
 - Enables `hypridle.service` (`systemctl --user enable --now`) unless
   `--no-systemd` is passed.
+- Lists the optional packages that are still missing (`cliphist`, `ffmpeg`,
+  `upower`, `hyprpicker`, `zenity`, KDE Connect, the `mocu-xcursor` theme, …)
+  and asks whether to install them. Nothing is installed without an explicit
+  "yes"; `--yes` leaves them alone, `--optional` installs them unattended, and
+  `--no-optional` skips the question. `paru`/`yay` is used when present so the
+  AUR-only `wl-screenrec`/`mocu-xcursor` resolve too, otherwise `pacman`
+  handles the repository packages.
 
 A real `~/.config/matugen/templates` directory is kept: missing shipped
 templates are added as individual symlinks, and your files are never

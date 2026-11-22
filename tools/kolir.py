@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -43,9 +44,10 @@ OBSIDIAN_SECTION = "[templates.obsidian]"
 OBSIDIAN_INPUT = "~/.config/matugen/templates/obsidian.css"
 OBSIDIAN_FILENAME = "matugen.css"
 
-# Dependency knowledge carried over from the previous installer. Phase 1 never
-# installs packages; `doctor` only reports. Required tools are needed for the
-# desktop to work; optional ones disable one feature when missing.
+# Dependency knowledge carried over from the previous installer. `doctor` only
+# reports; `setup` offers to install the optional packages, never the required
+# ones. Required tools are needed for the desktop to work; optional ones
+# disable one feature when missing.
 REQUIRED_COMMANDS = (
     ("hyprctl", "Hyprland IPC", "hyprland"),
     ("qs", "Quickshell", "quickshell"),
@@ -73,6 +75,7 @@ OPTIONAL_CHECKS = (
     (("cliphist",), "launcher clipboard history", "cliphist"),
     (("nmcli",), "Internet settings page", "NetworkManager"),
     (("bluetoothctl",), "Bluetooth settings page", "bluez"),
+    (("upower",), "battery indicator (UPower daemon)", "upower"),
     (("hyprpicker",), "colour picker bind", "hyprpicker"),
     (("wl-screenrec",), "fallback screen recorder", "wl-screenrec"),
     (("zenity",), "wallpaper picker", "zenity"),
@@ -80,6 +83,12 @@ OPTIONAL_CHECKS = (
     (("playerctl",), "media keys", "playerctl"),
     (("kdeconnect-indicator", "kdeconnect-cli"), "KDE Connect indicator", "kdeconnect"),
 )
+
+# Optional packages that only the AUR provides; everything else in
+# OPTIONAL_CHECKS is in the official repositories.
+AUR_ONLY_OPTIONAL = {"wl-screenrec", "mocu-xcursor"}
+
+WALLPAPER_DIR = Path("Pictures/wallpaper")
 
 ZSH_CUSTOM_DEFAULT = Path(".oh-my-zsh/custom")
 
@@ -871,6 +880,7 @@ def setup_directories(deploy: Deployer) -> None:
         config_home() / "quickshell",
         config_home() / "gtk-3.0",
         config_home() / "gtk-4.0",
+        home / WALLPAPER_DIR,
         cache_home(),
         cache_home() / "kolir",
     ):
@@ -1051,6 +1061,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
                 "auto-reload: not installed (pass --auto-reload to enable the user units)"
             )
 
+        offer_optional_packages(deploy, args)
         print_setup_summary(deploy, args)
         return 0
     except SetupError as exc:
@@ -1091,6 +1102,93 @@ def command_available(candidates: tuple[str, ...]) -> str | None:
     return None
 
 
+def mocu_cursor_installed() -> bool:
+    icon_root = Path("/usr/share/icons")
+    return icon_root.is_dir() and any(icon_root.glob("Mocu*"))
+
+
+def missing_optional_packages() -> list[tuple[str, str]]:
+    """Packages behind the optional tools that are not installed right now."""
+    missing: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for candidates, purpose, package in OPTIONAL_CHECKS:
+        if package in seen or command_available(candidates):
+            continue
+        seen.add(package)
+        missing.append((package, purpose))
+    if "mocu-xcursor" not in seen and not mocu_cursor_installed():
+        missing.append(("mocu-xcursor", "cursor theme named in user.lua"))
+    return missing
+
+
+def package_command(packages: list[str]) -> list[str] | None:
+    helper = shutil.which("paru") or shutil.which("yay")
+    if helper:
+        return [helper, "-S", "--needed", *packages]
+    repo = [package for package in packages if package not in AUR_ONLY_OPTIONAL]
+    aur = [package for package in packages if package in AUR_ONLY_OPTIONAL]
+    if aur:
+        warn(
+            "no AUR helper found; install these manually: " + " ".join(aur)
+        )
+    if not repo:
+        return None
+    sudo = shutil.which("sudo")
+    return ([sudo] if sudo else []) + ["pacman", "-S", "--needed", *repo]
+
+
+def install_optional_packages(packages: list[str]) -> bool:
+    command = package_command(packages)
+    if not command:
+        warn("nothing can be installed automatically; install the packages by hand")
+        return False
+    info("running: " + " ".join(shlex.quote(part) for part in command))
+    try:
+        result = subprocess.run(command)
+    except OSError as exc:
+        warn(f"could not run {command[0]}: {exc}")
+        return False
+    if result.returncode != 0:
+        warn(f"{command[0]} exited with status {result.returncode}")
+        return False
+    ok("optional packages installed")
+    return True
+
+
+def offer_optional_packages(deploy: Deployer, args: argparse.Namespace) -> None:
+    step("Optional tools")
+    missing = missing_optional_packages()
+    if not missing:
+        ok("all optional tools are installed")
+        return
+
+    packages = [package for package, _ in missing]
+    for package, purpose in missing:
+        deploy.note(f"missing {package} ({purpose})")
+
+    if args.no_optional:
+        deploy.note(
+            "skipped (--no-optional); install later with 'kolir setup --optional'"
+        )
+        return
+    if deploy.dry_run:
+        deploy.note("would install: " + " ".join(packages))
+        return
+    if not args.optional:
+        if args.yes or not sys.stdin.isatty():
+            deploy.note(
+                "left uninstalled; rerun 'kolir setup --optional' or install "
+                + " ".join(packages)
+            )
+            return
+        if not ask_yes_no(
+            f"Install {len(packages)} optional package(s) now?", default=False
+        ):
+            deploy.note("left uninstalled; install them later with 'kolir setup --optional'")
+            return
+    install_optional_packages(packages)
+
+
 def check_commands(report: Report) -> None:
     step("Commands")
     for command, purpose, package in REQUIRED_COMMANDS:
@@ -1109,13 +1207,19 @@ def check_commands(report: Report) -> None:
                 f"{label} is missing (optional, {package}); {purpose} is disabled"
             )
 
-    icon_root = Path("/usr/share/icons")
-    if icon_root.is_dir() and list(icon_root.glob("Mocu*")):
+    if mocu_cursor_installed():
         report.ok("Mocu cursor theme (mocu-xcursor)")
     else:
         report.warn(
             "Mocu cursor theme is missing (optional, mocu-xcursor); "
             "the user.lua cursor setting falls back to the default theme"
+        )
+
+    missing = missing_optional_packages()
+    if missing:
+        report.note(
+            "install the optional packages with 'kolir setup --optional': "
+            + " ".join(package for package, _ in missing)
         )
 
 
@@ -1263,6 +1367,15 @@ def check_deployment(report: Report, root: Path) -> None:
                 report.ok(f"gtk import stub: {stub}")
             else:
                 report.warn(f"gtk: {stub} does not import colors.css")
+
+    wallpaper_dir = home_dir() / WALLPAPER_DIR
+    if wallpaper_dir.is_dir():
+        report.ok(f"wallpaper folder: {wallpaper_dir}")
+    else:
+        report.warn(
+            f"wallpaper folder: missing {wallpaper_dir} "
+            "(the wallpaper picker starts empty; run kolir setup)"
+        )
 
     theme = cache_home() / "current_theme"
     if theme.is_file():
@@ -1956,6 +2069,15 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument(
         "--zsh", action="store_true",
         help="link ~/.zshrc and the dice Oh My Zsh theme (off by default)",
+    )
+    optional = setup.add_mutually_exclusive_group()
+    optional.add_argument(
+        "--optional", action="store_true",
+        help="install the missing optional packages without asking",
+    )
+    optional.add_argument(
+        "--no-optional", action="store_true",
+        help="do not offer to install the optional packages",
     )
     obsidian = setup.add_mutually_exclusive_group()
     obsidian.add_argument(
