@@ -147,7 +147,7 @@ hl.config({
 		blur = {
 			enabled = true,
 			size = 4,
-			passes = 3,
+			passes = 4,
 			ignore_opacity = true,
 			vibrancy = 0.5,
 			vibrancy_darkness = 0.2,
@@ -290,9 +290,17 @@ hl.bind(mainMod .. " + CTRL + ALT + T", hl.dsp.exec_cmd(random_wallpaper), { des
 hl.bind(mainMod .. " + CTRL + T", hl.dsp.exec_cmd(select_wallpaper), { description = "Wallpaper picker" })
 
 -- video recording toggle: first press selects a region, second press saves --
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh"), { description = "Toggle recording" })
+hl.bind(
+	mainMod .. " + R",
+	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh"),
+	{ description = "Toggle recording" }
+)
 -- one-off recording settings: opens Quickshell menu, then starts recording --
-hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh --setup"), { description = "Recording settings" })
+hl.bind(
+	mainMod .. " + SHIFT + R",
+	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screen-record.sh --setup"),
+	{ description = "Recording settings" }
+)
 
 -- lock screen
 hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"), { description = "Lock the session" })
@@ -332,14 +340,20 @@ hl.bind(mainMod .. " + j", hl.dsp.focus({ direction = "down" }), { description =
 for i = 1, 10 do
 	local key = i % 10 -- 10 maps to key 0
 	hl.bind(mainMod .. " + " .. key, hl.dsp.focus({ workspace = i }), { description = "Switch to workspace " .. i })
-	hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }),
-		{ description = "Move window to workspace " .. i })
+	hl.bind(
+		mainMod .. " + SHIFT + " .. key,
+		hl.dsp.window.move({ workspace = i }),
+		{ description = "Move window to workspace " .. i }
+	)
 end
 
 -- Example special workspace (scratchpad)
 hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"), { description = "Toggle the scratchpad" })
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }),
-	{ description = "Move window to the scratchpad" })
+hl.bind(
+	mainMod .. " + SHIFT + S",
+	hl.dsp.window.move({ workspace = "special:magic" }),
+	{ description = "Move window to the scratchpad" }
+)
 
 -- Scroll through existing workspaces with mainMod + scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }), { description = "Next workspace" })
@@ -446,7 +460,7 @@ hl.window_rule({
 
 hl.window_rule({
 	name = "zen-opacity",
-	opacity = "0.95 0.7",
+	opacity = "1 0.7",
 	match = {
 		class = "^(zen|zen-alpha|zen-browser)$",
 	},
