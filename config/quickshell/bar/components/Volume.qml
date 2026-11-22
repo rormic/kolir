@@ -2,9 +2,16 @@ import QtQuick
 import "../../theme"
 import "../../services"
 
-// Volume chip: neon icon, mute = red, progress accent bar.
+// Volume chip: neon icon, mute = red, progress accent bar. The sound sheet is
+// owned by Bar (it lives in the bar surface), so the chip only reports left
+// clicks through `activated`.
 Pill {
     id: root
+
+    signal activated()
+
+    // Bound by Bar to the embedded popup's modal state.
+    property bool popupActive: false
 
     implicitWidth: 64
     icon: AudioService.muted
@@ -18,23 +25,18 @@ Pill {
     textColor: Colors.onSurface
     surfaceColor: Colors.surfaceContainerHigh
     spacing: 4
-    active: popup.visible
+    active: root.popupActive
 
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: popup.toggle()
+        onClicked: root.activated()
         onWheel: wheel => {
             if (wheel.angleDelta.y > 0) AudioService.volumeUp();
             else if (wheel.angleDelta.y < 0) AudioService.volumeDown();
         }
-    }
-
-    VolumePopup {
-        id: popup
-        anchorItem: root
     }
 
     // Material 3 linear progress indicator along the bottom edge.

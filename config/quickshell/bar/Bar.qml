@@ -19,10 +19,11 @@ PanelWindow {
     WlrLayershell.namespace: "bar"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.exclusiveZone: Dimensions.bar.height
-    // The embedded settings and night-light sheets live in this surface
-    // instead of separate windows. OnDemand lets them receive keyboard focus
-    // (Escape) after they are clicked without stealing focus while closed.
-    WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened)
+    // The embedded sheets live in this surface instead of separate windows.
+    // OnDemand lets them receive keyboard focus (Escape) after they are
+    // clicked without stealing focus while closed.
+    WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened
+                                  || volumePopup.opened)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
 
@@ -58,7 +59,8 @@ PanelWindow {
         height: bar.height
     }
 
-    mask: (settingsMenu.modal || brightnessPopup.modal) ? modalMask : barMask
+    mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal)
+        ? modalMask : barMask
 
     // Bar strip background. The decorative frame below starts at
     // Dimensions.bar.height (see Frame.qml), so the strip is never painted
@@ -111,6 +113,7 @@ PanelWindow {
             rotation: settingsMenu.opened ? 90 : 0
             onClicked: {
                 brightnessPopup.close();
+                volumePopup.close();
                 settingsMenu.toggle();
             }
 
@@ -168,6 +171,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 onActivated: {
                     brightnessPopup.close();
+                    volumePopup.close();
                     settingsMenu.open("main");
                 }
             }
@@ -179,10 +183,21 @@ PanelWindow {
                 popupActive: brightnessPopup.modal
                 onActivated: {
                     settingsMenu.close();
+                    volumePopup.close();
                     brightnessPopup.toggle();
                 }
             }
-            Volume          { anchors.verticalCenter: parent.verticalCenter }
+            Volume          {
+                id: volumeChip
+
+                anchors.verticalCenter: parent.verticalCenter
+                popupActive: volumePopup.modal
+                onActivated: {
+                    settingsMenu.close();
+                    brightnessPopup.close();
+                    volumePopup.toggle();
+                }
+            }
             ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
         }
     }
@@ -212,14 +227,34 @@ PanelWindow {
         z: 1
     }
 
-    // The two embedded sheets are mutually exclusive, whichever way one was
-    // opened (chip click or IPC): opening one closes the other.
+    // Sound sheet overlay: same embedded pattern as the night-light sheet.
+    VolumePopup {
+        id: volumePopup
+        anchors.fill: parent
+        z: 1
+    }
+
+    // The embedded sheets are mutually exclusive, whichever way one was opened
+    // (chip click or IPC): opening one closes the others.
     Connections {
         target: brightnessPopup
 
         function onOpenedChanged() {
-            if (brightnessPopup.opened)
+            if (brightnessPopup.opened) {
                 settingsMenu.close();
+                volumePopup.close();
+            }
+        }
+    }
+
+    Connections {
+        target: volumePopup
+
+        function onOpenedChanged() {
+            if (volumePopup.opened) {
+                settingsMenu.close();
+                brightnessPopup.close();
+            }
         }
     }
 
@@ -227,8 +262,10 @@ PanelWindow {
         target: settingsMenu
 
         function onOpenedChanged() {
-            if (settingsMenu.opened)
+            if (settingsMenu.opened) {
                 brightnessPopup.close();
+                volumePopup.close();
+            }
         }
     }
 }
