@@ -89,6 +89,10 @@ Item {
         refreshDelay.restart();
     }
 
+    // Height needed to show every control at once, so the host sheet can size
+    // itself without an outer scroll. The host provides the page margins.
+    readonly property int contentHeight: Math.ceil(flick.contentHeight)
+
     Timer {
         id: refreshDelay
         interval: 120
@@ -99,10 +103,7 @@ Item {
     Flickable {
         id: flick
 
-        anchors {
-            fill: parent
-            margins: 14
-        }
+        anchors.fill: parent
         contentWidth: width
         contentHeight: body.implicitHeight
         clip: true

@@ -26,7 +26,22 @@ Item {
     readonly property bool modal: root.opened || root.reveal > 0.001
 
     readonly property int popupWidth: 424
-    readonly property int panelHeight: 600
+
+    // The sheet grows to fit every control (no outer scrolling) and is
+    // clamped so it never runs past the bottom of the screen. These three
+    // tokens mirror the content layout below.
+    readonly property int titleBlockHeight: 44
+    readonly property int contentColumnMargins: 14
+    readonly property int contentColumnSpacing: 10
+    // Extra breathing room below the last control, so the settled sheet keeps
+    // the same bottom gap as the fixed-height night-light sheet.
+    readonly property int contentBottomReserve: 6
+    readonly property int maxPanelHeight: Math.max(
+        320, root.height - Dimensions.bar.height - 8)
+    readonly property int panelHeight: Math.min(root.maxPanelHeight,
+        root.contentTopInset + 2 * root.contentColumnMargins
+        + root.titleBlockHeight + root.contentColumnSpacing
+        + controls.contentHeight + root.contentBottomReserve)
 
     // Same mirrored geometry as BrightnessPopup: the body keeps `panelFlare`
     // away from the shoulder side (left here) and runs to the physical right
@@ -91,19 +106,23 @@ Item {
             return;
 
         revealAnim.stop();
+        settleTimer.stop();
         root.opened = true;
         root.reveal = 0;
         root.forceActiveFocus();
 
+        // The device/codec model populates asynchronously after refresh(), so
+        // wait for it to settle before revealing; otherwise the panel would
+        // resize (or need scrolling) halfway through the opening animation.
         controls.refresh();
-
-        root.animateReveal(1, 240, Easing.OutQuint);
+        settleTimer.start();
     }
 
     function close() {
         if (!root.opened)
             return;
 
+        settleTimer.stop();
         root.opened = false;
         revealAnim.stop();
 
@@ -146,6 +165,18 @@ Item {
         onFinished: {
             if (!root.opened && root.reveal <= 0.01)
                 root.reveal = 0;
+        }
+    }
+
+    // Starts the reveal once the audio model has settled (see open()).
+    Timer {
+        id: settleTimer
+
+        interval: 320
+        repeat: false
+        onTriggered: {
+            if (root.opened && root.reveal <= 0.001)
+                root.animateReveal(1, 240, Easing.OutQuint);
         }
     }
 
@@ -255,12 +286,13 @@ Item {
                 ColumnLayout {
                     anchors {
                         fill: parent
-                        margins: 14
+                        margins: root.contentColumnMargins
                     }
-                    spacing: 10
+                    spacing: root.contentColumnSpacing
 
                     ColumnLayout {
                         Layout.fillWidth: true
+                        Layout.preferredHeight: root.titleBlockHeight
                         spacing: 2
 
                         Text {
@@ -287,7 +319,7 @@ Item {
                         id: controls
 
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.preferredHeight: controls.contentHeight
                     }
                 }
             }
