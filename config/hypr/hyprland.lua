@@ -288,7 +288,7 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 -- from `hyprctl binds -j` and shows it next to the key. Keep the wording short
 -- and imperative, and mirror it for binds added in user.lua.
 -- screenshot --
-hl.bind(mainMod .. " + X", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'), { description = "Screenshot a region" })
+hl.bind(mainMod .. " + X", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screenshot-region.sh"), { description = "Screenshot a region" })
 hl.bind(mainMod .. " + SHIFT + X", hl.dsp.exec_cmd("grim - | wl-copy"), { description = "Screenshot the screen" })
 
 -- wallpaper --
@@ -494,6 +494,14 @@ hl.layer_rule({
 	match = { namespace = "shortcuts" },
 	blur = true,
 	ignore_alpha = 0,
+})
+
+-- The frozen screenshot frame must appear and disappear instantly: a layer
+-- fade would briefly reveal the live screen and delay the slurp selection.
+hl.layer_rule({
+	name = "screenshot-no-anim",
+	match = { namespace = "screenshot" },
+	no_anim = true,
 })
 
 -------------------------------
