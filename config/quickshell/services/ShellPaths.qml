@@ -27,6 +27,13 @@ QtObject {
     // Quickshell cache directory shared by the persisted UI state files.
     readonly property string quickshellCache: home + "/.cache/quickshell"
 
+    // Notification center history and DND state owned by NotificationService.
+    readonly property string notificationState: quickshellCache + "/notifications.json"
+
+    // Notification chime helper bundled with the shell. NotificationService
+    // runs it for arrivals that do-not-disturb does not silence.
+    readonly property string notificationSound: Quickshell.shellPath("scripts/notification-sound.sh")
+
     // Matugen-generated palette consumed by Colors.qml.
     readonly property string colorsJson: home + "/.config/quickshell/colors.json"
 

@@ -59,6 +59,10 @@ QtObject {
     readonly property string bluetooth: "bluetooth"
     readonly property string bluetoothDisabled: "bluetooth_disabled"
 
+    readonly property string notifications: "notifications"
+    readonly property string notificationsOff: "notifications_off"
+    readonly property string notificationsNone: "notifications_none"
+
     readonly property string wifi: "wifi"
     readonly property string wifiOff: "wifi_off"
     readonly property string ethernet: "settings_ethernet"

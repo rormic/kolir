@@ -23,7 +23,8 @@ PanelWindow {
     // OnDemand lets them receive keyboard focus (Escape) after they are
     // clicked without stealing focus while closed.
     WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened
-                                  || volumePopup.opened)
+                                  || volumePopup.opened
+                                  || notificationCenter.opened)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
 
@@ -59,7 +60,8 @@ PanelWindow {
         height: bar.height
     }
 
-    mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal)
+    mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal
+           || notificationCenter.modal)
         ? modalMask : barMask
 
     // Bar strip background. The decorative frame below starts at
@@ -199,6 +201,18 @@ PanelWindow {
                     volumePopup.toggle();
                 }
             }
+            NotificationBell {
+                id: notificationBell
+
+                anchors.verticalCenter: parent.verticalCenter
+                active: notificationCenter.modal
+                onActivated: {
+                    settingsMenu.close();
+                    brightnessPopup.close();
+                    volumePopup.close();
+                    notificationCenter.toggle();
+                }
+            }
             ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
         }
     }
@@ -235,6 +249,14 @@ PanelWindow {
         z: 1
     }
 
+    // Notification center overlay: the bell's history and DND sheet, again
+    // embedded in the bar surface and mirrored to the right edge.
+    NotificationCenter {
+        id: notificationCenter
+        anchors.fill: parent
+        z: 1
+    }
+
     // The embedded sheets are mutually exclusive, whichever way one was opened
     // (chip click or IPC): opening one closes the others.
     Connections {
@@ -244,6 +266,7 @@ PanelWindow {
             if (brightnessPopup.opened) {
                 settingsMenu.close();
                 volumePopup.close();
+                notificationCenter.close();
             }
         }
     }
@@ -255,6 +278,7 @@ PanelWindow {
             if (volumePopup.opened) {
                 settingsMenu.close();
                 brightnessPopup.close();
+                notificationCenter.close();
             }
         }
     }
@@ -264,6 +288,19 @@ PanelWindow {
 
         function onOpenedChanged() {
             if (settingsMenu.opened) {
+                brightnessPopup.close();
+                volumePopup.close();
+                notificationCenter.close();
+            }
+        }
+    }
+
+    Connections {
+        target: notificationCenter
+
+        function onOpenedChanged() {
+            if (notificationCenter.opened) {
+                settingsMenu.close();
                 brightnessPopup.close();
                 volumePopup.close();
             }

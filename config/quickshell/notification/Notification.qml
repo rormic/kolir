@@ -1,27 +1,21 @@
 import "../theme"
+import "../services"
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Notifications
 
+// Live notification card stack. The daemon and its history live in
+// NotificationService; this surface only renders the notifications that are
+// currently tracked and not silenced by do-not-disturb.
 Scope {
     id: root
 
-    NotificationServer {
-        id: server
-        bodySupported: true
-        actionsSupported: true
-        imageSupported: true
-        keepOnReload: true
-
-        onNotification: n => {
-            n.tracked = true
-        }
-    }
-
     PanelWindow {
         id: win
-        visible: server.trackedNotifications.values.length > 0
+        visible: NotificationService.server.trackedNotifications.values.length > 0
+            && !NotificationService.dnd
+            && !NotificationService.panelOpen
         color: "transparent"
 
         anchors {
@@ -46,7 +40,7 @@ Scope {
             spacing: 8
 
             Repeater {
-                model: server.trackedNotifications
+                model: NotificationService.server.trackedNotifications
 
                 delegate: NotificationCard {
                     width: col.width

@@ -8,6 +8,11 @@ Item {
     id: root
 
     property string text: ""
+    // Optional style overrides; the defaults match the now-playing usage, so
+    // existing callers keep their exact look.
+    property color textColor: Colors.onSurface
+    property int textSize: Typography.size.labelMedium
+    property int textWeight: Typography.weight.bold
 
     readonly property alias textWidth: textLabel.implicitWidth
 
@@ -39,10 +44,10 @@ Item {
 
         anchors.verticalCenter: parent.verticalCenter
         text: root.text
-        color: Colors.onSurface
+        color: root.textColor
         font.family: Typography.barFont
-        font.pixelSize: Typography.size.labelMedium
-        font.weight: Typography.weight.bold
+        font.pixelSize: root.textSize
+        font.weight: root.textWeight
     }
 
     // Marquee: rest, scroll through the title, rest, slide back.

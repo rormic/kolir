@@ -54,6 +54,9 @@ local menu = "sh ~/.config/hypr/scripts/qs-ipc.sh launcher toggle"
 -- live from `hyprctl binds -j`, so the descriptions below are what the window
 -- shows next to each key.
 local shortcuts = "sh ~/.config/hypr/scripts/qs-ipc.sh shortcuts toggle"
+-- Opens the Quickshell notification center: persisted history, per-entry
+-- delete, clear-all and the do-not-disturb switch.
+local notifications = "sh ~/.config/hypr/scripts/qs-ipc.sh notifications toggle"
 local random_wallpaper = "sh ~/.config/hypr/scripts/random-wallpaper.sh"
 -- Opens the Quickshell wallpaper grid; select-wallpaper.sh (Zenity) is the
 -- fallback when the shell is not running.
@@ -341,6 +344,7 @@ hl.bind(
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager), { description = "Open the file manager" })
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }), { description = "Toggle floating" })
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(shortcuts), { description = "Show keyboard shortcuts" })
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd(notifications), { description = "Notifications" })
 -- Launcher on a lone SUPER tap (both sides). The release flag defers the bind
 -- to the SUPER release, where Hyprland only fires it if no other key, mouse
 -- button or scroll was used meanwhile, so SUPER+Space (layout switch),
