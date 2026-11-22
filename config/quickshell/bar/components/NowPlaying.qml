@@ -1,15 +1,22 @@
 import "../../theme"
 import QtQuick
+import QtQuick.Window
+import Quickshell.Widgets
 import "media"
 
 // Now playing: expanding media island.
 //
-// Collapsed it is an info chip: site/app icon, "Artist – Title", and a
-// thin neon progress line at the bottom (the "playing" indicator — it
-// moves while playing, dims and freezes on pause). On hover the island
-// grows, the text condenses and transport buttons (prev / play-pause /
-// next) slide in. Clicking the body toggles playback; the wheel skips
-// tracks.
+// At rest it shows the track's cover art (rounded square), the cleaned
+// "Artist – Title" line and play/pause, with a thin progress line on the
+// pill's bottom edge. On hover the island grows, the text condenses and the
+// prev/next buttons slide in around play/pause. A long line is elided with "…"
+// and its full text appears in a tooltip under the bar. Clicking the body
+// toggles playback; the wheel skips tracks.
+//
+// While a track is playing with cover art, the island is tinted with Matugen's
+// primary_container / on_primary_container from that art. Everything else in
+// the shell keeps the system palette. Idle, paused, art-less and failed
+// lookups fall back to the regular Colors.
 Surface {
     id: root
 
@@ -19,12 +26,22 @@ Surface {
         pollActive: root.visible
     }
 
+    // Debounced per-track palette; it only reports colors, the view decides
+    // whether they are live.
+    CoverPalette {
+        id: coverPalette
+
+        artUrl: controller.trackCoverUrl
+        active: root.visible && root.assumedPlaying && controller.trackCoverUrl !== ""
+    }
+
     readonly property var player: controller.player
 
     readonly property bool hasPlayer: controller.hasPlayer
     readonly property bool interactive: controller.interactive
     readonly property bool expanded: hovered && interactive
     readonly property string trackText: controller.trackText
+    readonly property string trackCoverUrl: controller.trackCoverUrl
 
     // Set from Bar.qml: hidden on narrow screens.
     property bool enabled: true
@@ -41,52 +58,67 @@ Surface {
 
     readonly property bool hovered: _hover.hovered
 
-    // Collapsed vs hovered text viewport widths. The island grows by
-    // roughly the amount the text condenses, so it barely shifts when the
-    // buttons slide in.
-    readonly property int textMaxWidth: 150
-    readonly property int textCondensedWidth: 110
-    readonly property int horizontalPadding: Dimensions.padding.chipHorizontal
-
     readonly property bool progressSupported: controller.progressSupported
 
     // 0..1 position in the current track. `position` does not update
     // reactively; the controller polls it while playing.
     readonly property real progress: controller.progress
 
-    readonly property bool siteIconReady: controller.siteIconPath !== ""
-        && siteIconImage.status === Image.Ready
-
-    // AppIcon resolves the player's desktop entry (zen -> zen-browser, ...).
-    readonly property bool appIconReady: appIcon.ready
-
-    // The music note is the last resort, used only when no icon is available.
-    readonly property bool showNoteIcon: !siteIconReady && !appIconReady
-
     readonly property bool assumedPlaying: controller.assumedPlaying
+
+    // Cover art wins while it decodes (MPRIS art, else a YouTube thumbnail);
+    // AppIcon stays as the fallback, the music note is the last resort. Some
+    // players report a bare local path instead of a file:// URL, so normalize
+    // it for Image.
+    readonly property string artSource: trackCoverUrl === ""
+        ? ""
+        : (trackCoverUrl.startsWith("/") ? "file://" + trackCoverUrl : trackCoverUrl)
+    readonly property bool artReady: artSource !== "" && artImage.status === Image.Ready
+    readonly property bool appIconReady: appIcon.ready
+    readonly property bool showNoteIcon: !artReady && !appIconReady
+
+    // Palette is live only while the track plays with art. CoverPalette drops
+    // paletteReady on pause, stop and helper failure.
+    readonly property bool paletteActive: coverPalette.paletteReady
+
+    readonly property color foregroundColor: paletteActive
+        ? coverPalette.containerTextColor
+        : Colors.onSurface
+    // Accent for play/pause, the progress line, the transport icons and the
+    // hover border.
+    readonly property color accentColor: paletteActive
+        ? coverPalette.containerTextColor
+        : Colors.primary
 
     implicitHeight: Dimensions.control.height
     implicitWidth: Math.max(root.slotWidth,
-        content.implicitWidth + horizontalPadding * 2)
+        contentBox.implicitWidth + horizontalPadding * 2)
     radius: Dimensions.radius.full
-    surfaceColor: Colors.surfaceContainerHigh
+    surfaceColor: paletteActive
+        ? coverPalette.containerColor
+        : Colors.surfaceContainerHigh
 
-    // Neon border on hover
+    // The tooltip is drawn below the pill, so the surface itself must not clip
+    // its children. The progress line stays inside the rounded ends.
+    clip: false
+
+    readonly property int horizontalPadding: Dimensions.padding.chipHorizontal
+
+    // Neon border on hover; it follows the cover container instead of
+    // outlining a tinted pill with a foreign accent.
     borderColor: hovered && interactive
-        ? Colors.withAlpha(Colors.primary, 0.55)
-        : Colors.withAlpha(Colors.outlineVariant, 0.18)
+        ? Colors.withAlpha(root.accentColor, 0.55)
+        : Colors.withAlpha(paletteActive ? root.foregroundColor : Colors.outlineVariant, 0.18)
 
     Behavior on borderColor {
-        ColorAnimation { duration: 150 }
+        ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
     }
 
     scale: hovered && interactive ? 1.04 : 1.0
 
     Behavior on scale {
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
     }
-
-    onExpandedChanged: viewport.syncMarquee()
 
     // Body: click toggles playback, wheel skips tracks. The layout is
     // parented to the MouseArea so wheels over the transport buttons
@@ -108,7 +140,7 @@ Surface {
         }
 
         Item {
-            id: content
+            id: contentBox
 
             // Centered so the idle placeholder (a lone note glyph) sits in the
             // middle of the slot instead of hugging its left edge. While a
@@ -116,156 +148,175 @@ Surface {
             // the padding, so centering leaves the usual symmetric margins.
             anchors.centerIn: parent
             height: Dimensions.control.height
-            implicitWidth: controlsSlot.x + controlsSlot.width
+            implicitWidth: transport.x + transport.width
 
-            // Dim while paused, unless hovered for interacting. The idle
-            // placeholder stays muted even on hover: there is nothing to act on.
-            opacity: root.idle
-                ? 0.45
-                : (root.assumedPlaying
-                    ? 1.0
-                    : (root.hovered && root.interactive ? 1.0 : 0.6))
+            // Dim while idle: there is nothing to act on.
+            opacity: root.idle ? 0.45 : 1.0
 
             Behavior on opacity {
-                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
             }
 
-            // Cover thumbnail, icon fallback while missing.
+            // Cover art as a rounded square; app icon and note are fallbacks.
             Item {
                 id: coverSlot
 
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                width: 18
-                height: 18
+                width: Dimensions.media.cover
+                height: Dimensions.media.cover
 
-                Rectangle {
+                ClippingRectangle {
                     anchors.fill: parent
-                    radius: Dimensions.radius.small
-                    color: Colors.stateLayer(Colors.primary, 0.12)
-                    visible: root.showNoteIcon
-                }
+                    radius: Dimensions.media.coverRadius
+                    color: "transparent"
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: root.showNoteIcon
-                    text: Icons.musicNote
-                    color: Colors.primary
-                    font.family: Typography.iconFont
-                    font.pixelSize: 12
-                }
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Colors.withAlpha(root.accentColor, 0.14)
 
-                // Application icon, used when the site has no favicon.
-                AppIcon {
-                    id: appIcon
-
-                    anchors.fill: parent
-                    iconSize: coverSlot.width
-                    appClass: root.player ? root.player.desktopEntry : ""
-                    fallbackIcon: ""
-                    visible: !root.siteIconReady && ready
-                }
-
-                // Site favicon extracted from the browser's local cache.
-                Image {
-                    id: siteIconImage
-
-                    anchors.fill: parent
-                    visible: controller.siteIconPath !== ""
-                    opacity: root.siteIconReady ? 1 : 0
-                    source: controller.siteIconPath !== ""
-                        ? "file://" + controller.siteIconPath
-                        : ""
-                    sourceSize: Qt.size(coverSlot.width, coverSlot.height)
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    smooth: true
-                    mipmap: true
-
-                    Behavior on opacity {
-                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                        Behavior on color {
+                            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                        }
                     }
 
-                    onStatusChanged: {
-                        if (status === Image.Error)
-                            controller.clearSiteIcon();
+                    Text {
+                        anchors.centerIn: parent
+                        visible: root.showNoteIcon
+                        text: Icons.musicNote
+                        color: root.accentColor
+                        font.family: Typography.iconFont
+                        font.pixelSize: Dimensions.icon.small
+
+                        Behavior on color {
+                            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                        }
+                    }
+
+                    // Application icon, used when the track has no cover art.
+                    AppIcon {
+                        id: appIcon
+
+                        anchors.fill: parent
+                        iconSize: coverSlot.width
+                        appClass: root.player ? root.player.desktopEntry : ""
+                        fallbackIcon: ""
+                        visible: !root.artReady && ready
+                    }
+
+                    Image {
+                        id: artImage
+
+                        anchors.fill: parent
+                        source: root.artSource
+                        visible: root.artReady
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        smooth: true
+                        mipmap: true
+                        sourceSize: Qt.size(
+                            Math.ceil(coverSlot.width * Screen.devicePixelRatio),
+                            Math.ceil(coverSlot.height * Screen.devicePixelRatio))
                     }
                 }
             }
 
-            // Clipped text viewport; marquee for overflowing titles.
-            MarqueeText {
-                id: viewport
+            // Single-line track label, elided with "…"; the full text lives in
+            // the tooltip below.
+            Text {
+                id: trackLabel
 
                 anchors.left: coverSlot.right
-                anchors.leftMargin: 6
+                anchors.leftMargin: Dimensions.media.coverSpacing
                 anchors.verticalCenter: parent.verticalCenter
+                width: root.expanded
+                    ? Dimensions.media.textCondensedWidth
+                    : Dimensions.media.textMaxWidth
                 height: parent.height
-                width: Math.min(viewport.textWidth,
-                    root.expanded ? root.textCondensedWidth : root.textMaxWidth)
                 text: root.trackText
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                color: root.foregroundColor
+                font.family: Typography.barFont
+                font.pixelSize: Typography.size.labelMedium
+                font.weight: Typography.weight.bold
+                verticalAlignment: Text.AlignVCenter
 
                 Behavior on width {
-                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+                }
+
+                Behavior on color {
+                    ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
                 }
             }
 
-            // Transport buttons, revealed as the island expands on hover.
-            Item {
-                id: controlsSlot
+            // Transport: prev/next only on hover, play/pause always visible.
+            Row {
+                id: transport
 
-                anchors.left: viewport.right
+                anchors.left: trackLabel.right
+                anchors.leftMargin: Dimensions.spacing.small
                 anchors.verticalCenter: parent.verticalCenter
                 height: parent.height
-                clip: true
-                width: root.expanded ? controlsRow.implicitWidth + 6 : 0
-                opacity: root.expanded ? 1 : 0
+                spacing: Dimensions.media.transportSpacing
 
-                Behavior on width {
-                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                }
+                Item {
+                    width: root.expanded ? Dimensions.control.iconButton : 0
+                    height: Dimensions.control.iconButton
+                    clip: true
 
-                Behavior on opacity {
-                    NumberAnimation { duration: 140 }
-                }
-
-                Row {
-                    id: controlsRow
-
-                    anchors.left: parent.left
-                    anchors.leftMargin: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
+                    Behavior on width {
+                        NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+                    }
 
                     IconButton {
+                        anchors.centerIn: parent
                         icon: Icons.skipPrevious
                         iconSize: Dimensions.icon.medium
-                        iconColor: Colors.onSurfaceVariant
+                        iconColor: root.accentColor
+                        iconHoverColor: root.accentColor
+                        stateColor: root.accentColor
                         opacity: root.player && root.player.canGoPrevious ? 1 : 0.35
 
                         Behavior on opacity {
-                            NumberAnimation { duration: 140 }
+                            NumberAnimation { duration: Motion.fade }
                         }
 
                         onClicked: controller.prevTrack()
                     }
+                }
 
-                    IconButton {
-                        icon: root.assumedPlaying ? Icons.pause : Icons.playArrow
-                        iconSize: Dimensions.icon.medium
-                        iconColor: Colors.primary
+                IconButton {
+                    icon: root.assumedPlaying ? Icons.pause : Icons.playArrow
+                    iconSize: Dimensions.icon.medium
+                    iconColor: root.accentColor
+                    iconHoverColor: root.accentColor
+                    stateColor: root.accentColor
 
-                        onClicked: controller.togglePlaying()
+                    onClicked: controller.togglePlaying()
+                }
+
+                Item {
+                    width: root.expanded ? Dimensions.control.iconButton : 0
+                    height: Dimensions.control.iconButton
+                    clip: true
+
+                    Behavior on width {
+                        NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
                     }
 
                     IconButton {
+                        anchors.centerIn: parent
                         icon: Icons.skipNext
                         iconSize: Dimensions.icon.medium
-                        iconColor: Colors.onSurfaceVariant
+                        iconColor: root.accentColor
+                        iconHoverColor: root.accentColor
+                        stateColor: root.accentColor
                         opacity: root.player && root.player.canGoNext ? 1 : 0.35
 
                         Behavior on opacity {
-                            NumberAnimation { duration: 140 }
+                            NumberAnimation { duration: Motion.fade }
                         }
 
                         onClicked: controller.nextTrack()
@@ -275,25 +326,58 @@ Surface {
         }
     }
 
-    // Neon progress bar, in the style of the Volume chip.
+    // Full track line under the bar while the label is elided.
     Rectangle {
-        x: 6
+        id: tooltip
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: parent.height + Dimensions.spacing.small
+        z: 10
+        width: tooltipLabel.implicitWidth + Dimensions.padding.chipHorizontal * 2
+        height: tooltipLabel.implicitHeight + Dimensions.spacing.small * 2
+        radius: Dimensions.radius.small
+        color: Colors.surfaceContainerHighest
+        border.width: 1
+        border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
+        visible: root.hovered && root.trackText !== "" && trackLabel.truncated
+
+        Behavior on color {
+            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+        }
+
+        Text {
+            id: tooltipLabel
+
+            anchors.centerIn: parent
+            text: root.trackText
+            textFormat: Text.PlainText
+            color: Colors.onSurface
+            font.family: Typography.barFont
+            font.pixelSize: Typography.size.labelSmall
+            font.weight: Typography.weight.regular
+        }
+    }
+
+    // Thin progress line on the bottom edge of the pill, in the style of the
+    // Volume chip.
+    Rectangle {
+        x: Dimensions.media.progressInset
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 2
-        width: (parent.width - 12) * root.progress
-        height: 2
-        radius: 1
+        anchors.bottomMargin: Dimensions.media.progressBottomMargin
+        width: (parent.width - Dimensions.media.progressInset * 2) * root.progress
+        height: Dimensions.media.progressThickness
+        radius: Dimensions.media.progressThickness / 2
         visible: root.progressSupported
         color: root.assumedPlaying
-            ? Colors.withAlpha(Colors.primary, 0.75)
-            : Colors.withAlpha(Colors.primary, 0.3)
+            ? Colors.withAlpha(root.accentColor, 0.75)
+            : Colors.withAlpha(root.accentColor, 0.3)
 
         Behavior on width {
-            NumberAnimation { duration: 800; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Motion.mediaProgress; easing.type: Easing.OutCubic }
         }
 
         Behavior on color {
-            ColorAnimation { duration: 140 }
+            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
         }
     }
 

@@ -51,6 +51,23 @@ QtObject {
         readonly property int extraLarge: 20
     }
 
+    // Now-playing island: rounded cover art, text viewport and the thin
+    // progress line on the pill's bottom edge.
+    readonly property QtObject media: QtObject {
+        readonly property int cover: 18
+        readonly property int coverRadius: 5
+        readonly property int coverSpacing: 6
+        // Text viewport at rest (play/pause only) and while hovered, when the
+        // prev/next buttons take part of the island.
+        readonly property int textMaxWidth: 150
+        readonly property int textCondensedWidth: 96
+        // Thin progress line on the pill's bottom edge.
+        readonly property int progressThickness: 2
+        readonly property int progressInset: 6
+        readonly property int progressBottomMargin: 2
+        readonly property int transportSpacing: 2
+    }
+
     readonly property QtObject padding: QtObject {
         readonly property int chipHorizontal: 8
         readonly property int barContent: 12

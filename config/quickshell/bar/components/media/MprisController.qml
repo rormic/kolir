@@ -2,10 +2,11 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
+import "TrackText.js" as TrackText
 
 // MPRIS state and control for the now-playing island: player selection,
-// optimistic playback state with raw D-Bus control, favicon lookup, progress
-// polling and the nowPlaying IPC. The view only renders this state.
+// optimistic playback state with raw D-Bus control, progress polling and the
+// nowPlaying IPC. The view only renders this state.
 Scope {
     id: root
 
@@ -19,9 +20,33 @@ Scope {
 
     readonly property bool hasPlayer: player !== null
     readonly property bool interactive: player !== null && player.canControl
-    readonly property string trackText: player
-        ? ((player.trackArtist ? player.trackArtist + " – " : "") + (player.trackTitle || ""))
+
+    // Browser players report the tab title, which still contains the tab
+    // counter and the site suffix. cleanTitle() keeps only the track name.
+    readonly property string trackTitle: player
+        ? TrackText.cleanTitle(player.trackTitle || "")
         : ""
+    readonly property string trackArtist: player ? (player.trackArtist || "") : ""
+    readonly property string trackText: trackTitle === ""
+        ? ""
+        : (trackArtist !== "" ? trackArtist + " – " + trackTitle : trackTitle)
+
+    // mpris:artUrl as reported by the player. The view shows it directly and
+    // CoverPalette derives the island palette from it.
+    readonly property string trackArtUrl: player ? (player.trackArtUrl || "") : ""
+
+    // Browsers expose the current tab URL as xesam:url. YouTube usually has no
+    // mpris:artUrl, so its thumbnail becomes the cover fallback.
+    readonly property string trackUrl: {
+        if (!player || !player.metadata)
+            return "";
+        const url = player.metadata["xesam:url"];
+        return typeof url === "string" ? url : "";
+    }
+
+    readonly property string trackCoverUrl: trackArtUrl !== ""
+        ? trackArtUrl
+        : TrackText.youtubeThumbnail(trackUrl)
 
     readonly property bool progressSupported: player !== null
         && player.lengthSupported
@@ -34,23 +59,6 @@ Scope {
     readonly property real progress: progressSupported && player
         ? Math.max(0, Math.min(1, player.position / player.length))
         : 0
-
-    // Browsers expose the current tab URL as xesam:url, so use its host to
-    // look up a local favicon.
-    readonly property string trackUrl: {
-        if (!player || !player.metadata)
-            return "";
-        const url = player.metadata["xesam:url"];
-        return typeof url === "string" ? url : "";
-    }
-
-    readonly property string siteHost: {
-        const match = trackUrl.match(/^[a-z][a-z0-9+.-]*:\/\/([^\/?#:]+)/i);
-        return match ? match[1].toLowerCase() : "";
-    }
-
-    property string siteIconPath: ""
-    property string faviconRequestHost: ""
 
     // Optimistic playback state. Some players (Firefox/Zen) never update
     // PlaybackStatus, and quickshell's togglePlaying() then keeps sending
@@ -79,21 +87,6 @@ Scope {
         assumedPlaying = player ? player.isPlaying : false;
     }
 
-    function refreshSiteIcon() {
-        siteIconPath = "";
-
-        if (!hasPlayer || trackUrl === "" || siteHost === "")
-            return;
-
-        faviconRequestHost = siteHost;
-        faviconProc.running = false;
-        faviconProc.running = true;
-    }
-
-    function clearSiteIcon() {
-        siteIconPath = "";
-    }
-
     function nextTrack() {
         if (player && player.canGoNext)
             player.next();
@@ -105,17 +98,6 @@ Scope {
     }
 
     onPlayerChanged: syncAssumedState()
-
-    // The host is enough to identify the favicon, so switching tracks on the
-    // same site does not touch the browser database again.
-    onSiteHostChanged: refreshSiteIcon()
-
-    // Retry when a track changes on the same host but the first lookup found
-    // nothing (for example a site whose icon was cached after it was played).
-    onTrackUrlChanged: {
-        if (siteHost !== "" && siteIconPath === "" && !faviconProc.running)
-            refreshSiteIcon();
-    }
 
     IpcHandler {
         target: "nowPlaying"
@@ -145,42 +127,6 @@ Scope {
         onTriggered: {
             if (root.player)
                 root.player.positionChanged();
-        }
-    }
-
-    // Local site favicon lookup. The helper reads the browser's
-    // favicons.sqlite and caches the extracted image; no network is used.
-    Process {
-        id: faviconProc
-
-        running: false
-        command: [
-            "python3",
-            Quickshell.shellPath("scripts/favicon.py"),
-            Quickshell.cachePath("favicons"),
-            root.trackUrl
-        ]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const path = text.trim();
-
-                // Ignore a late result from a previous site.
-                if (path !== "" && root.faviconRequestHost === root.siteHost)
-                    root.siteIconPath = path;
-            }
-        }
-
-        stderr: StdioCollector {
-            onStreamFinished: {
-                if (text.trim() !== "")
-                    console.warn("NowPlaying: favicon lookup:", text.trim());
-            }
-        }
-
-        onExited: (code, status) => {
-            if (code !== 0)
-                console.warn("NowPlaying: favicon helper exited with code", code);
         }
     }
 
@@ -216,6 +162,5 @@ Scope {
 
     Component.onCompleted: {
         syncAssumedState();
-        refreshSiteIcon();
     }
 }

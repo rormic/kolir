@@ -25,6 +25,8 @@ QtObject {
     readonly property int fade: 120
     // Position/size transitions (ProgressIndicator segments).
     readonly property int move: 180
+    // Now-playing position line, which advances once per second.
+    readonly property int mediaProgress: 800
     // Rotation transitions (settings gear).
     readonly property int rotate: 320
     // One full cycle of an endless spinner/wave animation.

@@ -8,6 +8,11 @@ Item {
     property string icon: ""
     property int iconSize: Dimensions.icon.large
     property color iconColor: Colors.onSurface
+    // Hover tint. The now-playing island overrides it so its transport icons
+    // stay legible on a cover-derived container.
+    property color iconHoverColor: Colors.primary
+    // Press/hover state layer tint under the icon.
+    property color stateColor: Colors.onSurface
     property color containerColor: "transparent"
     property bool active: false
 
@@ -37,9 +42,9 @@ Item {
         color: root.active
             ? Colors.primary
             : root.pressed
-                ? Colors.stateLayer(Colors.onSurface, 0.14)
+                ? Colors.stateLayer(root.stateColor, 0.14)
                 : root.hovered
-                    ? Colors.stateLayer(Colors.onSurface, 0.07)
+                    ? Colors.stateLayer(root.stateColor, 0.07)
                     : root.containerColor
         border.width: root.hovered && !root.active ? 1 : 0
         border.color: Colors.withAlpha(Colors.primary, 0.6)
@@ -53,7 +58,7 @@ Item {
         anchors.horizontalCenterOffset: root.iconOffsetX
         anchors.verticalCenterOffset: root.iconOffsetY
         text: root.icon
-        color: root.active ? Colors.onPrimary : (root.hovered ? Colors.primary : root.iconColor)
+        color: root.active ? Colors.onPrimary : (root.hovered ? root.iconHoverColor : root.iconColor)
         font.family: Typography.iconFont
         font.pixelSize: root.iconSize
         font.weight: Font.Normal

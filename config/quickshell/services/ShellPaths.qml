@@ -101,6 +101,10 @@ QtObject {
     readonly property string palettePreviews: Quickshell.shellPath("scripts/palette-previews.sh")
     readonly property string palettePreviewsCache: quickshellCache + "/palette-previews.json"
 
+    // Now-playing cover palette helper. It caches the downloaded art and runs
+    // Matugen with --dry-run, so only the island colors change.
+    readonly property string nowPlayingColors: Quickshell.shellPath("scripts/now-playing-colors.py")
+
     // Directory suggestions for the wallpaper picker's path field.
     readonly property string completeDirs: Quickshell.shellPath("scripts/complete-dirs.sh")
 
