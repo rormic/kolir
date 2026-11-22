@@ -82,6 +82,15 @@ Scope {
     // Index of the first wallpaper tile. Directories are listed first, but
     // opening the panel should start on a wallpaper when the folder has one.
     property int firstFileIndex: -1
+    // Index of the tile currently under the pointer, kept even while the
+    // grid moves so the selection can follow as soon as scrolling stops.
+    property int hoveredIndex: -1
+
+    function followHover(index) {
+        if (index < 0 || index >= wallpaperModel.count)
+            return;
+        grid.currentIndex = index;
+    }
     // Set while a running folder scan is being stopped for a new directory.
     property bool restartPending: false
     // Ignore buffered stdout from the folder that is being left behind.
@@ -137,6 +146,7 @@ Scope {
         root.total = 0;
         root.fileCount = 0;
         root.firstFileIndex = -1;
+        root.hoveredIndex = -1;
         root.scanError = "";
     }
 
@@ -599,6 +609,11 @@ Scope {
                     boundsBehavior: Flickable.StopAtBounds
                     cacheBuffer: root.cellHeight * root.prefetchRows
 
+                    onMovingChanged: {
+                        if (!moving && root.hoveredIndex >= 0)
+                            root.followHover(root.hoveredIndex);
+                    }
+
                     cellWidth: root.cellWidth
                     cellHeight: root.tileHeight + root.tileSpacing
 
@@ -647,6 +662,17 @@ Scope {
                         fileName: name
                         folder: kind === "dir"
                         selected: GridView.isCurrentItem
+
+                        // Follow the mouse with the real selection when the
+                        // grid is still; scrolling under a stationary cursor
+                        // must not churn currentIndex.
+                        onHoveredChanged: {
+                            root.hoveredIndex = hovered
+                                ? index
+                                : (root.hoveredIndex === index ? -1 : root.hoveredIndex);
+                            if (hovered && !grid.moving)
+                                root.followHover(index);
+                        }
 
                         onActivated: root.activateEntry(kind, path)
                     }

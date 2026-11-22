@@ -22,10 +22,10 @@ Item {
     readonly property int thumbnailPixelWidth: 480
     readonly property int folderIconSize: 42
 
-    // Hover is purely visual: it never moves the keyboard selection, so a
-    // moving grid under a stationary cursor does not churn selection state.
+    // Hover is visual feedback; the selected tile follows it only when the
+    // grid is stationary, so scrolling under a fixed cursor cannot churn the
+    // selection. hoveredIndex survives a scroll and is applied when it stops.
     readonly property bool hovered: hover.hovered
-        && (!GridView.view || !GridView.view.moving)
 
     HoverHandler {
         id: hover
