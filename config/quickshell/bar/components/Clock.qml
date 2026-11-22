@@ -7,9 +7,9 @@ Surface {
     id: root
 
     implicitHeight: Dimensions.control.height
-    // Proportional digits make the time 2-4 px narrower or wider every second.
-    // Reserving a stable minimum keeps the chip from pulsing and gives the
-    // now-playing island an exact mirror width (see Dimensions.bar.centerSlot).
+    // Match the now-playing island's reserved slot so the workspaces pill
+    // stays centered (see Dimensions.bar.centerSlot). The time uses tabular
+    // figures, so its width no longer changes with every second.
     implicitWidth: Math.max(Dimensions.bar.centerSlot,
         row.implicitWidth + Dimensions.padding.chipHorizontal * 2)
     radius: Dimensions.radius.full
@@ -42,7 +42,10 @@ Surface {
             color: Colors.withAlpha(Colors.outlineVariant, 0.5)
         }
 
-        // Neon time
+        // Neon time. Tabular figures keep every digit in the same slot;
+        // proportional figures made the label a few pixels narrower or wider
+        // every second, shifting the date and layout labels (and the chip
+        // itself whenever the content exceeded the reserved slot).
         Text {
             id: timeLabel
             anchors.verticalCenter: parent.verticalCenter
@@ -51,6 +54,7 @@ Surface {
             font.family: Typography.barFont
             font.pixelSize: Typography.size.labelMedium
             font.weight: Typography.weight.bold
+            font.features: ({ "tnum": 1 })
         }
 
         Rectangle {
