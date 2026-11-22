@@ -48,6 +48,16 @@ Item {
     property bool busy: false
     property string lastError: ""
 
+    // Set when the user flips the radio on: the cached list is read as soon as
+    // the radio reports enabled, then a real scan is requested while
+    // NetworkManager's scan window is still closed (see enableScanTimer). The
+    // whole chain runs with `scanning` on, so the Refresh button shows it.
+    property bool enableScanPending: false
+    property int enableScanRemaining: 0
+    readonly property int enableScanDelay: 2000
+    readonly property int enableScanRetryDelay: 2500
+    readonly property int enableScanAttempts: 6
+
     property var wifiNetworks: []
     property var savedWifi: ({})
 
@@ -161,14 +171,16 @@ Item {
         statusProc.running = true;
         savedProc.buffer = "";
         savedProc.running = true;
-        if (root.wifiEnabled || rescan) {
+        // A scan already in flight owns its command and buffer: rewriting them
+        // here would drop the rows it has collected so far.
+        if ((root.wifiEnabled || rescan) && !scanProc.running) {
             scanProc.buffer = "";
+            scanProc.message = "";
+            scanProc.rescan = rescan;
             scanProc.command = root.wifiScanCommand(rescan);
-            if (!scanProc.running) {
-                scanProc.running = true;
-                if (rescan)
-                    root.scanning = true;
-            }
+            scanProc.running = true;
+            if (rescan)
+                root.scanning = true;
         }
         if (root.ethernetDevice) {
             ethDetailProc.buffer = "";
@@ -182,6 +194,51 @@ Item {
             if (!wifiDetailProc.running)
                 wifiDetailProc.running = true;
         }
+    }
+
+    // Drops the pending post-enable rescan (radio off, page hidden, or the
+    // radio command never reported enabled).
+    function cancelEnableScan() {
+        root.enableScanPending = false;
+        root.enableScanRemaining = 0;
+        enableScanTimer.stop();
+        root.scanning = false;
+    }
+
+    // The radio just answered: read the cached list at once and, when the user
+    // turned it on, queue a real scan for after NetworkManager's scan window.
+    function handleRadioDone(code) {
+        if (code === 0)
+            root.wifiEnabled = radioProc.buffer.trim() === "enabled";
+        radioProc.buffer = "";
+        if (!root.wifiEnabled) {
+            root.wifiNetworks = [];
+            root.cancelEnableScan();
+            return;
+        }
+        if (!root.active)
+            return;
+        root.refreshScan(false);
+        if (root.enableScanPending) {
+            root.enableScanPending = false;
+            root.enableScanRemaining = root.enableScanAttempts;
+            enableScanTimer.interval = root.enableScanDelay;
+            enableScanTimer.restart();
+        }
+    }
+
+    // Starts a scan unless one is already running. `rescan` asks NetworkManager
+    // for a fresh scan instead of its cached access-point list.
+    function refreshScan(rescan) {
+        if (!root.active || !root.wifiEnabled || scanProc.running)
+            return;
+        scanProc.buffer = "";
+        scanProc.message = "";
+        scanProc.rescan = rescan;
+        scanProc.command = root.wifiScanCommand(rescan);
+        scanProc.running = true;
+        if (rescan)
+            root.scanning = true;
     }
 
     function connectNetwork(net) {
@@ -217,8 +274,15 @@ Item {
         actionProc.command = ["nmcli", "radio", "wifi", enabled ? "on" : "off"];
         actionProc.running = true;
         root.busy = true;
-        if (!enabled)
+        if (enabled) {
+            root.enableScanPending = true;
+            // The chain may wait for NetworkManager's scan window, so the
+            // Refresh button has to look busy from the moment the switch moves.
+            root.scanning = true;
+        } else {
+            root.cancelEnableScan();
             root.resetRequested();
+        }
     }
 
     function forgetNetwork(net) {
@@ -262,6 +326,7 @@ Item {
             refreshDelay.restart();
         } else {
             refreshDelay.stop();
+            root.cancelEnableScan();
             root.resetRequested();
         }
     }
@@ -272,6 +337,28 @@ Item {
         id: refreshDelay
         interval: 200
         onTriggered: if (root.active) root.refreshAll(false)
+    }
+
+    // NetworkManager refuses a scan within 10 s of the previous one
+    // ("Scanning not allowed immediately following previous scan") and usually
+    // starts one itself when the radio comes up, so the post-enable rescan is
+    // attempted early and retried until the window opens. Rejections keep the
+    // Refresh button busy; the cached list stays on screen meanwhile.
+    Timer {
+        id: enableScanTimer
+        interval: root.enableScanDelay
+        onTriggered: {
+            if (scanProc.running || !root.active || !root.wifiEnabled) {
+                if (!root.active || !root.wifiEnabled || root.enableScanRemaining <= 0) {
+                    root.cancelEnableScan();
+                    return;
+                }
+                enableScanTimer.interval = root.enableScanRetryDelay;
+                enableScanTimer.restart();
+                return;
+            }
+            root.refreshScan(true);
+        }
     }
 
     Timer {
@@ -289,18 +376,7 @@ Item {
         stdout: SplitParser {
             onRead: line => radioProc.buffer += line + "\n"
         }
-        onExited: code => {
-            if (code === 0)
-                root.wifiEnabled = radioProc.buffer.trim() === "enabled";
-            radioProc.buffer = "";
-            if (root.active && root.wifiEnabled && !scanProc.running) {
-                scanProc.buffer = "";
-                scanProc.command = root.wifiScanCommand(false);
-                scanProc.running = true;
-            } else if (!root.wifiEnabled) {
-                root.wifiNetworks = [];
-            }
-        }
+        onExited: code => root.handleRadioDone(code)
     }
 
     Process {
@@ -413,16 +489,44 @@ Item {
     Process {
         id: scanProc
         property string buffer: ""
+        property string message: ""
+        // Whether this run asked for a fresh scan; only those belong to the
+        // post-enable chain, so a cached poll read must not clear its counter.
+        property bool rescan: false
         command: root.wifiScanCommand(false)
         stdout: SplitParser {
             onRead: line => scanProc.buffer += line + "\n"
         }
+        stderr: SplitParser {
+            onRead: line => scanProc.message += line + "\n"
+        }
         onExited: code => {
-            root.scanning = false;
+            const message = scanProc.message.toLowerCase();
+            const rescan = scanProc.rescan;
+            scanProc.message = "";
             if (code !== 0) {
                 scanProc.buffer = "";
+                // The post-enable rescan can land on the scan NetworkManager
+                // started itself; back off while the rate limit lets it pass.
+                // The chain owns `scanning`, so a cached read never clears it.
+                if (rescan && message.indexOf("not allowed") >= 0 && root.enableScanRemaining > 0) {
+                    root.enableScanRemaining--;
+                    if (root.enableScanRemaining > 0) {
+                        enableScanTimer.interval = root.enableScanRetryDelay;
+                        enableScanTimer.restart();
+                        return;
+                    }
+                } else if (rescan) {
+                    root.enableScanRemaining = 0;
+                }
+                if (root.enableScanRemaining === 0)
+                    root.scanning = false;
                 return;
             }
+            if (rescan)
+                root.enableScanRemaining = 0;
+            if (root.enableScanRemaining === 0)
+                root.scanning = false;
             const rows = root.parseNmcli(scanProc.buffer);
             const bySsid = {};
             const list = [];
