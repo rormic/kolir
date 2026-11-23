@@ -813,7 +813,7 @@ Item {
                         Text {
                             text: controller.length > 0
                                 ? TrackText.formatDuration(controller.length)
-                                : "--:--"
+                                : "Трансляція"
                             font.family: Typography.barFont
                             font.pixelSize: 10
                             color: Colors.withAlpha(Colors.onSurface, 0.6)
