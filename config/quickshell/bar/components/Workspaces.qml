@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import Quickshell.Hyprland
 import "../../theme"
@@ -18,6 +20,24 @@ Surface {
     }
     readonly property int pillWidth: cellWidth - 2
     readonly property int pillHeight: cellHeight - 4
+
+    // One lookup table for all ten cells. Each delegate used to run its own
+    // find() over a freshly materialised workspace array, so the ten cells
+    // rescanned the list on every workspace/toplevel change.
+    readonly property var workspaceById: {
+        const map = ({})
+        const values = Hyprland.workspaces.values
+
+        for (let i = 0; i < values.length; i++) {
+            const ws = values[i]
+            // First match wins, exactly like the find() this replaces.
+            if (ws.id >= 1 && ws.id <= root.visibleWorkspaces
+                    && map[ws.id] === undefined)
+                map[ws.id] = ws
+        }
+
+        return map
+    }
 
     // Skip the travel on the first focus after a shell start, when the
     // highlight simply appears in place.
@@ -166,8 +186,11 @@ Surface {
                 delegate: Item {
                     id: wsItem
 
+                    // Explicit model index for the bound delegate component.
+                    required property int index
+
                     readonly property int wsId: index + 1
-                    readonly property var ws: Hyprland.workspaces.values.find(w => w.id === wsId)
+                    readonly property var ws: root.workspaceById[wsId]
                     readonly property bool hasWindow: ws ? (ws.toplevels ? ws.toplevels.values.length > 0 : false) : false
                     readonly property bool isFocused: Hyprland.focusedWorkspace?.id === wsId
 

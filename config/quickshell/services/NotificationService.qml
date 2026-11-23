@@ -182,7 +182,7 @@ QtObject {
             version: 1,
             dnd: root.dnd,
             notifications: items,
-        }, null, 2));
+        }));
     }
 
     function loadState() {

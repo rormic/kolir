@@ -255,7 +255,7 @@ Scope {
 
         if (parts[0] === "dir") {
             if (parts[1])
-                wallpaperModel.append({
+                root.queueEntry({
                     kind: "dir",
                     media: "dir",
                     path: parts[1],
@@ -273,22 +273,60 @@ Scope {
             return;
 
         const path = parts[0];
-        wallpaperModel.append({
+        root.queueEntry({
             kind: "file",
             media: parts[2] === "video" ? "video" : "image",
             path: path,
             thumb: parts[1] || "",
             name: root.displayName(path),
         });
-        root.fileCount += 1;
+    }
 
-        if (root.firstFileIndex < 0) {
-            root.firstFileIndex = wallpaperModel.count - 1;
+    // The worker streams one record per line, but one model append per line made
+    // the grid run a layout pass for every thumbnail. Records are collected and
+    // appended in small batches instead; the short timer keeps the streaming
+    // visible (cached previews still show before the rest is generated) and the
+    // remainder is flushed when the worker exits. Order and fields are unchanged.
+    readonly property int batchSize: 32
+    property var pendingEntries: []
+
+    function queueEntry(entry) {
+        root.pendingEntries.push(entry);
+
+        if (root.pendingEntries.length >= root.batchSize)
+            root.flushEntries();
+        else
+            flushTimer.restart();
+    }
+
+    function flushEntries() {
+        flushTimer.stop();
+
+        const entries = root.pendingEntries;
+        if (entries.length === 0)
+            return;
+
+        root.pendingEntries = [];
+
+        let firstFileOffset = -1;
+        for (let i = 0; i < entries.length; i++) {
+            if (entries[i].kind === "file") {
+                if (firstFileOffset < 0)
+                    firstFileOffset = i;
+                root.fileCount += 1;
+            }
+            wallpaperModel.append(entries[i]);
+        }
+
+        if (root.firstFileIndex < 0 && firstFileOffset >= 0) {
+            root.firstFileIndex = wallpaperModel.count - entries.length + firstFileOffset;
             grid.currentIndex = root.firstFileIndex;
         }
     }
 
     function resetModel() {
+        flushTimer.stop();
+        root.pendingEntries = [];
         wallpaperModel.clear();
         grid.currentIndex = -1;
         root.total = 0;
@@ -322,6 +360,8 @@ Scope {
     // records from the old kind are discarded so images and videos never mix.
     function restartScan() {
         if (scanProc.running) {
+            flushTimer.stop();
+            root.pendingEntries = [];
             root.discardingEntries = true;
             root.restartPending = true;
             scanProc.running = false;
@@ -556,6 +596,7 @@ Scope {
                 return;
             }
 
+            root.flushEntries();
             root.scanning = false;
             if (wallpaperModel.count > 0 && grid.currentIndex < 0)
                 grid.currentIndex = 0;
@@ -703,6 +744,16 @@ Scope {
                 pathInput.selectAll();
             }
         }
+    }
+
+    Timer {
+        id: flushTimer
+
+        // Bounds the batching latency: a short burst (the cached previews)
+        // appears immediately instead of waiting for a full batch.
+        interval: 40
+        repeat: false
+        onTriggered: root.flushEntries()
     }
 
     Timer {

@@ -30,10 +30,27 @@ Item {
         return "";
     }
 
+    // Resolution scans every desktop entry, so the result is memoised per class.
+    // The desktop-entry count is part of the tag: the list loads after the first
+    // bind at shell start, and a newly installed app must not keep a stale miss.
+    readonly property int entriesRevision: DesktopEntries.applications.values.length
+    property var iconCache: ({})
+
     implicitWidth: iconSize
     implicitHeight: iconSize
 
     function resolveIcon(appClass) {
+        const revision = root.entriesRevision;
+        const cached = root.iconCache[appClass];
+        if (cached !== undefined && cached.revision === revision)
+            return cached.icon;
+
+        const icon = root.lookupIcon(appClass);
+        root.iconCache[appClass] = { revision: revision, icon: icon };
+        return icon;
+    }
+
+    function lookupIcon(appClass) {
         const cls = appClass.toLowerCase();
         const apps = DesktopEntries.applications.values;
 

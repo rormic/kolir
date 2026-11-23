@@ -17,6 +17,19 @@ Surface {
 
     SystemClock { id: sysClock; precision: SystemClock.Seconds }
 
+    // The clock ticks every second, but the date only changes at midnight. The
+    // cheap calendar-day key rides the per-second path; the formatted label is
+    // written only when that key changes, so the date text is not re-formatted
+    // (and re-laid-out) 60 times a minute for the same result.
+    readonly property int dayKey: {
+        const d = sysClock.date;
+        return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    }
+    property string dateText: Qt.formatDateTime(new Date(), "ddd, dd MMM")
+
+    onDayKeyChanged: root.dateText = Qt.formatDateTime(sysClock.date, "ddd, dd MMM")
+    Component.onCompleted: root.dateText = Qt.formatDateTime(sysClock.date, "ddd, dd MMM")
+
     Row {
         id: row
         anchors.centerIn: parent
@@ -25,7 +38,7 @@ Surface {
         Text {
             id: dateLabel
             anchors.verticalCenter: parent.verticalCenter
-            text: Qt.formatDateTime(sysClock.date, "ddd, dd MMM")
+            text: root.dateText
             color: Colors.onSurfaceVariant
             font.family: Typography.barFont
             font.pixelSize: Typography.size.labelSmall
