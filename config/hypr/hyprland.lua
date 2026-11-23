@@ -211,13 +211,13 @@ hl.animation({ leaf = "layersIn", enabled = true, speed = 4, bezier = "easeOutQu
 hl.animation({ leaf = "layersOut", enabled = true, speed = 1.5, bezier = "linear", style = "fade" })
 hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
--- Workspaces slide with a fade instead of a plain crossfade, and the incoming
--- desktop settles faster than the outgoing one leaves, so a switch reads as
--- movement. `slidefade 100%` (full travel) deliberately matches the live
--- 3-finger swipe, whose release always animates the full monitor width.
-hl.animation({ leaf = "workspaces", enabled = true, speed = 2.6, bezier = "kolirSwitch", style = "slidefade 100%" })
-hl.animation({ leaf = "workspacesIn", enabled = true, speed = 2.4, bezier = "kolirSwitch", style = "slidefade 100%" })
-hl.animation({ leaf = "workspacesOut", enabled = true, speed = 2.8, bezier = "kolirSwitch", style = "slidefade 100%" })
+-- Workspaces slide horizontally with no alpha fade. `slidefade` would animate
+-- the workspace alpha, and since the wallpaper is a separate background layer,
+-- semi-transparent windows let a bright wallpaper flash through them mid-switch.
+-- Plain `slide` moves two fully opaque workspaces across each other.
+hl.animation({ leaf = "workspaces", enabled = true, speed = 2.6, bezier = "kolirSwitch", style = "slide" })
+hl.animation({ leaf = "workspacesIn", enabled = true, speed = 2.4, bezier = "kolirSwitch", style = "slide" })
+hl.animation({ leaf = "workspacesOut", enabled = true, speed = 2.8, bezier = "kolirSwitch", style = "slide" })
 -- The scratchpad drops in from the top like a sheet, so SUPER+S is visually
 -- distinct from a normal workspace move.
 hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 2.6, bezier = "kolirSwitch", style = "slidevert" })

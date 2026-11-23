@@ -16,16 +16,23 @@ Surface {
         const id = Hyprland.focusedWorkspace?.id ?? 0
         return id >= 1 && id <= root.visibleWorkspaces ? id - 1 : -1
     }
+    readonly property int pillWidth: cellWidth - 2
+    readonly property int pillHeight: cellHeight - 4
 
-    // Skip the arrival pulse on the first focus after a shell start, when the
+    // Skip the travel on the first focus after a shell start, when the
     // highlight simply appears in place.
     property bool settledOnce: false
-    // Last workspace the bar could show. IDs above `visibleWorkspaces` hide the
-    // highlight without dragging it back to the first cell, so returning to a
-    // visible workspace does not fly in from the left edge.
+    // Cell the highlight currently targets. A focused workspace above the
+    // visible ten keeps it here instead of dragging it to the first cell, so
+    // returning to a visible workspace does not fly in from the left edge.
     property int lastIndex: 0
-    // The initial placement must not animate; only later switches travel.
-    property bool travelReady: false
+    // Glow lag behind the highlight while it travels, in pixels. Negative is
+    // left of the highlight, which is where the light trails a rightward move.
+    property real trail: 0
+    // Cell whose numeral is tinted. -1 while the highlight travels, so the
+    // destination label lights up when the highlight lands instead of glowing
+    // on the far side of the bar during the move.
+    property int litIndex: 0
 
     function toRoman(n) {
         const r = ["I","II","III","IV","V","VI","VII","VIII","IX","X"]
@@ -37,32 +44,63 @@ Surface {
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
 
-    // A small squash when the highlight lands, so the end of the travel is
-    // felt rather than just stopped.
-    SequentialAnimation {
-        id: arrival
-        NumberAnimation { target: thumb; property: "scale"; to: 1.06; duration: 70;  easing.type: Easing.OutQuad }
-        NumberAnimation { target: thumb; property: "scale"; to: 1.0;  duration: 150; easing.type: Easing.OutCubic }
+    Behavior on trail {
+        NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
     }
 
     onFocusedIndexChanged: {
         if (focusedIndex < 0)
             return
-        if (settledOnce)
-            arrival.restart()
-        settledOnce = true
+
+        const targetCenter = focusedIndex * root.cellWidth + root.cellWidth / 2
+
+        if (!settledOnce) {
+            settledOnce = true
+            lastIndex = focusedIndex
+            litIndex = focusedIndex
+            thumb.centerX = targetCenter
+            return
+        }
+
+        if (focusedIndex === lastIndex)
+            return
+
+        const distance = Math.abs(focusedIndex - lastIndex)
+        const direction = focusedIndex > lastIndex ? 1 : -1
+        const duration = Math.min(340, Motion.workspace + (distance - 1) * 20)
+
+        // Travel: distance-aware so a neighbouring workspace stays snappy and a
+        // far jump gets enough time to read as motion instead of a teleport.
+        travel.stop()
+        travel.duration = duration
+        travel.to = targetCenter
+        travel.start()
+
+        // Squash and stretch along the motion: the highlight grows wider and
+        // flatter while it moves, then settles back to the cell shape.
+        stretchW.to = root.pillWidth + Math.min(7, 3 + distance * 0.6)
+        stretchH.to = root.pillHeight - Math.min(3, 1 + distance * 0.35)
+        stretchW.duration = Math.round(duration * 0.4)
+        stretchH.duration = stretchW.duration
+        settleW.duration = duration - stretchW.duration
+        settleH.duration = settleW.duration
+        travelFx.restart()
+
+        root.trail = -direction * 5
+        root.litIndex = -1
         lastIndex = focusedIndex
     }
 
     // If the shell starts with a workspace already focused, place the highlight
-    // there without travel or a pulse; a later arrival (focus read after
-    // startup) is treated as an appearance as well.
+    // there without travel; a later arrival (focus read after startup) is
+    // treated as an appearance as well.
     Component.onCompleted: {
         if (focusedIndex >= 0) {
-            lastIndex = focusedIndex
             settledOnce = true
+            lastIndex = focusedIndex
+            litIndex = focusedIndex
+            thumb.centerX = lastIndex * root.cellWidth + root.cellWidth / 2
         }
-        travelReady = true
     }
 
     Item {
@@ -76,34 +114,34 @@ Surface {
         Item {
             id: thumb
 
-            x: root.lastIndex * root.cellWidth + 1
-            y: (cells.height - height) / 2
-            width: root.cellWidth - 2
-            height: root.cellHeight - 4
-            visible: root.focusedIndex >= 0
+            // Animated travel coordinate; x follows so the pill stretches
+            // around its centre instead of one edge.
+            property real centerX: root.cellWidth / 2
 
-            Behavior on x {
-                enabled: root.travelReady
-                NumberAnimation {
-                    duration: Motion.workspace
-                    easing.type: Easing.OutQuint
-                }
-            }
+            x: centerX - width / 2
+            y: (cells.height - height) / 2
+            width: root.pillWidth
+            height: root.pillHeight
+            visible: root.focusedIndex >= 0
 
             // Neon glow layer 1 (outermost, most diffuse)
             Rectangle {
-                anchors.centerIn: parent
-                width: root.cellWidth + 8
-                height: root.cellHeight - 1
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.horizontalCenterOffset: root.trail
+                anchors.verticalCenter: parent.verticalCenter
+                width: thumb.width + 10
+                height: thumb.height + 3
                 radius: height / 2
                 color: Colors.withAlpha(Colors.primary, 0.07)
             }
 
             // Neon glow layer 2
             Rectangle {
-                anchors.centerIn: parent
-                width: root.cellWidth + 2
-                height: root.cellHeight - 3
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.horizontalCenterOffset: root.trail
+                anchors.verticalCenter: parent.verticalCenter
+                width: thumb.width + 4
+                height: thumb.height + 1
                 radius: height / 2
                 color: Colors.withAlpha(Colors.primary, 0.13)
             }
@@ -171,7 +209,7 @@ Surface {
                         anchors.centerIn: parent
                         visible: !wsItem.hasWindow || !appIcon.visible
                         text: root.toRoman(wsItem.wsId)
-                        color: wsItem.isFocused ? Colors.primary : Colors.withAlpha(Colors.onSurfaceVariant, 0.7)
+                        color: root.litIndex === wsItem.wsId - 1 ? Colors.primary : Colors.withAlpha(Colors.onSurfaceVariant, 0.7)
                         font.family: Typography.barFont
                         font.pixelSize: wsItem.wsId === 8 ? 8 : 9
                         font.weight: Typography.weight.bold
@@ -184,7 +222,7 @@ Surface {
                         anchors.horizontalCenter: parent.horizontalCenter
                         visible: wsItem.hasWindow && appIcon.visible
                         width: 3; height: 3; radius: 1.5
-                        color: wsItem.isFocused ? Colors.primary : Colors.withAlpha(Colors.outline, 0.6)
+                        color: root.litIndex === wsItem.wsId - 1 ? Colors.primary : Colors.withAlpha(Colors.outline, 0.6)
                     }
 
                     MouseArea {
@@ -199,6 +237,33 @@ Surface {
                     }
                 }
             }
+        }
+    }
+
+    // Travel is declared after the cells so `thumb` already exists when the
+    // animation resolves its target.
+    NumberAnimation {
+        id: travel
+        target: thumb
+        property: "centerX"
+        easing.type: Easing.OutCubic
+        onFinished: {
+            root.trail = 0
+            root.litIndex = root.lastIndex
+        }
+    }
+
+    SequentialAnimation {
+        id: travelFx
+
+        ParallelAnimation {
+            NumberAnimation { id: stretchW; target: thumb; property: "width"; easing.type: Easing.OutQuad }
+            NumberAnimation { id: stretchH; target: thumb; property: "height"; easing.type: Easing.OutQuad }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { id: settleW; target: thumb; property: "width"; to: root.pillWidth; easing.type: Easing.OutCubic }
+            NumberAnimation { id: settleH; target: thumb; property: "height"; to: root.pillHeight; easing.type: Easing.OutCubic }
         }
     }
 }
