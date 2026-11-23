@@ -225,31 +225,30 @@ EmbeddedSheet {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            Flickable {
+            // A ListView keeps only the delegates around the viewport alive.
+            // The Repeater built every card the moment the sheet opened, and an
+            // animating marquee costs ~2 % CPU per card, so a long history paid
+            // for all fifty at once.
+            ListView {
                 id: listFlick
 
                 anchors.fill: parent
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                contentWidth: width
-                contentHeight: listColumn.implicitHeight
+                spacing: root.listSpacing
+                // A card is ~60 px (30 px header row + one body line + 12 px
+                // padding), so 120 px keeps two card heights of slack above
+                // and below the viewport. A wheel notch or a keyboard scroll
+                // then lands on ready delegates instead of flashing an empty
+                // row, while only a handful of cards exist at once.
+                cacheBuffer: 120
+                model: NotificationService.history
 
-                Column {
-                    id: listColumn
-
-                    width: listFlick.width
-                    spacing: root.listSpacing
-
-                    Repeater {
-                        model: NotificationService.history
-
-                        delegate: NotificationHistoryCard {
-                            width: listColumn.width
-                            // `modal` stays true through the close animation, so
-                            // the marquee does not freeze mid-slide.
-                            animationActive: root.modal
-                        }
-                    }
+                delegate: NotificationHistoryCard {
+                    width: ListView.view.width
+                    // `modal` stays true through the close animation, so
+                    // the marquee does not freeze mid-slide.
+                    animationActive: root.modal
                 }
             }
 
