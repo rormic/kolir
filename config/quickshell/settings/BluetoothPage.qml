@@ -23,12 +23,13 @@ Item {
 
     readonly property bool scanning: !!root.adapter && root.adapter.discovering
 
-    // Opening the page asks the device-battery helper for a reading, so an
-    // exact protocol value replaces BlueZ's coarse one without waiting for the
-    // next 60 s poll.
+    // Opening the page asks the device-battery helper for a fresh reading, so
+    // an exact protocol value replaces BlueZ's coarse one without waiting for
+    // the next 60 s poll. This one is forced: a detail page should show the
+    // live level when the headset answers, not the four-minute cache.
     onVisibleChanged: {
         if (root.visible)
-            DeviceBatteryService.refresh();
+            DeviceBatteryService.refresh(true);
     }
 
     // ── Header ─────────────────────────────────────────────────────────────

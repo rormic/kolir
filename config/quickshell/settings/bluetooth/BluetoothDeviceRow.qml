@@ -42,6 +42,22 @@ Item {
         : Math.round(row.device.battery * 100)
     readonly property bool batteryCharging: row.exactBattery !== null
         && row.exactBattery.charging
+    // The helper reports when it reused a cached sample and how old it is, so
+    // the row can say "cached 3 min ago" instead of presenting it as live.
+    readonly property bool batteryCached: row.exactBattery !== null
+        && row.exactBattery.cached === true
+    readonly property string cacheLabel: {
+        if (!row.batteryCached)
+            return "";
+
+        const age = Number(row.exactBattery.age);
+        if (!isFinite(age) || age < 60)
+            return "cached just now";
+        const minutes = Math.round(age / 60);
+        if (minutes < 60)
+            return "cached " + minutes + " min ago";
+        return "cached " + Math.round(minutes / 60) + " h ago";
+    }
 
     function deviceGlyph(icon) {
         switch (icon) {
@@ -175,6 +191,7 @@ Item {
             width: parent.width
             text: row.deviceStatus(row.device)
                 + (row.device.paired && !row.connected ? " · Paired" : "")
+                + (row.cacheLabel !== "" ? " · " + row.cacheLabel : "")
             color: row.connected ? Colors.primary : Colors.onSurfaceVariant
             font.family: Typography.barFont
             font.pixelSize: Typography.size.labelSmall

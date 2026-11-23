@@ -7,7 +7,7 @@ when the array is empty.
 
 ```console
 $ python3 config/quickshell/scripts/device-battery/main.py --verbose
-[{"address":"88:92:CC:D7:FF:99","name":"WH-CH720N","percent":12,"charging":false,"source":"sony-mdr","exact":true}]
+[{"address":"88:92:CC:D7:FF:99","name":"WH-CH720N","percent":12,"charging":false,"source":"sony-mdr","exact":true,"cached":false,"stale":false,"age":0}]
 ```
 
 The helper is deliberately one-shot: no daemon, no shell startup delay beyond
@@ -17,16 +17,35 @@ the background process, and every failure (no adapter, no D-Bus, no
 ## How a reading is chosen
 
 1. An exact reading younger than four minutes is reused without touching the
-   device.
+   device — but only when the same device was connected on the previous run.
+   A reconnect always asks the headset again.
 2. Exact providers run in order (currently the Sony MDR provider).
 3. If an exact provider fails, a recent exact cache entry is used instead of
-   dropping to the coarse value.
+   dropping to the coarse value, and the reading is marked `stale`.
 4. The generic BlueZ provider (`org.bluez.Battery1`) runs last.
-5. A cache entry younger than thirty minutes is the final fallback.
+5. A cache entry younger than thirty minutes is the final fallback, also
+   marked `stale`.
 
 Connected audio devices are found through BlueZ (`org.bluez.Device1` with the
 `audio-*` icon or the Audio/Video major class), so mice and keyboards never
-appear. The cache lives in `~/.cache/quickshell/device-battery.json`.
+appear.
+
+`--force` skips step 1; the shell passes it after it sees a Bluetooth device
+connect. A device that was not connected during the previous run never takes
+part in step 1 even without the flag.
+
+## Cached readings
+
+`cached` says the value came from the cache instead of the headset. `stale`
+says the device did not answer and the last known sample was reused, so the
+value may be out of date; `age` is that sample's age in seconds. The bar marks
+a stale reading with a small clock, and the Bluetooth settings row spells out
+`cached N min ago`. A fresh cache window (step 1) is reported as `cached` with
+`stale:false` because it deliberately avoids reconnecting for four minutes.
+
+The cache lives in `~/.cache/quickshell/device-battery.json` together with the
+set of addresses the previous run saw connected (`connected`), which is what
+detects a reconnect after a shell or helper restart.
 
 ## Adding a brand
 

@@ -237,6 +237,7 @@ def _read_battery(bus, device_path, deadline):
     result = {}
     loop = GLib.MainLoop()
     profile_path = PROFILE_PATH % (os.getpid(), int(time.monotonic() * 1000))
+    watchdog = None
 
     class Profile(dbus.service.Object):
         @dbus.service.method("org.bluez.Profile1", in_signature="", out_signature="")
@@ -253,6 +254,15 @@ def _read_battery(bus, device_path, deadline):
         def RequestDisconnection(self, path):
             pass
 
+    def stop():
+        # Nothing else owns the loop when the headset accepts the profile but
+        # never delivers a connection, so the helper would hang forever and
+        # every later poll would queue behind it.
+        nonlocal watchdog
+        watchdog = None
+        loop.quit()
+        return False
+
     profile = Profile(bus, profile_path)
     manager = dbus.Interface(
         bus.get_object("org.bluez", "/org/bluez"),
@@ -265,7 +275,7 @@ def _read_battery(bus, device_path, deadline):
             "Role": "client",
             "RequireAuthentication": dbus.Boolean(False),
             "RequireAuthorization": dbus.Boolean(False),
-        })
+        }, timeout=max(1, int(deadline - time.monotonic())))
     except dbus.DBusException:
         return None
 
@@ -285,12 +295,19 @@ def _read_battery(bus, device_path, deadline):
             error_handler=on_error,
             timeout=timeout,
         )
+        watchdog = GLib.timeout_add(
+            max(1, int((deadline - time.monotonic()) * 1000)), stop
+        )
         loop.run()
     except dbus.DBusException:
         return None
     finally:
+        if watchdog is not None:
+            GLib.source_remove(watchdog)
         try:
-            manager.UnregisterProfile(profile_path)
+            manager.UnregisterProfile(
+                profile_path, timeout=max(1, int(deadline - time.monotonic()))
+            )
         except dbus.DBusException:
             pass
         del profile

@@ -15,6 +15,11 @@ Surface {
     property color textColor: Colors.onSurface
     property int textMaxWidth: -1
 
+    // Optional small glyph after the label, for state that qualifies the
+    // value (the headset chip uses it to mark a cached charge).
+    property string trailingIcon: ""
+    property color trailingIconColor: Colors.onSurfaceVariant
+
     property int horizontalPadding: Dimensions.padding.chipHorizontal
     property int spacing: 6
 
@@ -69,6 +74,17 @@ Surface {
             elide: Text.ElideRight
             width: root.textMaxWidth > 0 ? Math.min(implicitWidth, root.textMaxWidth) : implicitWidth
             Behavior on color { ColorAnimation { duration: Motion.color } }
+        }
+
+        Text {
+            id: trailingIconLabel
+            visible: root.trailingIcon !== ""
+            text: root.trailingIcon
+            color: root.hovered ? Colors.primary : root.trailingIconColor
+            font.family: Typography.iconFont
+            font.pixelSize: Dimensions.icon.small
+            font.weight: Font.Normal
+            Behavior on color { ColorAnimation { duration: Motion.hover } }
         }
     }
 
