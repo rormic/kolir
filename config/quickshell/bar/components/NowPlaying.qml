@@ -111,9 +111,11 @@ Item {
 
     onTargetExpandProgressChanged: expandProgress = targetExpandProgress
 
+    // Island morph: popout-speed, driven by one progress value so the notch,
+    // radius and content fades stay in sync.
     Behavior on expandProgress {
         NumberAnimation {
-            duration: 320
+            duration: Motion.popupEnter
             easing.type: Easing.Bezier
             easing.bezierCurve: [0.2, 0, 0, 1]
         }
@@ -215,24 +217,13 @@ Item {
 
             onHoveredChanged: {
                 if (hovered) {
-                    closeTimer.stop();
                     if (!root.idle)
                         root.expanded = true;
                 } else if (!cardHover.hovered) {
-                    closeTimer.restart();
+                    // Leaving the island starts closing immediately.
+                    root.expanded = false;
                 }
             }
-        }
-    }
-
-    Timer {
-        id: closeTimer
-
-        interval: 450
-        repeat: false
-        onTriggered: {
-            if (!mainHover.hovered && !cardHover.hovered)
-                root.expanded = false;
         }
     }
 
@@ -355,11 +346,11 @@ Item {
 
             onHoveredChanged: {
                 if (hovered) {
-                    closeTimer.stop();
                     if (!root.idle)
                         root.expanded = true;
                 } else if (!mainHover.hovered) {
-                    closeTimer.restart();
+                    // Leaving the island starts closing immediately.
+                    root.expanded = false;
                 }
             }
         }
