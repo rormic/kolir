@@ -117,6 +117,9 @@ QtObject {
     // Generic one-directory listing for the portal file picker.
     readonly property string listFiles: Quickshell.shellPath("scripts/list-files.sh")
 
+    // Recursive name search used by the portal file picker's search field.
+    readonly property string searchFiles: Quickshell.shellPath("scripts/search-files.sh")
+
     // Audio helper bundled inside the shell config: keeps a single pactl
     // subscriber alive across shell restarts.
     readonly property string pactlSubscribe: Quickshell.shellPath("scripts/pactl-subscribe.sh")
