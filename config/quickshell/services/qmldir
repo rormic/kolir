@@ -5,6 +5,7 @@ singleton BrightnessService 1.0 BrightnessService.qml
 singleton CaffeineService 1.0 CaffeineService.qml
 singleton CaptureHistoryService 1.0 CaptureHistoryService.qml
 singleton DeviceBatteryService 1.0 DeviceBatteryService.qml
+singleton EventSoundService 1.0 EventSoundService.qml
 singleton HyprsunsetService 1.0 HyprsunsetService.qml
 singleton NotificationService 1.0 NotificationService.qml
 singleton ShellPaths 1.0 ShellPaths.qml

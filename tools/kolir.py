@@ -81,6 +81,7 @@ OPTIONAL_CHECKS = (
     (("zenity",), "wallpaper picker", "zenity"),
     (("nautilus",), "file manager", "nautilus"),
     (("playerctl",), "media keys", "playerctl"),
+    (("pw-play", "paplay", "canberra-gtk-play"), "event sounds", "libcanberra"),
     (("kdeconnect-indicator", "kdeconnect-cli"), "KDE Connect indicator", "kdeconnect"),
 )
 

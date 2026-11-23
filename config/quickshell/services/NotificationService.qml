@@ -47,36 +47,9 @@ QtObject {
     }
 
     // Quickshell's notification daemon has no audio output, so the shell
-    // chimes itself. Do-not-disturb silences it, and a short debounce
-    // coalesces a burst of arrivals into one sound.
-    property string soundFile: ""
-
-    property Process soundProcess: Process {
-        command: [ShellPaths.notificationSound]
-        running: false
-    }
-
-    property Timer soundTimer: Timer {
-        interval: 200
-        repeat: false
-
-        onTriggered: {
-            root.soundProcess.command = root.soundFile
-                ? [ShellPaths.notificationSound, root.soundFile]
-                : [ShellPaths.notificationSound];
-
-            if (!root.soundProcess.running)
-                root.soundProcess.running = true;
-        }
-    }
-
-    function playSound(hintFile) {
-        if (root.dnd)
-            return;
-
-        root.soundFile = hintFile ? String(hintFile) : "";
-        root.soundTimer.restart();
-    }
+    // chimes itself through the shared EventSoundService. Do-not-disturb
+    // silences it; the service owns player selection and burst coalescing.
+    readonly property var sound: EventSoundService
 
     function handleNotification(n) {
         // Live cards are suppressed by do-not-disturb and while the center is
@@ -120,7 +93,7 @@ QtObject {
         // The chime helper reports its own failures as notifications; skip
         // the sound for those so a broken audio path cannot recurse.
         if (n.appName !== "kolir-sound")
-            root.playSound(n.hints["sound-file"]);
+            root.sound.playNotification(n.hints["sound-file"]);
 
         // The card surface stays available for normal notifications; under
         // DND or with the center open it is recorded above and discarded.
@@ -157,6 +130,7 @@ QtObject {
             return;
 
         root.dnd = next;
+        root.sound.muted = next;
         root.save();
 
         if (root.dnd)
@@ -242,6 +216,7 @@ QtObject {
             }
         }
 
+        root.sound.muted = root.dnd;
         root.stateLoaded = true;
     }
 

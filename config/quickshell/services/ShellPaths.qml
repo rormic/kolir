@@ -30,9 +30,14 @@ QtObject {
     // Notification center history and DND state owned by NotificationService.
     readonly property string notificationState: quickshellCache + "/notifications.json"
 
-    // Notification chime helper bundled with the shell. NotificationService
-    // runs it for arrivals that do-not-disturb does not silence.
-    readonly property string notificationSound: Quickshell.shellPath("scripts/notification-sound.sh")
+    // Event sound helper bundled with the shell. EventSoundService runs it for
+    // notification, USB and low-battery chimes; the event name selects the
+    // freedesktop sound and the optional second argument overrides the file.
+    readonly property string eventSound: Quickshell.shellPath("scripts/event-sound.sh")
+
+    // USB attach listener bundled with the shell. Its wrapper stops the monitor
+    // left behind by a previous shell before starting a new one.
+    readonly property string usbWatch: Quickshell.shellPath("scripts/usb-watch.sh")
 
     // Matugen-generated palette consumed by Colors.qml.
     readonly property string colorsJson: home + "/.config/quickshell/colors.json"

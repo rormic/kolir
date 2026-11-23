@@ -19,6 +19,7 @@ directory.
   libnotify, and wf-recorder for recording.
 - Optional: `ffmpeg` (lock background and capture previews), `cliphist`
   (clipboard history),
+  `libcanberra` (`canberra-gtk-play`) or `pw-play`/`paplay` (event sounds),
   NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
   indicator on laptops), `python-dbus` + `python-gobject` (exact Bluetooth
   headset battery and the portal file picker), `hyprpicker`, `wl-screenrec`,

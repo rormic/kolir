@@ -61,6 +61,81 @@ QtObject {
     // Low enough that the bar should warn: red icon/text while unplugged.
     readonly property bool low: root.present && !root.charging && root.percentage <= 15
 
+    // One-shot warning thresholds, highest first. 15% matches the red bar
+    // chip; 10% and 5% escalate to a more urgent chime.
+    readonly property var lowBatteryThresholds: [15, 10, 5]
+
+    // Emitted once per crossed threshold and discharge cycle. EventSoundService
+    // turns it into the matching sound.
+    signal lowBattery(int threshold)
+
+    property var announcedThresholds: []
+    // Swallows the state already present at shell start, so logging in at 8%
+    // does not chime before the user changed anything.
+    property bool batterySoundPrimed: false
+
+    onPresentChanged: root.evaluateLowBattery()
+    onPercentageChanged: root.evaluateLowBattery()
+    onChargingChanged: root.evaluateLowBattery()
+
+    function evaluateLowBattery() {
+        if (!root.lowBatteryThresholds)
+            return;
+
+        if (!root.present) {
+            root.announcedThresholds = [];
+            root.batterySoundPrimed = false;
+            return;
+        }
+
+        // UPower can report a ready device with a placeholder 0 while it
+        // settles; do not prime the thresholds from that value.
+        if (root.percentage <= 0)
+            return;
+
+        if (!root.batterySoundPrimed) {
+            root.batterySoundPrimed = true;
+            const initial = [];
+            for (let i = 0; i < root.lowBatteryThresholds.length; i++) {
+                const threshold = root.lowBatteryThresholds[i];
+                if (root.percentage <= threshold)
+                    initial.push(threshold);
+            }
+            root.announcedThresholds = initial;
+            return;
+        }
+
+        if (root.charging) {
+            // Only a charge above the highest warning threshold starts a new
+            // discharge cycle; replugging at 12% must not replay the 15% chime.
+            if (root.percentage > root.lowBatteryThresholds[0])
+                root.announcedThresholds = [];
+            return;
+        }
+
+        let crossed = 0;
+        for (let i = 0; i < root.lowBatteryThresholds.length; i++) {
+            const threshold = root.lowBatteryThresholds[i];
+            if (root.percentage <= threshold
+                    && root.announcedThresholds.indexOf(threshold) === -1)
+                crossed = threshold;
+        }
+
+        if (crossed <= 0)
+            return;
+
+        // A drop that skips several thresholds (e.g. waking from sleep) warns
+        // once, at the most urgent level, instead of playing every chime.
+        const announced = root.announcedThresholds.slice();
+        for (let i = 0; i < root.lowBatteryThresholds.length; i++) {
+            const threshold = root.lowBatteryThresholds[i];
+            if (threshold >= crossed && announced.indexOf(threshold) === -1)
+                announced.push(threshold);
+        }
+        root.announcedThresholds = announced;
+        root.lowBattery(crossed);
+    }
+
     property Timer settleTimer: Timer {
         interval: 6000
         running: !root.upowerReady
