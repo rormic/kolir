@@ -97,6 +97,12 @@ hl.env("HYPRCURSOR_SIZE", "16")
 -- wallpaper sharp). Hiding the protocol from GDK restores decoration:blur.
 hl.env("GDK_WAYLAND_DISABLE", "ext_background_effect_manager_v1")
 
+-- Route GTK and Qt file dialogs through xdg-desktop-portal, so the kolir
+-- FileChooser backend (the Quickshell picker) is used by every application.
+-- GTK also covers Firefox's default widget.use-xdg-desktop-portal.file-picker=2.
+hl.env("GTK_USE_PORTAL", "1")
+hl.env("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
+
 -- Cursor theme is machine-specific: set it in ~/.config/hypr/user.lua
 
 -----------------------
@@ -520,6 +526,15 @@ hl.layer_rule({
 hl.layer_rule({
 	name = "shortcuts-blur",
 	match = { namespace = "shortcuts" },
+	blur = true,
+	ignore_alpha = 0,
+})
+
+-- The portal file picker is a modal overlay like the launcher and the
+-- shortcut sheet; its translucent panel is frosted by the layer blur.
+hl.layer_rule({
+	name = "filepicker-blur",
+	match = { namespace = "filepicker" },
 	blur = true,
 	ignore_alpha = 0,
 })

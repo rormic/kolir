@@ -1,6 +1,7 @@
 import Quickshell
 import "bar"
 import "capture"
+import "filepicker"
 import "launcher"
 import "notification"
 import "osd"
@@ -15,6 +16,7 @@ ShellRoot {
     Frame {}
     Bar {}
     CaptureHistory {}
+    FilePicker {}
     Launcher {}
     Notification {}
     VolumeOsd {}

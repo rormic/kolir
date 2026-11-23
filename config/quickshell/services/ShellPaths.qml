@@ -105,8 +105,12 @@ QtObject {
     // Matugen with --dry-run, so only the island colors change.
     readonly property string nowPlayingColors: Quickshell.shellPath("scripts/now-playing-colors.py")
 
-    // Directory suggestions for the wallpaper picker's path field.
+    // Directory suggestions shared by the wallpaper picker and the portal
+    // file picker's path field.
     readonly property string completeDirs: Quickshell.shellPath("scripts/complete-dirs.sh")
+
+    // Generic one-directory listing for the portal file picker.
+    readonly property string listFiles: Quickshell.shellPath("scripts/list-files.sh")
 
     // Audio helper bundled inside the shell config: keeps a single pactl
     // subscriber alive across shell restarts.

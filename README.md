@@ -21,7 +21,8 @@ directory.
   (clipboard history),
   NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
   indicator on laptops), `python-dbus` + `python-gobject` (exact Bluetooth
-  headset battery), `hyprpicker`, `wl-screenrec`, `zenity`, `nautilus`,
+  headset battery and the portal file picker), `hyprpicker`, `wl-screenrec`,
+  `zenity`, `nautilus`,
   `playerctl` (media keys), the `mocu-xcursor` theme, and KDE Connect.
 - Fonts/icons used by the bar: Google Sans Code Nerd, DejaVu, Material Symbols,
   and Papirus.
@@ -75,6 +76,10 @@ What it creates:
   `~/.config/foot/colors.ini` (Matugen's output).
 - `<root>/.version`, used by `kolir version` and the auto-reload unit.
 - `~/Pictures/wallpaper`, the folder the wallpaper picker opens first.
+- A user-level XDG Desktop Portal FileChooser backend:
+  `~/.local/share/xdg-desktop-portal/portals/kolir.portal`,
+  `~/.local/share/dbus-1/services/org.freedesktop.impl.portal.desktop.kolir.service`,
+  and (only when absent) `~/.config/xdg-desktop-portal/hyprland-portals.conf`.
 - Enables `hypridle.service` (`systemctl --user enable --now`) unless
   `--no-systemd` is passed.
 - Lists the optional packages that are still missing (`cliphist`, `ffmpeg`,
@@ -106,6 +111,26 @@ you pass a path (or answer "yes" and enter one).
 
 Screenshots (`SUPER+X`) are copied to the clipboard and saved under
 `~/Pictures/Screenshots`; recordings keep going to `~/Videos/Recordings`.
+
+## File picker
+
+GTK and Qt applications that use `xdg-desktop-portal` get the same Quickshell
+picker as the wallpaper grid instead of the GTK dialog. `kolir setup` installs
+the user-level backend and selects it in `hyprland-portals.conf`; `hyprland.lua`
+sets `GTK_USE_PORTAL=1` and `QT_QPA_PLATFORMTHEME=xdgdesktopportal`, which also
+covers Firefox's default file-picker behaviour. Restart the portal after setup
+(or log in again):
+
+```sh
+systemctl --user restart xdg-desktop-portal.service
+```
+
+The picker supports opening one or many files, choosing a folder, saving a file
+and saving a list of files, with portal filters, path completion and
+Escape/outside-click cancellation. When the shell is not running the dialog is
+cancelled and a notification explains why; the wallpaper hotkey keeps its
+Zenity fallback for that case.
+
 `SUPER+SHIFT+V` opens the capture history grid, where the newest files are
 shown first: `Enter` opens, `C` copies an image (or a recording's path), and
 `Del` deletes after a second confirmation. Set `KOLIR_SHOT_DIR` or
