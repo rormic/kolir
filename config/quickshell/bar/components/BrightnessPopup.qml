@@ -88,30 +88,13 @@ EmbeddedSheet {
         }
         spacing: 10
 
-        ColumnLayout {
+        PopupHeader {
             Layout.fillWidth: true
-            spacing: 2
-
-            Text {
-                Layout.fillWidth: true
-                text: "Night Light"
-                color: Colors.onSurface
-                font.family: Typography.barFont
-                font.pixelSize: Typography.size.titleLarge
-                font.weight: Typography.weight.bold
-                elide: Text.ElideRight
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: root.statusText
-                color: HyprsunsetService.available
-                    ? Colors.onSurfaceVariant
-                    : Colors.error
-                font.family: Typography.barFont
-                font.pixelSize: Typography.size.labelSmall
-                elide: Text.ElideRight
-            }
+            title: "Night Light"
+            subtitle: root.statusText
+            subtitleColor: HyprsunsetService.available
+                ? Colors.onSurfaceVariant
+                : Colors.error
         }
 
         // Blue-light filter row, styled like the settings rows.

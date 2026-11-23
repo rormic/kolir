@@ -105,29 +105,11 @@ EmbeddedSheet {
         }
         spacing: root.contentColumnSpacing
 
-        ColumnLayout {
+        PopupHeader {
             Layout.fillWidth: true
             Layout.preferredHeight: root.titleBlockHeight
-            spacing: 2
-
-            Text {
-                Layout.fillWidth: true
-                text: "Sound"
-                color: Colors.onSurface
-                font.family: Typography.barFont
-                font.pixelSize: Typography.size.titleLarge
-                font.weight: Typography.weight.bold
-                elide: Text.ElideRight
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: root.statusText
-                color: Colors.onSurfaceVariant
-                font.family: Typography.barFont
-                font.pixelSize: Typography.size.labelSmall
-                elide: Text.ElideRight
-            }
+            title: "Sound"
+            subtitle: root.statusText
         }
 
         SoundControls {
