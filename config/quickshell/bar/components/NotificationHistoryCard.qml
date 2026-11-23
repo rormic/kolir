@@ -17,6 +17,11 @@ Surface {
         && String(modelData.appIcon).length > 0
 
     readonly property bool isCritical: modelData.urgency === NotificationUrgency.Critical
+
+    // Same QIcon rule as AppIcon: a 14 px request decodes the 16 px PNG, so ask
+    // for twice the drawn size and let Image downscale it.
+    readonly property int appIconPixels: Math.max(2, Math.round(14 * Screen.devicePixelRatio * 2))
+
     readonly property color accent: root.isCritical
         ? Colors.error
         : modelData.urgency === NotificationUrgency.Low
@@ -72,7 +77,7 @@ Surface {
                         ? root.modelData.appIcon
                         : Quickshell.iconPath(root.modelData.appIcon,
                             "application-x-executable"))
-                sourceSize: Qt.size(14, 14)
+                sourceSize: Qt.size(root.appIconPixels, root.appIconPixels)
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true

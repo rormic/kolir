@@ -15,6 +15,14 @@ Item {
     property bool isImageClip: false
     property int rowHeight: 40
 
+    // Quickshell.iconPath() is an image:// provider that asks QIcon for exactly
+    // sourceSize pixels, and QIcon never upscales raster art: a 20 px request
+    // makes Signal/Steam decode their 16 px PNG, which the 22 px slot then
+    // stretches. Ask for twice the slot in device pixels so QIcon hands back a
+    // 48 px asset and Image downscales it instead.
+    readonly property int leadingSize: 22
+    readonly property int iconPixels: Math.max(2, Math.round(root.leadingSize * Screen.devicePixelRatio * 2))
+
     signal activated()
 
     height: root.rowHeight
@@ -61,13 +69,13 @@ Item {
             leftMargin: 14
             verticalCenter: parent.verticalCenter
         }
-        width: 22
-        height: 22
+        width: root.leadingSize
+        height: root.leadingSize
 
         Image {
             anchors.fill: parent
             visible: !root.clipboardMode
-            sourceSize: Qt.size(20, 20)
+            sourceSize: Qt.size(root.iconPixels, root.iconPixels)
             source: !root.clipboardMode
                 ? Quickshell.iconPath(root.item.icon, "application-x-executable")
                 : ""

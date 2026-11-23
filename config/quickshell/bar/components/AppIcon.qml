@@ -10,6 +10,11 @@ Item {
     property int iconSize: Dimensions.icon.medium
     property string fallbackIcon: "application-x-executable"
 
+    // Same QIcon rule as the launcher rows: request twice the drawn size in
+    // device pixels so a 13–20 px slot still gets a 48 px theme asset that
+    // Image scales down, instead of a 16 px PNG scaled up.
+    readonly property int iconPixels: Math.max(2, Math.round(root.iconSize * Screen.devicePixelRatio * 2))
+
     readonly property bool ready: image.status === Image.Ready
     readonly property string source: {
         if (!root.appClass)
@@ -72,7 +77,7 @@ Item {
         id: image
         anchors.fill: parent
         source: root.source
-        sourceSize: Qt.size(root.iconSize, root.iconSize)
+        sourceSize: Qt.size(root.iconPixels, root.iconPixels)
         fillMode: Image.PreserveAspectFit
         asynchronous: true
         smooth: true

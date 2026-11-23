@@ -18,6 +18,11 @@ Surface {
 
     readonly property bool isCritical: modelData.urgency === NotificationUrgency.Critical
 
+    // Theme app icons follow the AppIcon rule: QIcon never upscales raster art,
+    // so a 16 px request decodes the 16 px PNG. Ask for twice the slot instead
+    // and let Image downscale a 32 px asset.
+    readonly property int appIconPixels: Math.max(2, Math.round(16 * Screen.devicePixelRatio * 2))
+
     implicitHeight: content.implicitHeight + 24
 
     radius: Dimensions.radius.large
@@ -99,7 +104,7 @@ Surface {
                     : (root.modelData.appIcon.startsWith("/")
                         ? root.modelData.appIcon
                         : Quickshell.iconPath(root.modelData.appIcon, "application-x-executable"))
-                sourceSize: Qt.size(16, 16)
+                sourceSize: Qt.size(root.appIconPixels, root.appIconPixels)
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
