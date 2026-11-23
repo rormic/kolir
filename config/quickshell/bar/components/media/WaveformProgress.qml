@@ -4,9 +4,8 @@ import "../../../theme"
 
 // Material 3 wavy progress bar for Now Playing media controls.
 // Features an animated sine wave on the played section (or a flat segment when
-// paused), a Material 3 vertical pill scrubber thumb and interactive seeking
-// with drag feedback. Only the played part is painted; the remaining track is
-// left to the card surface.
+// paused), a dim full-width base track behind it, a Material 3 vertical pill
+// scrubber thumb and interactive seeking with drag feedback.
 Item {
     id: root
 
@@ -15,6 +14,7 @@ Item {
     property bool playing: false
 
     property color indicatorColor: Colors.onSurface
+    property color trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
 
     signal seekRequested(real ratio)
 
@@ -75,6 +75,20 @@ Item {
     onPlayingChanged: rebuildWave()
     onWidthChanged: rebuildWave()
     Component.onCompleted: rebuildWave()
+
+    // --- Base track: full width behind the played segment ---
+    Rectangle {
+        id: baseTrack
+
+        anchors {
+            left: parent.left
+            right: parent.right
+            verticalCenter: parent.verticalCenter
+        }
+        height: root.thickness
+        radius: root.thickness / 2
+        color: root.trackColor
+    }
 
     // --- Flat active segment (when paused or wave too short) ---
     Rectangle {

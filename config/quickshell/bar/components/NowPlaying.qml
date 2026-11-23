@@ -651,6 +651,7 @@ Item {
                     spacing: 4
 
                     IconButton {
+                        anchors.verticalCenter: parent.verticalCenter
                         icon: Icons.skipPrevious
                         iconSize: Dimensions.icon.medium
                         iconColor: Colors.onSurface
@@ -694,6 +695,7 @@ Item {
                     }
 
                     IconButton {
+                        anchors.verticalCenter: parent.verticalCenter
                         icon: Icons.skipNext
                         iconSize: Dimensions.icon.medium
                         iconColor: Colors.onSurface
@@ -730,6 +732,7 @@ Item {
                         length: controller.length
                         playing: controller.assumedPlaying
                         indicatorColor: Colors.onSurface
+                        trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
                         onSeekRequested: ratio => controller.seekToPercent(ratio)
                     }
 
