@@ -7,8 +7,10 @@ import "../../theme"
 import "media"
 
 // One persisted notification in the center panel: compact app/summary/body
-// rows built from the history entry, plus its own delete button.
-Surface {
+// rows built from the history entry, plus its own delete button. It is a flat
+// row inside the panel's framed list (like the sound sheet's device rows),
+// not a card of its own.
+Item {
     id: root
 
     required property var modelData
@@ -46,11 +48,19 @@ Surface {
 
     implicitHeight: content.implicitHeight + 12
 
-    // Same flat filled surface as the DND row in the center panel: no accent
-    // outline, urgency reads through the app-name colour only.
-    radius: Dimensions.radius.medium
-    surfaceColor: Colors.surfaceContainerHigh
-    borderWidth: 0
+    HoverHandler { id: rowHover }
+
+    // Hover tint only; the row keeps the list container's fill so urgency
+    // reads through the app-name colour alone.
+    Rectangle {
+        anchors.fill: parent
+        radius: Dimensions.radius.small
+        color: rowHover.hovered
+            ? Colors.stateLayer(Colors.onSurface, 0.06)
+            : "transparent"
+
+        Behavior on color { ColorAnimation { duration: Motion.fade } }
+    }
 
     Column {
         id: content
