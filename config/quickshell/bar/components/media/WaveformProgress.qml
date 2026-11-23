@@ -12,6 +12,10 @@ Item {
     property real progress: 0
     property real length: 0
     property bool playing: false
+    // Animation driver gate: the wave must not keep rebuilding while the card
+    // is collapsed, which is most of the session. Defaults to true so the
+    // waveform still animates for callers that do not set it.
+    property bool active: true
 
     property color indicatorColor: Colors.onSurface
     property color trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
@@ -43,7 +47,7 @@ Item {
         to: root.wavelength
         duration: 900
         loops: Animation.Infinite
-        running: root.playing && (root.effectiveProgress > 0.02 || root.isLive)
+        running: root.playing && root.active && (root.effectiveProgress > 0.02 || root.isLive)
     }
 
     function rebuildWave() {

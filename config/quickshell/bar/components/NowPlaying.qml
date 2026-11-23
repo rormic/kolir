@@ -798,6 +798,7 @@ Item {
                         progress: controller.progress
                         length: controller.length
                         playing: controller.reallyPlaying
+                        active: root.expanded && root.shown
                         indicatorColor: Colors.onSurface
                         trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
                         onSeekRequested: ratio => controller.seekToPercent(ratio)
