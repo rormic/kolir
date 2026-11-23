@@ -7,6 +7,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(readlink -f -- "$SCRIPT_DIR/../../..")
 . "$SCRIPT_DIR/lib/monitors.sh"
 . "$SCRIPT_DIR/lib/awww.sh"
+. "$SCRIPT_DIR/lib/mpvpaper.sh"
+. "$SCRIPT_DIR/lib/wallpaper.sh"
 . "$SCRIPT_DIR/lib/theme.sh"
 
 warn() {
@@ -42,14 +44,16 @@ fi
 # then the first one, then DP-1 (the author's output).
 MONITOR=$(kolir_monitor_name)
 
-# The wallpaper path comes from the live awww daemon first and from its cache
-# second; both the cache location and its encoding are version-tolerant.
-if ! IMAGE_PATH=$(kolir_awww_wallpaper_path "$MONITOR"); then
-    warn "no readable wallpaper for monitor '$MONITOR'; set one with SUPER+CTRL+T (or 'awww img <file>') and rerun"
+# The active wallpaper comes from lib/wallpaper.sh: a live mpvpaper video when
+# the video backend is really playing, otherwise awww's image (queried from the
+# daemon first, then decoded from its version-tolerant cache). A video is
+# sampled into a cached frame so Matugen and the lock background keep working.
+if ! IMAGE_PATH=$(kolir_wallpaper_image "$MONITOR"); then
+    warn "no readable wallpaper for monitor '$MONITOR'; set one with SUPER+CTRL+T and rerun"
     exit 1
 fi
 if [[ -z $IMAGE_PATH || ! -r $IMAGE_PATH ]]; then
-    warn "awww reported '${IMAGE_PATH:-<empty>}' for monitor '$MONITOR', which is not a readable image; set a wallpaper again (SUPER+CTRL+T)"
+    warn "the wallpaper resolver returned '${IMAGE_PATH:-<empty>}' for monitor '$MONITOR', which is not readable; set a wallpaper again (SUPER+CTRL+T)"
     exit 1
 fi
 

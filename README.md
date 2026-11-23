@@ -17,7 +17,8 @@ directory.
 - The desktop stack: Hyprland, Quickshell, Matugen, awww, Foot, Hyprlock,
   Hypridle, Hyprsunset, brightnessctl, ddcutil, wl-clipboard, grim, slurp,
   libnotify, and wf-recorder for recording.
-- Optional: `ffmpeg` (lock background and capture previews), `cliphist`
+- Optional: `ffmpeg` (lock background, capture previews and video frames),
+  `mpvpaper` (AUR; video wallpapers), `cliphist`
   (clipboard history),
   `libcanberra` (`canberra-gtk-play`) or `pw-play`/`paplay` (event sounds),
   NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
@@ -84,12 +85,13 @@ What it creates:
 - Enables `hypridle.service` (`systemctl --user enable --now`) unless
   `--no-systemd` is passed.
 - Lists the optional packages that are still missing (`cliphist`, `ffmpeg`,
-  `upower`, `hyprpicker`, `zenity`, KDE Connect, the `mocu-xcursor` theme, …)
+  `mpvpaper`, `upower`, `hyprpicker`, `zenity`, KDE Connect, the
+  `mocu-xcursor` theme, …)
   and asks whether to install them. Nothing is installed without an explicit
   "yes"; `--yes` leaves them alone, `--optional` installs them unattended, and
   `--no-optional` skips the question. `paru`/`yay` is used when present so the
-  AUR-only `wl-screenrec`/`mocu-xcursor` resolve too, otherwise `pacman`
-  handles the repository packages.
+  AUR-only `wl-screenrec`/`mocu-xcursor`/`mpvpaper` resolve too, otherwise
+  `pacman` handles the repository packages.
 
 A real `~/.config/matugen/templates` directory is kept: missing shipped
 templates are added as individual symlinks, and your files are never
@@ -107,7 +109,10 @@ you pass a path (or answer "yes" and enter one).
 3. Start or restart the shell with `kolir reload`, or start it directly with
    `kolir shell`.
 4. Set a wallpaper with `SUPER+CTRL+ALT+T` (random) or `SUPER+CTRL+T` (picker)
-   so Matugen can generate colors.
+   so Matugen can generate colors. The picker's **Images** chip lists awww
+   stills; **Videos** lists mpvpaper clips (the AUR package is optional) and
+   samples a frame for the palette. With no video picked yet, the last image
+   stays as the fallback.
 5. Run `kolir doctor` and fix any errors before reporting problems.
 
 Screenshots (`SUPER+X`) are copied to the clipboard and saved under
@@ -131,7 +136,6 @@ and saving a list of files, with portal filters, path completion and
 Escape/outside-click cancellation. When the shell is not running the dialog is
 cancelled and a notification explains why; the wallpaper hotkey keeps its
 Zenity fallback for that case.
-
 `SUPER+SHIFT+V` opens the capture history grid, where the newest files are
 shown first: `Enter` opens, `C` copies an image (or a recording's path), and
 `Del` deletes after a second confirmation. Set `KOLIR_SHOT_DIR` or
@@ -148,6 +152,12 @@ kolir reload [--colors] [--no-shell]
 kolir shell [args...]     # exec qs -p <root>/config/quickshell
 kolir ipc <target> <method> [args...]
                           # forward an IPC call to the running shell
+kolir wallpaper status    # print the engine and the last image/video as JSON
+kolir wallpaper backend <awww|mpvpaper> [--no-colors]
+                          # switch between image and video wallpapers
+kolir wallpaper set <file> [--no-colors]
+                          # apply an image or video (the engine follows the type)
+kolir wallpaper random    # random wallpaper for the active engine
 kolir version             # .version, else git describe, else "unknown"
 kolir uninstall-user [--dry-run]
                           # remove only glue that still points into <root>

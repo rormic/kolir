@@ -13,6 +13,11 @@ import "../theme"
 // navigation, a Random action, and Escape/outside-click dismissal that
 // applies nothing (the same contract as cancelling the Zenity picker).
 //
+// The header switches between the two engines: Images lists awww stills,
+// Videos lists mpvpaper clips (with a video-frame poster). The choice is
+// persisted by wallpaper-backend.sh through WallpaperService, so switching
+// also stops a playing video or replays the last one.
+//
 // The grid starts in ShellPaths.wallpaperDir and can walk into subfolders
 // (shown as folder tiles), back to the parent with Backspace/the up button, or
 // straight to the default library with the home button. Navigation lasts for
@@ -68,6 +73,13 @@ Scope {
     property int total: 0
     property int fileCount: 0
     property string scanError: ""
+
+    // Which kind of file the grid lists. WallpaperService mirrors the JSON
+    // state written by the scripts, so these chips and the engine agree.
+    readonly property string scanMode: WallpaperService.backend === "mpvpaper"
+        ? "video" : "image"
+    readonly property string mediaName: root.scanMode === "video"
+        ? "videos" : "wallpapers"
 
     // Folder being browsed. Initialised to the shared wallpaper library and
     // kept across open/close for the lifetime of this shell.
@@ -245,6 +257,7 @@ Scope {
             if (parts[1])
                 wallpaperModel.append({
                     kind: "dir",
+                    media: "dir",
                     path: parts[1],
                     thumb: "",
                     name: root.displayName(parts[1]),
@@ -262,6 +275,7 @@ Scope {
         const path = parts[0];
         wallpaperModel.append({
             kind: "file",
+            media: parts[2] === "video" ? "video" : "image",
             path: path,
             thumb: parts[1] || "",
             name: root.displayName(path),
@@ -285,16 +299,36 @@ Scope {
     }
 
     function beginScan() {
+        scanProc.startedMode = root.scanMode;
         root.scanning = true;
         scanProc.running = true;
     }
 
     function startScan() {
-        if (scanProc.running)
+        if (scanProc.running) {
+            // A scan left running when the panel closed may have been started
+            // with the other backend; replace it instead of streaming the
+            // wrong kind into the reopened grid.
+            if (scanProc.startedMode !== root.scanMode)
+                root.restartScan();
             return;
+        }
 
         root.resetModel();
         root.beginScan();
+    }
+
+    // Restarts a running scan with the other backend's filter. Buffered
+    // records from the old kind are discarded so images and videos never mix.
+    function restartScan() {
+        if (scanProc.running) {
+            root.discardingEntries = true;
+            root.restartPending = true;
+            scanProc.running = false;
+        } else {
+            root.resetModel();
+            root.beginScan();
+        }
     }
 
     function navigateTo(path) {
@@ -380,7 +414,8 @@ Scope {
     }
 
     // The helper chain is the same one select-wallpaper.sh uses after Zenity
-    // returns: apply the image, then regenerate the palette.
+    // returns: apply the file (set-wallpaper.sh picks awww or mpvpaper from
+    // its extension), then regenerate the palette.
     function applyWallpaper(path) {
         if (path === "")
             return;
@@ -419,6 +454,15 @@ Scope {
         root.applyWallpaper(files[Math.floor(Math.random() * files.length)]);
     }
 
+    Connections {
+        target: WallpaperService
+
+        function onBackendChanged() {
+            if (win.visible)
+                root.restartScan();
+        }
+    }
+
     IpcHandler {
         target: "wallpaper"
 
@@ -454,6 +498,21 @@ Scope {
             root.open();
             root.beginPathEdit();
         }
+
+        // Switches the engine and persists it through WallpaperService. The
+        // panel rescans with the other filter when it is visible.
+        function setBackend(value: string): void {
+            WallpaperService.setBackend(value);
+        }
+
+        function backendStatus(): string {
+            return JSON.stringify({
+                backend: WallpaperService.backend,
+                image: WallpaperService.imagePath,
+                video: WallpaperService.videoPath,
+                switching: WallpaperService.switching,
+            });
+        }
     }
 
     ListModel {
@@ -463,12 +522,17 @@ Scope {
     Process {
         id: scanProc
 
+        // Mode the running argv was built with; startScan compares it with
+        // the current backend after a close/reopen.
+        property string startedMode: ""
+
         running: false
         command: [
             "sh",
             ShellPaths.wallpaperThumbnails,
             root.currentDir,
             ShellPaths.wallpaperPreviewDir,
+            root.scanMode,
         ]
 
         stdout: SplitParser {
@@ -891,6 +955,62 @@ Scope {
                             onClicked: root.goUp()
                         }
 
+                        Row {
+                            spacing: 4
+
+                            Pill {
+                                icon: Icons.image
+                                iconSize: Dimensions.icon.small
+                                iconColor: WallpaperService.backend === "awww"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                text: WallpaperService.labelFor("awww")
+                                textSize: Typography.size.labelSmall
+                                textColor: WallpaperService.backend === "awww"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                horizontalPadding: 10
+                                spacing: 4
+                                active: WallpaperService.backend === "awww"
+                                surfaceColor: WallpaperService.backend === "awww"
+                                    ? Colors.primaryContainer
+                                    : Colors.surfaceContainerHigh
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: WallpaperService.setBackend("awww")
+                                }
+                            }
+
+                            Pill {
+                                icon: Icons.movie
+                                iconSize: Dimensions.icon.small
+                                iconColor: WallpaperService.backend === "mpvpaper"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                text: WallpaperService.labelFor("mpvpaper")
+                                textSize: Typography.size.labelSmall
+                                textColor: WallpaperService.backend === "mpvpaper"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                horizontalPadding: 10
+                                spacing: 4
+                                active: WallpaperService.backend === "mpvpaper"
+                                surfaceColor: WallpaperService.backend === "mpvpaper"
+                                    ? Colors.primaryContainer
+                                    : Colors.surfaceContainerHigh
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: WallpaperService.setBackend("mpvpaper")
+                                }
+                            }
+                        }
+
                         Pill {
                             id: randomPill
 
@@ -986,6 +1106,7 @@ Scope {
                     delegate: WallpaperTile {
                         required property int index
                         required property string kind
+                        required property string media
                         required property string path
                         required property string thumb
                         required property string name
@@ -995,6 +1116,7 @@ Scope {
                         thumbnailSource: thumb
                         fileName: name
                         folder: kind === "dir"
+                        video: media === "video"
                         selected: GridView.isCurrentItem
 
                         // Follow the mouse with the real selection when the
@@ -1110,7 +1232,7 @@ Scope {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.scanning
                             ? "Preparing previews…"
-                            : "No wallpapers in " + root.currentDir
+                            : "No " + root.mediaName + " in " + root.currentDir
                         color: Colors.onSurfaceVariant
                         font.family: Typography.barFont
                         font.pixelSize: Typography.size.labelMedium
@@ -1180,8 +1302,11 @@ Scope {
                             text: root.scanning
                                 ? "Previews " + root.fileCount
                                     + (root.total > 0 ? " / " + root.total : "")
-                                : root.fileCount
-                                    + (root.fileCount === 1 ? " wallpaper" : " wallpapers")
+                                : root.fileCount + " "
+                                    + (root.fileCount === 1
+                                        ? root.mediaName.substring(0,
+                                            root.mediaName.length - 1)
+                                        : root.mediaName)
                             color: Colors.onSurfaceVariant
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.labelSmall

@@ -255,13 +255,14 @@ hl.config({
 ----  MISC  ----
 ----------------
 
--- awww is the only owner of the desktop wallpaper (see
--- scripts/set-wallpaper.sh). Hyprland still paints its own built-in
--- logo/anime background (/usr/share/hypr/wall*.png) whenever no client covers
--- the desktop: that is what a fresh machine shows before the first
--- `awww img`, and it flashes through at every login until the daemon restores
--- its cache. Turning the logo off leaves exactly one wallpaper layer, so the
--- desktop shows the awww image (or a plain background until one is picked).
+-- awww (images) and mpvpaper (videos) are the only wallpaper owners; see
+-- scripts/set-wallpaper.sh and scripts/wallpaper-backend.sh. Hyprland still
+-- paints its own built-in logo/anime background (/usr/share/hypr/wall*.png)
+-- whenever no client covers the desktop: that is what a fresh machine shows
+-- before the first `awww img`, and it flashes through at every login until
+-- the daemon restores its cache. Turning the logo off leaves only the chosen
+-- wallpaper layer, so the desktop shows the awww image or the mpvpaper video
+-- (or a plain background until one is picked).
 hl.config({
 	misc = {
 		disable_hyprland_logo = true,

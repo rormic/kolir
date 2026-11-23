@@ -11,6 +11,9 @@ Item {
     required property string fileName
     required property bool selected
     required property bool folder
+    // Video wallpapers get the same thumbnail pipeline (a frame poster) plus a
+    // play badge, so the grid distinguishes clips from stills at a glance.
+    required property bool video
 
     signal activated()
 
@@ -88,6 +91,25 @@ Item {
                 : Colors.withAlpha(Colors.primary, 0.72)
             font.family: Typography.iconFont
             font.pixelSize: root.folderIconSize
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            visible: root.video && !root.folder && root.thumbnailSource !== ""
+            width: 38
+            height: 38
+            radius: width / 2
+            color: Colors.withAlpha(Colors.surfaceContainerLowest, 0.82)
+            border.width: 1
+            border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
+
+            Text {
+                anchors.centerIn: parent
+                text: Icons.playArrow
+                color: Colors.onSurface
+                font.family: Typography.iconFont
+                font.pixelSize: Dimensions.icon.extraLarge
+            }
         }
 
         Text {

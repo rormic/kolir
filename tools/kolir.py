@@ -8,6 +8,7 @@ This script owns the per-user glue and the daily commands:
     reload          regenerate colors / reload Hyprland / restart the shell
     shell           exec the Quickshell config from the active root
     ipc             forward an IPC call to the running shell
+    wallpaper       apply an image/video wallpaper or switch the awww/mpvpaper engine
     version         print the checkout/package version
     uninstall-user  remove only the glue created by `setup`
 
@@ -19,6 +20,7 @@ under /usr/share/kolir.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shlex
 import shutil
@@ -71,7 +73,7 @@ REQUIRED_COMMANDS = (
 
 OPTIONAL_CHECKS = (
     (("git",), "version reporting from a checkout", "git"),
-    (("ffmpeg",), "lock-screen background, glow and capture previews", "ffmpeg"),
+    (("ffmpeg",), "lock-screen background, glow, capture previews and video frames", "ffmpeg"),
     (("cliphist",), "launcher clipboard history", "cliphist"),
     (("nmcli",), "Internet settings page", "NetworkManager"),
     (("bluetoothctl",), "Bluetooth settings page", "bluez"),
@@ -79,6 +81,7 @@ OPTIONAL_CHECKS = (
     (("hyprpicker",), "colour picker bind (SUPER+I)", "hyprpicker"),
     (("wl-screenrec",), "fallback screen recorder", "wl-screenrec"),
     (("zenity",), "wallpaper picker", "zenity"),
+    (("mpvpaper",), "video wallpapers (mpvpaper engine)", "mpvpaper"),
     (("nautilus",), "file manager", "nautilus"),
     (("playerctl",), "media keys", "playerctl"),
     (("pw-play", "paplay", "canberra-gtk-play"), "event sounds", "libcanberra"),
@@ -87,7 +90,7 @@ OPTIONAL_CHECKS = (
 
 # Optional packages that only the AUR provides; everything else in
 # OPTIONAL_CHECKS is in the official repositories.
-AUR_ONLY_OPTIONAL = {"wl-screenrec", "mocu-xcursor"}
+AUR_ONLY_OPTIONAL = {"wl-screenrec", "mocu-xcursor", "mpvpaper"}
 
 # Optional Python modules (not commands) used by the portal file picker and
 # the exact Bluetooth headset battery reader.
@@ -1268,7 +1271,6 @@ def missing_optional_packages() -> list[tuple[str, str]]:
             continue
         seen.add(package)
         missing.append((package, purpose))
-
     if "mocu-xcursor" not in seen and not mocu_cursor_installed():
         missing.append(("mocu-xcursor", "cursor theme named in user.lua"))
     return missing
@@ -1533,22 +1535,60 @@ def check_deployment(report: Report, root: Path) -> None:
     wallpaper_dir = home_dir() / WALLPAPER_DIR
     if wallpaper_dir.is_dir():
         report.ok(f"wallpaper folder: {wallpaper_dir}")
-        images = [
+        wallpapers = [
             entry
             for entry in wallpaper_dir.iterdir()
             if entry.is_file()
-            and entry.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
+            and entry.suffix.lower() in {
+                ".jpg", ".jpeg", ".png", ".gif",
+                ".mp4", ".webm", ".mkv", ".mov", ".m4v", ".avi",
+            }
         ]
-        if not images:
+        if not wallpapers:
             report.note(
-                f"wallpaper folder: no images yet; pick one with SUPER+CTRL+T "
-                "(until then the desktop keeps the plain compositor background "
-                "and the shipped palette snapshot)"
+                f"wallpaper folder: no wallpapers yet; pick an image or a video "
+                "with SUPER+CTRL+T (until then the desktop keeps the plain "
+                "compositor background and the shipped palette snapshot)"
             )
     else:
         report.warn(
             f"wallpaper folder: missing {wallpaper_dir} "
             "(the wallpaper picker starts empty; run kolir setup)"
+        )
+
+    wallpaper_state = cache_home() / "quickshell/wallpaper.json"
+    if wallpaper_state.is_file():
+        try:
+            data = json.loads(wallpaper_state.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            report.warn(
+                f"wallpaper state: {wallpaper_state} could not be parsed "
+                "(the picker falls back to the awww image backend)"
+            )
+        else:
+            backend = data.get("backend") if isinstance(data, dict) else None
+            if backend not in ("awww", "mpvpaper"):
+                report.warn(
+                    f"wallpaper state: unknown backend '{backend}' in "
+                    f"{wallpaper_state} (awww is used instead)"
+                )
+            else:
+                report.ok(f"wallpaper backend: {backend}")
+                if backend == "mpvpaper":
+                    video = data.get("video") if isinstance(data, dict) else ""
+                    if not isinstance(video, str) or not video:
+                        report.note(
+                            "wallpaper backend: videos selected but no video "
+                            "picked yet (the awww image stays as the fallback)"
+                        )
+                    elif not Path(video).is_file():
+                        report.warn(
+                            f"wallpaper backend: the last video is missing: {video}"
+                        )
+    else:
+        report.note(
+            "wallpaper backend: awww (default; the state file is written when "
+            "a wallpaper is applied)"
         )
 
     theme = cache_home() / "current_theme"
@@ -1776,7 +1816,7 @@ def check_hyprland(report: Report) -> None:
 
     logo = hyprland_option(hyprctl, "misc:disable_hyprland_logo")
     if logo == "true":
-        report.ok("desktop background: awww only (disable_hyprland_logo = true)")
+        report.ok("desktop background: awww/mpvpaper layers (disable_hyprland_logo = true)")
     elif logo == "false":
         report.warn(
             "misc:disable_hyprland_logo is false; Hyprland still paints its "
@@ -2144,6 +2184,136 @@ def cmd_ipc(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# wallpaper
+# ---------------------------------------------------------------------------
+
+# Interpreter for each wallpaper helper. The engine/apply scripts are zsh,
+# while wallpaper-backend.sh stays POSIX sh so it can run before the shell.
+WALLPAPER_SCRIPTS = {
+    "generate-colors.sh": "zsh",
+    "random-wallpaper.sh": "zsh",
+    "set-wallpaper.sh": "zsh",
+    "wallpaper-backend.sh": "sh",
+}
+
+
+def wallpaper_state_path() -> Path:
+    cache = os.environ.get("XDG_CACHE_HOME")
+    base = Path(cache) if cache else cache_home()
+    return base / "quickshell/wallpaper.json"
+
+
+def read_wallpaper_state() -> dict[str, str]:
+    """Return the state the scripts persist, with the awww default applied."""
+    path = wallpaper_state_path()
+    if not path.is_file():
+        return {"backend": "awww", "image": "", "video": ""}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SetupError(f"wallpaper state {path} is unreadable: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SetupError(f"wallpaper state {path} is not a JSON object")
+
+    backend = data.get("backend")
+    if backend not in ("awww", "mpvpaper"):
+        backend = "awww"
+    image = data.get("image")
+    video = data.get("video")
+    return {
+        "backend": backend,
+        "image": image if isinstance(image, str) else "",
+        "video": video if isinstance(video, str) else "",
+    }
+
+
+def run_wallpaper_script(root: Path, name: str, arguments: tuple[str, ...] = ()) -> int:
+    path = root / "config/hypr/scripts" / name
+    if not path.is_file():
+        error(f"{name} is missing: {path}")
+        return 1
+    interpreter = shutil.which(WALLPAPER_SCRIPTS[name])
+    if not interpreter:
+        error(f"{WALLPAPER_SCRIPTS[name]} is not installed; cannot run {name}")
+        return 1
+    result = subprocess.run([interpreter, str(path), *arguments], cwd=str(root))
+    return result.returncode
+
+
+def refresh_colors(root: Path) -> int:
+    info("regenerating the palette")
+    code = run_wallpaper_script(root, "generate-colors.sh")
+    if code == 0:
+        ok("palette regenerated")
+    else:
+        error("generate-colors.sh failed; the palette was not refreshed")
+    return code
+
+
+def cmd_wallpaper(args: argparse.Namespace) -> int:
+    try:
+        root = require_root()
+    except SetupError as exc:
+        error(str(exc))
+        return 1
+
+    action = args.wallpaper_action
+
+    if action == "status":
+        try:
+            state = read_wallpaper_state()
+        except SetupError as exc:
+            error(str(exc))
+            return 1
+        print(json.dumps(state, separators=(",", ":")))
+        return 0
+
+    if action == "backend":
+        code = run_wallpaper_script(root, "wallpaper-backend.sh", [args.backend])
+        if code != 0:
+            return code
+        ok(f"wallpaper engine: {args.backend}")
+        if args.no_colors:
+            return 0
+        try:
+            state = read_wallpaper_state()
+        except SetupError as exc:
+            error(str(exc))
+            return 1
+        sample = state["image"] if state["backend"] == "awww" else state["video"]
+        if not sample or not Path(sample).is_file():
+            info(
+                "no {} wallpaper yet; palette left unchanged".format(
+                    "image" if state["backend"] == "awww" else "video"
+                )
+            )
+            return 0
+        return refresh_colors(root)
+
+    if action == "set":
+        wallpaper = Path(args.file).expanduser()
+        if not wallpaper.is_file():
+            error(f"wallpaper file not found: {wallpaper}")
+            return 1
+        code = run_wallpaper_script(root, "set-wallpaper.sh", [str(wallpaper.resolve())])
+        if code != 0:
+            return code
+        ok(f"wallpaper applied: {wallpaper}")
+        if args.no_colors:
+            return 0
+        return refresh_colors(root)
+
+    if action == "random":
+        code = run_wallpaper_script(root, "random-wallpaper.sh")
+        if code == 0:
+            ok("random wallpaper applied")
+        return code
+
+    error(f"unknown wallpaper action: {action}")
+    return 2
+
+
 def cmd_version(_args: argparse.Namespace) -> int:
     try:
         root = require_root()
@@ -2414,6 +2584,46 @@ def build_parser() -> argparse.ArgumentParser:
     ipc = sub.add_parser("ipc", help="forward 'qs ipc call' to the running shell")
     ipc.add_argument("parts", nargs=argparse.REMAINDER)
     ipc.set_defaults(func=cmd_ipc)
+
+    wallpaper = sub.add_parser(
+        "wallpaper",
+        help="apply an image/video wallpaper or switch the awww/mpvpaper engine",
+    )
+    wallpaper_actions = wallpaper.add_subparsers(
+        dest="wallpaper_action", required=True
+    )
+
+    wallpaper_status = wallpaper_actions.add_parser(
+        "status", help="print the active engine and the last files as JSON"
+    )
+    wallpaper_status.set_defaults(func=cmd_wallpaper)
+
+    wallpaper_backend = wallpaper_actions.add_parser(
+        "backend", help="switch between the awww (images) and mpvpaper (videos) engines"
+    )
+    wallpaper_backend.add_argument("backend", choices=("awww", "mpvpaper"))
+    wallpaper_backend.add_argument(
+        "--no-colors",
+        action="store_true",
+        help="do not regenerate the palette after the switch",
+    )
+    wallpaper_backend.set_defaults(func=cmd_wallpaper)
+
+    wallpaper_set = wallpaper_actions.add_parser(
+        "set", help="apply an image or video wallpaper (the engine follows the extension)"
+    )
+    wallpaper_set.add_argument("file")
+    wallpaper_set.add_argument(
+        "--no-colors",
+        action="store_true",
+        help="do not regenerate the palette after applying the file",
+    )
+    wallpaper_set.set_defaults(func=cmd_wallpaper)
+
+    wallpaper_random = wallpaper_actions.add_parser(
+        "random", help="apply a random wallpaper for the active engine and refresh the palette"
+    )
+    wallpaper_random.set_defaults(func=cmd_wallpaper)
 
     version = sub.add_parser("version", help="print the checkout/package version")
     version.set_defaults(func=cmd_version)

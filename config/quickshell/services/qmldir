@@ -9,3 +9,4 @@ singleton EventSoundService 1.0 EventSoundService.qml
 singleton HyprsunsetService 1.0 HyprsunsetService.qml
 singleton NotificationService 1.0 NotificationService.qml
 singleton ShellPaths 1.0 ShellPaths.qml
+singleton WallpaperService 1.0 WallpaperService.qml

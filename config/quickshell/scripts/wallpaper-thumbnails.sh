@@ -1,12 +1,18 @@
 #!/bin/sh
 # wallpaper-thumbnails.sh — список бібліотеки шпалер і кешовані 16:9 мініатюри.
 #
-# Використання: wallpaper-thumbnails.sh <wallpaper-dir> <cache-dir>
+# Використання: wallpaper-thumbnails.sh <wallpaper-dir> <cache-dir> [image|video]
+#
+# Третій аргумент обирає набір файлів: `image` (типово) показує зображення для
+# awww, `video` — відео для mpvpaper. Для відео мініатюрою стає кадр на першій
+# секунді (короткі кліпи віддають перший кадр), тому сітка виглядає так само,
+# як із зображеннями.
 #
 # Друкує по одному запису на рядок, розділяючи поля табуляцією:
 #   dir<TAB><шлях-до-підтеки>
-#   total<TAB><кількість-шпалер>
-#   <шлях-до-шпалер><TAB><шлях-до-мініатюри>
+#   total<TAB><кількість-файлів>
+#   <шлях-до-файлу><TAB><шлях-до-мініатюри>
+#   <шлях-до-відео><TAB><шлях-до-мініатюри><TAB>video
 #
 # Готові мініатюри друкуються першими, тому панель показує те, що вже є в
 # кеші, поки решта ще генерується. Ключ кешу містить mtime джерела: змінений
@@ -19,18 +25,28 @@
 
 set -eu
 
-if [ "$#" -ne 2 ]; then
-    echo "usage: $0 <wallpaper-dir> <cache-dir>" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo "usage: $0 <wallpaper-dir> <cache-dir> [image|video]" >&2
     exit 2
 fi
 
 src=$1
 cache=$2
+mode=${3:-image}
+
+case $mode in
+    image | video) ;;
+    *)
+        echo "wallpaper-thumbnails.sh: unknown mode '$mode' (expected image or video)" >&2
+        exit 2
+        ;;
+esac
 
 mkdir -p "$cache"
 
-# Зупиняємо воркер попередньої оболонки. Порівнюємо повний argv, щоб не
-# зачепити разовий ffmpeg чи редактор, який просто згадує цей скрипт.
+# Зупиняємо воркер попередньої оболонки (або інший режим того самого каталогу:
+# новий воркер завжди замінює старий). Порівнюємо повний argv, щоб не зачепити
+# разовий ffmpeg чи редактор, який просто згадує цей скрипт.
 for cmdline in /proc/[0-9]*/cmdline; do
     pid=${cmdline#/proc/}
     pid=${pid%/cmdline}
@@ -43,7 +59,7 @@ for cmdline in /proc/[0-9]*/cmdline; do
     set -- $args
     IFS=$old_ifs
     set +f
-    [ "$#" -eq 4 ] || continue
+    { [ "$#" -eq 4 ] || [ "$#" -eq 5 ]; } || continue
     [ "${1##*/}" = "sh" ] || continue
     [ "${2##*/}" = "wallpaper-thumbnails.sh" ] || continue
     [ "$3" = "$src" ] || continue
@@ -85,11 +101,18 @@ while IFS= read -r dir; do
     printf 'dir\t%s\n' "$dir"
 done < "$dir_file"
 
-# Ті самі розширення, що й у random-wallpaper.sh, щоб список і випадковий
-# вибір бачили однаковий набір файлів.
-find "$src" -maxdepth 1 -type f \
-    \( -name '*.jpg' -o -name '*.jpeg' -o -name '*.png' -o -name '*.gif' \) \
-    -print 2>/dev/null | LC_ALL=C sort > "$list_file" || true
+# Ті самі розширення, що й у random-wallpaper.sh і lib/wallpaper.sh, щоб
+# список, випадковий вибір і рушій бачили однаковий набір файлів.
+if [ "$mode" = "video" ]; then
+    find "$src" -maxdepth 1 -type f \
+        \( -name '*.mp4' -o -name '*.webm' -o -name '*.mkv' -o -name '*.mov' \
+        -o -name '*.m4v' -o -name '*.avi' \) \
+        -print 2>/dev/null | LC_ALL=C sort > "$list_file" || true
+else
+    find "$src" -maxdepth 1 -type f \
+        \( -name '*.jpg' -o -name '*.jpeg' -o -name '*.png' -o -name '*.gif' \) \
+        -print 2>/dev/null | LC_ALL=C sort > "$list_file" || true
+fi
 
 total=$(wc -l < "$list_file" | tr -d ' ')
 printf 'total\t%s\n' "$total"
@@ -109,10 +132,19 @@ while IFS= read -r path; do
 done < "$list_file"
 exec 3>&-
 
+record() {
+    # $1 = path, $2 = thumbnail (may be empty)
+    if [ "$mode" = "video" ]; then
+        printf '%s\t%s\tvideo\n' "$1" "$2"
+    else
+        printf '%s\t%s\n' "$1" "$2"
+    fi
+}
+
 # Перший прохід: усе, що вже закешовано, віддаємо негайно.
 while IFS='	' read -r mtime thumb path; do
     if [ -f "$thumb" ]; then
-        printf '%s\t%s\n' "$path" "$thumb"
+        record "$path" "$thumb"
     fi
 done < "$plan_file"
 
@@ -121,22 +153,48 @@ while IFS='	' read -r mtime thumb path; do
     [ -f "$thumb" ] && continue
 
     thumb_tmp="$cache/.tmp.$$.jpg"
-    ffmpeg -nostdin -v error -y -i "$path" \
-        -vf 'scale=480:270:force_original_aspect_ratio=increase,crop=480:270' \
-        -frames:v 1 -q:v 4 "$thumb_tmp" 2>/dev/null &
-    ffmpeg_pid=$!
-
-    if wait "$ffmpeg_pid"; then
+    if [ "$mode" = "video" ]; then
+        # Одна секунда всередині кліпу уникає чорного fade-in. Дуже короткий
+        # ролик може не мати кадру на цій позиції — тоді беремо перший.
+        ffmpeg -nostdin -v error -y -ss 1 -i "$path" \
+            -vf 'scale=480:270:force_original_aspect_ratio=increase,crop=480:270' \
+            -frames:v 1 -q:v 4 "$thumb_tmp" 2>/dev/null &
+        ffmpeg_pid=$!
+        if ! wait "$ffmpeg_pid" || [ ! -s "$thumb_tmp" ]; then
+            ffmpeg_pid=""
+            rm -f "$thumb_tmp"
+            ffmpeg -nostdin -v error -y -i "$path" \
+                -vf 'scale=480:270:force_original_aspect_ratio=increase,crop=480:270' \
+                -frames:v 1 -q:v 4 "$thumb_tmp" 2>/dev/null &
+            ffmpeg_pid=$!
+            if ! wait "$ffmpeg_pid"; then
+                ffmpeg_pid=""
+                rm -f "$thumb_tmp"
+                thumb_tmp=""
+                # Битий або нечитабельний файл лишається у списку з порожнім
+                # прев'ю: вибір шпалери все одно має бути можливим.
+                record "$path" ""
+                continue
+            fi
+        fi
         ffmpeg_pid=""
-        mv -f "$thumb_tmp" "$thumb"
-        thumb_tmp=""
-        printf '%s\t%s\n' "$path" "$thumb"
     else
+        ffmpeg -nostdin -v error -y -i "$path" \
+            -vf 'scale=480:270:force_original_aspect_ratio=increase,crop=480:270' \
+            -frames:v 1 -q:v 4 "$thumb_tmp" 2>/dev/null &
+        ffmpeg_pid=$!
+
+        if ! wait "$ffmpeg_pid"; then
+            ffmpeg_pid=""
+            rm -f "$thumb_tmp"
+            thumb_tmp=""
+            record "$path" ""
+            continue
+        fi
         ffmpeg_pid=""
-        rm -f "$thumb_tmp"
-        thumb_tmp=""
-        # Битий або нечитабельний файл лишається у списку з порожнім
-        # прев'ю: вибір шпалери все одно має бути можливим.
-        printf '%s\t\n' "$path"
     fi
+
+    mv -f "$thumb_tmp" "$thumb"
+    thumb_tmp=""
+    record "$path" "$thumb"
 done < "$plan_file"

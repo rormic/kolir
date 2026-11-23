@@ -4,8 +4,9 @@
 # Використання: palette-previews.sh <light|dark> <контраст> <файл-кешу>
 #
 # Шпалера визначається так само, як у generate-colors.sh: спільні
-# lib/monitors.sh + lib/awww.sh, тому панель Appearance не дублює логіку
-# пошуку awww. Генерація й кеш живуть у palette-previews.py.
+# lib/monitors.sh + lib/awww.sh + lib/mpvpaper.sh + lib/wallpaper.sh, тому
+# панель Appearance не дублює логіку пошуку і вміє брати кадр із відео-шпалери.
+# Генерація й кеш живуть у palette-previews.py.
 
 set -u
 
@@ -29,9 +30,11 @@ fi
 
 . "$ROOT/config/hypr/scripts/lib/monitors.sh"
 . "$ROOT/config/hypr/scripts/lib/awww.sh"
+. "$ROOT/config/hypr/scripts/lib/mpvpaper.sh"
+. "$ROOT/config/hypr/scripts/lib/wallpaper.sh"
 
 MONITOR=$(kolir_monitor_name)
-if ! IMAGE=$(kolir_awww_wallpaper_path "$MONITOR"); then
+if ! IMAGE=$(kolir_wallpaper_image "$MONITOR"); then
     echo "palette-previews.sh: no readable wallpaper for monitor '$MONITOR'" >&2
     exit 1
 fi

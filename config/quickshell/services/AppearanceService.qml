@@ -411,6 +411,25 @@ QtObject {
         }
     }
 
+    // The preview cache is keyed by the wallpaper, but a wallpaper change
+    // while the Appearance page is open must also rebuild the scheme circles,
+    // not only the live palette swatches.
+    property Connections wallpaperConnection: Connections {
+        target: WallpaperService
+
+        function onImagePathChanged() {
+            root.schedulePreviews();
+        }
+
+        function onVideoPathChanged() {
+            root.schedulePreviews();
+        }
+
+        function onBackendChanged() {
+            root.schedulePreviews();
+        }
+    }
+
     property Timer autoTimer: Timer {
         interval: 30000
         repeat: true

@@ -156,7 +156,8 @@ contributors know which licenses surround the project.
 | Hyprland (`hyprctl`) | BSD-3-Clause | compositor and IPC |
 | Quickshell (`qs`) | LGPL-3.0-only | shell runtime (QML host) |
 | Matugen | GPL-2.0-or-later | palette generation |
-| awww | GPL-3.0-only | wallpaper daemon |
+| awww | GPL-3.0-only | still wallpaper daemon |
+| mpvpaper (+ mpv) | GPL-3.0-only (mpv: GPL-2.0-or-later / LGPL-2.1-or-later) | video wallpapers |
 | Foot | MIT | default terminal |
 | brightnessctl | MIT | backlight control |
 | ddcutil | GPL-2.0-or-later | external monitor brightness |
