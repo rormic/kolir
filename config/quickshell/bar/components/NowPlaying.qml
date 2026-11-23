@@ -3,10 +3,9 @@ import QtQuick.Shapes
 import QtQuick.Layouts
 import Quickshell.Io
 import Quickshell.Widgets
-import "../../services"
 import "../../theme"
 import "media"
-import ".."
+import "media/TrackText.js" as TrackText
 
 // Now Playing: Material 3 expanding media island with a poured bar notch.
 //
@@ -21,8 +20,9 @@ import ".."
 Item {
     id: root
 
-    // Set from Bar.qml
-    property bool enabled: true
+    // Set from Bar.qml. Named `shown` (not `enabled`) so it does not shadow
+    // QQuickItem.enabled and disable every child handler.
+    property bool shown: true
     property int slotWidth: 0
 
     // State 3 toggle
@@ -55,7 +55,7 @@ Item {
     // 1: Idle, 2: Compact Playing, 3: Expanded Playing
     readonly property int stateIndex: idle ? 1 : (expanded ? 3 : 2)
 
-    visible: enabled
+    visible: shown
 
     // Dynamic cover palette with fallback to standard Colors
     readonly property bool paletteActive: coverPalette.paletteReady
@@ -103,7 +103,7 @@ Item {
     readonly property int notchBottomRadius: 20
 
     // How far the expanded card body extends below the bar strip
-    readonly property int expandedBodyHeight: 118
+    readonly property int expandedBodyHeight: 126
 
     // Single fluid expand driver: 0.0 (compact pill) -> 1.0 (expanded card)
     property real expandProgress: 0.0
@@ -170,10 +170,25 @@ Item {
         }
     }
 
-    // If playback stops while expanded, collapse automatically
+    // If playback stops while expanded, collapse automatically. A short delay
+    // keeps a transient MPRIS metadata gap (track change, a player briefly
+    // dropping its metadata) from snapping the card shut.
+    Timer {
+        id: idleCloseTimer
+
+        interval: 1200
+        repeat: false
+        onTriggered: {
+            if (root.idle)
+                root.closeExpanded();
+        }
+    }
+
     onIdleChanged: {
         if (root.idle && root.expanded)
-            root.closeExpanded();
+            idleCloseTimer.restart();
+        else
+            idleCloseTimer.stop();
     }
 
     Keys.onEscapePressed: event => {
@@ -485,6 +500,7 @@ Item {
                         iconColor: root.accentColor
                         iconHoverColor: root.accentColor
                         stateColor: root.accentColor
+                        opacity: root.interactive ? 1.0 : 0.4
                         onClicked: controller.togglePlaying()
                     }
                 }
@@ -602,7 +618,7 @@ Item {
                 Column {
                     anchors {
                         left: parent.left
-                        right: playSquircle.left
+                        right: transport.left
                         rightMargin: 10
                         verticalCenter: parent.verticalCenter
                     }
@@ -633,45 +649,75 @@ Item {
                     }
                 }
 
-                // Large Play/Pause Squircle Button
-                Rectangle {
-                    id: playSquircle
+                // Transport: previous / play-pause / next, grouped on the right
+                Row {
+                    id: transport
 
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
                     }
-                    width: 42
-                    height: 42
-                    radius: 14
-                    color: root.accentColor
-                    scale: playMouseArea.containsMouse ? 1.08 : 1.0
+                    spacing: 4
 
-                    Behavior on scale {
-                        NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+                    IconButton {
+                        icon: Icons.skipPrevious
+                        iconSize: Dimensions.icon.medium
+                        iconColor: Colors.onSurface
+                        iconHoverColor: root.accentColor
+                        stateColor: root.accentColor
+                        opacity: root.interactive && root.player && root.player.canGoPrevious ? 1.0 : 0.4
+                        onClicked: controller.prevTrack()
                     }
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: controller.assumedPlaying ? Icons.pause : Icons.playArrow
-                        font.family: Typography.iconFont
-                        font.pixelSize: 20
-                        color: root.accentTextColor
+                    // Large Play/Pause Squircle Button
+                    Rectangle {
+                        id: playSquircle
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 42
+                        height: 42
+                        radius: 14
+                        color: root.accentColor
+                        scale: playMouseArea.containsMouse ? 1.08 : 1.0
+
+                        Behavior on scale {
+                            NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: controller.assumedPlaying ? Icons.pause : Icons.playArrow
+                            font.family: Typography.iconFont
+                            font.pixelSize: 20
+                            color: root.accentTextColor
+                        }
+
+                        MouseArea {
+                            id: playMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: root.interactive
+                            cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: controller.togglePlaying()
+                        }
                     }
 
-                    MouseArea {
-                        id: playMouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: controller.togglePlaying()
+                    IconButton {
+                        icon: Icons.skipNext
+                        iconSize: Dimensions.icon.medium
+                        iconColor: Colors.onSurface
+                        iconHoverColor: root.accentColor
+                        stateColor: root.accentColor
+                        opacity: root.interactive && root.player && root.player.canGoNext ? 1.0 : 0.4
+                        onClicked: controller.nextTrack()
                     }
                 }
             }
 
-            // --- Bottom Row: Wavy Scrubber (almost full width) & Next Track ---
+            // --- Bottom: Wavy Scrubber + Elapsed / Total Times ---
             Item {
                 id: bottomRow
+
                 anchors {
                     left: parent.left
                     right: parent.right
@@ -680,32 +726,42 @@ Item {
                     rightMargin: 12
                     bottomMargin: 6
                 }
-                height: 26
+                height: 39
 
-                RowLayout {
+                ColumnLayout {
                     anchors.fill: parent
-                    spacing: 8
+                    spacing: 2
 
                     WaveformProgress {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         progress: controller.progress
-                        position: controller.position
                         length: controller.length
                         playing: controller.assumedPlaying
                         indicatorColor: Colors.onSurface
-                        trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
                         onSeekRequested: ratio => controller.seekToPercent(ratio)
                     }
 
-                    IconButton {
-                        icon: Icons.skipNext
-                        iconSize: Dimensions.icon.large
-                        iconColor: Colors.onSurface
-                        iconHoverColor: root.accentColor
-                        stateColor: root.accentColor
-                        opacity: root.player && root.player.canGoNext ? 1.0 : 0.4
-                        onClicked: controller.nextTrack()
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Text {
+                            text: TrackText.formatDuration(controller.position)
+                            font.family: Typography.barFont
+                            font.pixelSize: 10
+                            color: Colors.withAlpha(Colors.onSurface, 0.6)
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Text {
+                            text: controller.length > 0
+                                ? TrackText.formatDuration(controller.length)
+                                : "--:--"
+                            font.family: Typography.barFont
+                            font.pixelSize: 10
+                            color: Colors.withAlpha(Colors.onSurface, 0.6)
+                        }
                     }
                 }
             }

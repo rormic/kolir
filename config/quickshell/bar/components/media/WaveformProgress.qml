@@ -1,21 +1,20 @@
 import QtQuick
 import QtQuick.Shapes
 import "../../../theme"
-import "TrackText.js" as TrackText
 
 // Material 3 wavy progress bar for Now Playing media controls.
-// Features an animated sine wave on the played section (or full line for live streams),
-// a Material 3 vertical pill scrubber thumb, solid base track, and interactive seeking with drag feedback.
+// Features an animated sine wave on the played section (or a flat segment when
+// paused), a Material 3 vertical pill scrubber thumb and interactive seeking
+// with drag feedback. Only the played part is painted; the remaining track is
+// left to the card surface.
 Item {
     id: root
 
     property real progress: 0
-    property real position: 0
     property real length: 0
     property bool playing: false
 
     property color indicatorColor: Colors.onSurface
-    property color trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
 
     signal seekRequested(real ratio)
 
@@ -76,20 +75,6 @@ Item {
     onPlayingChanged: rebuildWave()
     onWidthChanged: rebuildWave()
     Component.onCompleted: rebuildWave()
-
-    // --- Base track: ALWAYS visible across full width (never disappears) ---
-    Rectangle {
-        id: baseTrack
-
-        anchors {
-            left: parent.left
-            right: parent.right
-            verticalCenter: parent.verticalCenter
-        }
-        height: root.thickness
-        radius: root.thickness / 2
-        color: root.trackColor
-    }
 
     // --- Flat active segment (when paused or wave too short) ---
     Rectangle {

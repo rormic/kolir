@@ -48,7 +48,9 @@ Scope {
         ? trackArtUrl
         : TrackText.youtubeThumbnail(trackUrl)
 
-    // In MPRIS, Position and mpris:length are in microseconds (1 sec = 1,000,000 usec).
+    // Quickshell normalizes Position to seconds while mpris:length stays in
+    // microseconds, so keep the raw metadata only for the length and read the
+    // position from the player.
     readonly property real rawPosition: (player && typeof player.position === "number" && !isNaN(player.position))
         ? player.position
         : 0
@@ -61,7 +63,7 @@ Scope {
     }
 
     // Position and length in seconds for display
-    readonly property real position: rawPosition / 1000000
+    readonly property real position: rawPosition
     readonly property real length: rawLength / 1000000
 
     readonly property bool progressSupported: player !== null
@@ -69,8 +71,8 @@ Scope {
         && (player.canSeek ?? true)
 
     // 0..1 position in the current track
-    readonly property real progress: (rawLength > 0)
-        ? Math.max(0, Math.min(1, rawPosition / rawLength))
+    readonly property real progress: (length > 0)
+        ? Math.max(0, Math.min(1, position / length))
         : 0
 
     // Raw MPRIS seek via D-Bus SetPosition (position in microseconds)

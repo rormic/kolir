@@ -12,9 +12,9 @@ import "../../../services"
 // chain of Matugen runs. Palettes are cached per URL in memory: pausing and
 // resuming the same track applies the color again instantly.
 //
-// The view decides when the palette is live: `active` is false when playback
-// stopped or the player has no art, and `paletteReady` then falls back to the
-// regular Colors in NowPlaying.
+// The view decides when the palette is live: `active` is false without a
+// player or cover URL, and `paletteReady` then falls back to the regular
+// Colors in NowPlaying.
 Scope {
     id: root
 

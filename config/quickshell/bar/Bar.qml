@@ -231,7 +231,7 @@ PanelWindow {
         // anchored to workspaces.left, expanding downward when open.
         NowPlaying {
             id: nowPlaying
-            enabled: barStrip.width >= 1100
+            shown: barStrip.width >= 1100
             slotWidth: clock.implicitWidth
             x: workspaces.x - width - 10
             y: 0
