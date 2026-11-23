@@ -13,8 +13,8 @@ kolir_theme_state_file() {
 	printf '%s\n' "${HOME}/.cache/current_theme"
 }
 
-# Write the resolved light/dark state. ThemeToggle watches this file, so the
-# bar icon follows the generated palette immediately.
+# Write the resolved light/dark state. AppearanceService and the theme toggle
+# read this file, so the palette follows the generated state immediately.
 kolir_write_theme_state() {
 	_kolir_state=$(kolir_theme_state_file)
 	mkdir -p -- "${_kolir_state%/*}" 2>/dev/null || return 1

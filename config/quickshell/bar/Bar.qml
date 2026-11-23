@@ -19,6 +19,10 @@ PanelWindow {
     WlrLayershell.namespace: "bar"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.exclusiveZone: Dimensions.bar.height
+
+    // The "active window" chip on the left of the strip is disabled for now.
+    // The component and its slot stay in the tree so re-enabling is one flag.
+    readonly property bool showActiveWindow: false
     // The embedded sheets live in this surface instead of separate windows.
     // OnDemand lets them receive keyboard focus (Escape) after they are
     // clicked without stealing focus while closed.
@@ -144,13 +148,16 @@ PanelWindow {
                 }
             }
 
-            // Left: active window, after the settings button slot.
+            // Left: active window, after the settings button slot. Currently
+            // switched off (the chip and its code stay for an easy re-enable);
+            // flip `showActiveWindow` to true to bring it back.
             ActiveWindow {
                 id: activeWindow
                 anchors.left: parent.left
                 anchors.leftMargin: Dimensions.padding.barContent + Dimensions.control.iconButton + Dimensions.spacing.small
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(190, Math.max(120, barStrip.width * 0.16))
+                visible: bar.showActiveWindow
             }
 
             // Center: workspaces. No optical offset: the chips on both sides of
@@ -223,7 +230,6 @@ PanelWindow {
                         notificationCenter.toggle();
                     }
                 }
-                ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
             }
         }
 

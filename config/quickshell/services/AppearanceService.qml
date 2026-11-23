@@ -13,7 +13,7 @@ import "."
 // `mode` is auto/light/dark. Auto follows sunrise and sunset for the location
 // detected by HyprsunsetService: daytime gets the light palette and night the
 // dark one. An explicit mode (and every resolved auto switch) is also written
-// to ~/.cache/current_theme by generate-colors.sh, so the bar's theme toggle
+// to ~/.cache/current_theme by generate-colors.sh, so the Appearance page
 // and GTK/KDE stay in sync. Changes regenerate the palette through
 // generate-colors.sh, which writes colors.json in place; Colors.qml watches
 // that file, so the shell crossfades to the new palette without a restart.
@@ -370,8 +370,8 @@ QtObject {
     property FileView stateFile: FileView {
         path: root.stateDirReady ? ShellPaths.appearanceState : ""
         atomicWrites: true
-        // toggle-theme.sh rewrites the mode when the bar toggle is used, so
-        // reload the file instead of trusting the in-memory copy.
+        // generate-colors.sh and toggle-theme.sh rewrite the mode, so reload
+        // the file instead of trusting the in-memory copy.
         watchChanges: true
 
         onFileChanged: this.reload()
