@@ -129,7 +129,14 @@ Item {
             anchors.margins: 6
             fillMode: Image.PreserveAspectFit
             smooth: true
+            // The preview is a full-resolution screenshot decoded by
+            // cliphist-previews.py (up to 2560x1440, ~14 MB of RGBA), so decode
+            // it at the painted slot instead of the original size. cache stays
+            // off on purpose: the file is written by that helper and has to be
+            // re-read from disk when the preview process finishes.
             cache: false
+            sourceSize: Qt.size(Math.round(width * Screen.devicePixelRatio),
+                Math.round(height * Screen.devicePixelRatio))
             source: (root.isImageClip && root.item.imagePath !== "")
                 ? ("file://" + root.item.imagePath) : ""
         }

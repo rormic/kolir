@@ -86,12 +86,24 @@ Item {
     readonly property bool appIconReady: appIconCache.ready
     readonly property bool showNoteIcon: !artReady && !appIconReady
 
-    // Hidden image / appIcon for status caching
+    // Hidden image / appIcon for status caching. It only exists so `artReady`
+    // can watch an Image status, so decode it as a 1x1 thumbnail instead of the
+    // full cover art.
     Image {
         id: artImageCache
         source: root.artSource
+        sourceSize: Qt.size(1, 1)
         visible: false
     }
+
+    // Texture size for the expanded cover. The cover provider hands out the
+    // original artwork, so without a sourceSize the card decodes it at native
+    // resolution (a 3000x3000 cover is ~36 MB of RGBA) while only the painted
+    // card is visible. Derived from the fully expanded card, not the animated
+    // height, so the texture is decoded once instead of on every expand frame.
+    readonly property size expandedArtSize: Qt.size(
+        Math.round((root.fixedWidth - 16) * Screen.devicePixelRatio),
+        Math.round((Dimensions.control.height + root.expandedBodyHeight) * Screen.devicePixelRatio))
 
     AppIcon {
         id: appIconCache
@@ -390,11 +402,11 @@ Item {
         Image {
             anchors.fill: parent
             source: root.artSource
+            sourceSize: root.expandedArtSize
             visible: root.artReady && root.expandProgress > 0.01
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             smooth: true
-            mipmap: true
             opacity: root.expandProgress
         }
 
@@ -525,6 +537,8 @@ Item {
                         Image {
                             anchors.fill: parent
                             source: root.artSource
+                            sourceSize: Qt.size(Math.round(width * Screen.devicePixelRatio),
+                                Math.round(height * Screen.devicePixelRatio))
                             visible: root.artReady
                             fillMode: Image.PreserveAspectCrop
                         }
