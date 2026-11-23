@@ -13,6 +13,10 @@ Surface {
 
     required property var modelData
 
+    // Driven by the notification center's open state: the marquee must not keep
+    // scrolling while the sheet is hidden.
+    property bool animationActive: true
+
     readonly property bool hasAppIcon: !!modelData.appIcon
         && String(modelData.appIcon).length > 0
 
@@ -117,6 +121,7 @@ Surface {
                 Layout.preferredHeight: 20
                 Layout.alignment: Qt.AlignVCenter
                 visible: root.modelData.summary !== ""
+                active: root.animationActive
                 text: root.modelData.summary
                 textColor: Colors.onSurface
                 textSize: Typography.size.titleSmall

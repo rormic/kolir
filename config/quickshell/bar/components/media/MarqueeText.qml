@@ -13,13 +13,17 @@ Item {
     property color textColor: Colors.onSurface
     property int textSize: Typography.size.labelMedium
     property int textWeight: Typography.weight.bold
+    // Owner-controlled gate: the loop must stop while the panel that hosts the
+    // text is hidden. Items stay in the tree when a sheet closes, so their own
+    // `visible` is still true. Defaults to true for callers that do not set it.
+    property bool active: true
 
     readonly property alias textWidth: textLabel.implicitWidth
 
     clip: true
 
     function syncMarquee() {
-        const overflow = visible && textLabel.implicitWidth > root.width;
+        const overflow = root.active && visible && textLabel.implicitWidth > root.width;
 
         if (overflow) {
             if (!marquee.running)
@@ -38,6 +42,7 @@ Item {
 
     onVisibleChanged: syncMarquee()
     onWidthChanged: syncMarquee()
+    onActiveChanged: syncMarquee()
 
     Text {
         id: textLabel

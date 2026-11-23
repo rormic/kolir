@@ -245,6 +245,9 @@ EmbeddedSheet {
 
                         delegate: NotificationHistoryCard {
                             width: listColumn.width
+                            // `modal` stays true through the close animation, so
+                            // the marquee does not freeze mid-slide.
+                            animationActive: root.modal
                         }
                     }
                 }
