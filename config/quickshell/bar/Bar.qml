@@ -184,6 +184,8 @@ PanelWindow {
 
                 anchors.verticalCenter: parent.verticalCenter
                 popupActive: brightnessPopup.modal
+                overlayOpen: settingsMenu.modal || volumePopup.modal
+                    || notificationCenter.modal
                 onActivated: {
                     settingsMenu.close();
                     volumePopup.close();
