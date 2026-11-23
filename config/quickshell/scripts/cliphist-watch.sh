@@ -22,12 +22,13 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 store="$script_dir/cliphist-store.py"
 
 # Порівнюємо повний argv, щоб зупинити лише ідентичний wl-paste --watch, а не
-# інший процес wl-paste чи оболонку, яка просто згадує цю команду.
-for cmdline in /proc/[0-9]*/cmdline; do
-    pid=${cmdline#/proc/}
-    pid=${pid%/cmdline}
+# інший процес wl-paste чи оболонку, яка просто згадує цю команду. Один
+# `pgrep -f` замінює повний обхід /proc (по форку `tr` на кожен процес у
+# системі); знайдений pid усе одно звіряється з /proc/<pid>/cmdline.
+pids=$(pgrep -f -- '^(.*/)?wl-paste --type [^ ]* --watch .*cliphist-store\.py$' 2>/dev/null) || pids=""
+for pid in $pids; do
     [ "$pid" = "$$" ] && continue
-    args=$(tr '\0' '\n' < "$cmdline" 2>/dev/null) || continue
+    args=$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null) || continue
     set -f
     old_ifs=$IFS
     IFS='

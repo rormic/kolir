@@ -18,14 +18,14 @@ command -v udevadm >/dev/null 2>&1 || {
 }
 
 # Порівнюємо повний argv, щоб зупинити лише ідентичний монітор, а не інший
-# udevadm чи іншу оболонку, яка просто згадує цю команду.
-for cmdline in /proc/[0-9]*/cmdline; do
-    pid=${cmdline#/proc/}
-    pid=${pid%/cmdline}
+# udevadm чи іншу оболонку, яка просто згадує цю команду. Один `pgrep -f`
+# замінює повний обхід /proc (по форку `tr` на кожен процес у системі).
+pids=$(pgrep -f -- '^(.*/)?udevadm monitor --udev --subsystem-match=usb --property$' 2>/dev/null) || pids=""
+for pid in $pids; do
     [ "$pid" = "$$" ] && continue
-    [ -r "$cmdline" ] || continue
+    [ -r "/proc/$pid/cmdline" ] || continue
     # The process may exit between the glob and the read; keep that race quiet.
-    args=$( { tr '\0' '\n' < "$cmdline"; } 2>/dev/null ) || continue
+    args=$( { tr '\0' '\n' < "/proc/$pid/cmdline"; } 2>/dev/null ) || continue
     set -f
     old_ifs=$IFS
     IFS='

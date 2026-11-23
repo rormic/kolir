@@ -14,11 +14,12 @@ set -eu
 
 # Порівнюємо повний argv, щоб зупинити лише `pactl subscribe`, а не одноразові
 # виклики pactl (list, get-*, set-*), які можуть виконуватися в той самий час.
-for cmdline in /proc/[0-9]*/cmdline; do
-    pid=${cmdline#/proc/}
-    pid=${pid%/cmdline}
+# Один `pgrep -f` замінює повний обхід /proc (по форку `tr` на кожен процес у
+# системі); знайдений pid усе одно звіряється з /proc/<pid>/cmdline.
+pids=$(pgrep -f -- '^(.*/)?pactl subscribe$' 2>/dev/null) || pids=""
+for pid in $pids; do
     [ "$pid" = "$$" ] && continue
-    args=$(tr '\0' '\n' < "$cmdline" 2>/dev/null) || continue
+    args=$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null) || continue
     set -f
     old_ifs=$IFS
     IFS='

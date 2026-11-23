@@ -29,11 +29,13 @@ if [ ! -d "$src" ]; then
     exit 1
 fi
 
-for cmdline in /proc/[0-9]*/cmdline; do
-    pid=${cmdline#/proc/}
-    pid=${pid%/cmdline}
+# Один `pgrep -f` замінює повний обхід /proc (по форку `tr` на кожен процес у
+# системі). Шаблон звужує пошук до воркерів цього скрипта, а кожен знайдений pid
+# усе одно звіряється з /proc/<pid>/cmdline, перш ніж його зупинити.
+pids=$(pgrep -f -- '^(.*/)?sh .*list-files\.sh( |$)' 2>/dev/null) || pids=""
+for pid in $pids; do
     [ "$pid" = "$$" ] && continue
-    args=$(tr '\0' '\n' 2>/dev/null < "$cmdline") || continue
+    args=$(tr '\0' '\n' 2>/dev/null < "/proc/$pid/cmdline") || continue
     set -f
     old_ifs=$IFS
     IFS='

@@ -47,11 +47,13 @@ mkdir -p "$cache"
 # Зупиняємо воркер попередньої оболонки (або інший режим того самого каталогу:
 # новий воркер завжди замінює старий). Порівнюємо повний argv, щоб не зачепити
 # разовий ffmpeg чи редактор, який просто згадує цей скрипт.
-for cmdline in /proc/[0-9]*/cmdline; do
-    pid=${cmdline#/proc/}
-    pid=${pid%/cmdline}
+# Один `pgrep -f` замінює повний обхід /proc (по форку `tr` на кожен процес у
+# системі). Шаблон звужує пошук до воркерів цього скрипта, а кожен знайдений pid
+# усе одно звіряється з /proc/<pid>/cmdline, перш ніж його зупинити.
+pids=$(pgrep -f -- '^(.*/)?sh .*wallpaper-thumbnails\.sh( |$)' 2>/dev/null) || pids=""
+for pid in $pids; do
     [ "$pid" = "$$" ] && continue
-    args=$(tr '\0' '\n' 2>/dev/null < "$cmdline") || continue
+    args=$(tr '\0' '\n' 2>/dev/null < "/proc/$pid/cmdline") || continue
     set -f
     old_ifs=$IFS
     IFS='
@@ -102,16 +104,19 @@ while IFS= read -r dir; do
 done < "$dir_file"
 
 # Ті самі розширення, що й у random-wallpaper.sh і lib/wallpaper.sh, щоб
-# список, випадковий вибір і рушій бачили однаковий набір файлів.
+# список, випадковий вибір і рушій бачили однаковий набір файлів. mtime
+# друкується поруч зі шляхом: табуляція молодша за будь-який байт шляху, тому
+# сортування цілих рядків дає той самий порядок, що й сортування самих шляхів,
+# а план нижче не робить окремий `stat` на кожен файл.
 if [ "$mode" = "video" ]; then
     find "$src" -maxdepth 1 -type f \
         \( -name '*.mp4' -o -name '*.webm' -o -name '*.mkv' -o -name '*.mov' \
         -o -name '*.m4v' -o -name '*.avi' \) \
-        -print 2>/dev/null | LC_ALL=C sort > "$list_file" || true
+        -printf '%p\t%T@\n' 2>/dev/null | LC_ALL=C sort > "$list_file" || true
 else
     find "$src" -maxdepth 1 -type f \
         \( -name '*.jpg' -o -name '*.jpeg' -o -name '*.png' -o -name '*.gif' \) \
-        -print 2>/dev/null | LC_ALL=C sort > "$list_file" || true
+        -printf '%p\t%T@\n' 2>/dev/null | LC_ALL=C sort > "$list_file" || true
 fi
 
 total=$(wc -l < "$list_file" | tr -d ' ')
@@ -122,14 +127,27 @@ printf 'total\t%s\n' "$total"
 # switch runs cleanup (which unlinks the plan) while this loop may still be
 # between iterations, and writing to the still-open unlinked inode must not
 # produce an error.
+#
+# The plan is built in one python3 pass: the mtime already comes from
+# `find -printf`, and sha1(path\nmtime) is hashed in that same process, so
+# there is no `stat` or `sha1sum` fork per file any more. The plan line and
+# the cache name are unchanged.
 exec 3>> "$plan_file"
-while IFS= read -r path; do
-    [ -n "$path" ] || continue
-    mtime=$(stat -c '%Y' -- "$path" 2>/dev/null) || mtime=0
-    digest=$(printf '%s\n%s\n' "$path" "$mtime" | sha1sum)
-    digest=${digest%% *}
-    printf '%s\t%s\t%s\n' "$mtime" "$cache/${digest}-${mtime}.jpg" "$path" >&3
-done < "$list_file"
+python3 -c '
+import hashlib, os, sys
+
+cache = os.fsencode(sys.argv[1])
+out = sys.stdout.buffer
+for line in sys.stdin.buffer:
+    line = line.rstrip(b"\n")
+    if not line:
+        continue
+    path, _, stamp = line.rpartition(b"\t")
+    mtime = stamp.split(b".", 1)[0] or b"0"
+    digest = hashlib.sha1(path + b"\n" + mtime + b"\n").hexdigest().encode()
+    out.write(mtime + b"\t" + cache + b"/" + digest + b"-" + mtime + b".jpg\t"
+              + path + b"\n")
+' "$cache" < "$list_file" >&3
 exec 3>&-
 
 record() {
