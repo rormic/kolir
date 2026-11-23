@@ -75,26 +75,56 @@ Scope {
         ? Math.max(0, Math.min(1, position / length))
         : 0
 
-    // Raw MPRIS seek via D-Bus SetPosition (position in microseconds)
+    // Fallback D-Bus transport for players without Quickshell seek support.
     Process {
         id: seekProc
 
         running: false
 
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim() !== "")
+                    console.warn("NowPlaying: MPRIS seek error:", text.trim());
+            }
+        }
+
         onExited: (code, status) => {
+            if (code !== 0)
+                console.warn("NowPlaying: MPRIS seek failed, exit code", code);
             if (root.player)
                 root.player.positionChanged();
         }
     }
 
+    // Seek through Quickshell's MprisPlayer so the D-Bus details (track id,
+    // units, capability checks) follow the player's own implementation.
     function seekTo(seconds) {
-        if (!player || !player.dbusName)
+        if (!player || !player.canSeek)
             return;
 
         const maxSecs = length > 0 ? length : 0;
         const targetSecs = maxSecs > 0 ? Math.max(0, Math.min(maxSecs, seconds)) : Math.max(0, seconds);
-        const microSecs = Math.round(targetSecs * 1000000);
+        const delta = targetSecs - position;
+        if (Math.abs(delta) < 0.05)
+            return;
 
+        if (typeof player.seek === "function") {
+            player.seek(delta);
+        } else {
+            seekViaDbus(targetSecs);
+        }
+
+        if (player.positionChanged)
+            player.positionChanged();
+    }
+
+    // Fallback for a player without Quickshell seek support: raw SetPosition
+    // (position in microseconds).
+    function seekViaDbus(seconds) {
+        if (!player || !player.dbusName)
+            return;
+
+        const microSecs = Math.round(seconds * 1000000);
         const trackId = (player.metadata && player.metadata["mpris:trackid"])
             ? String(player.metadata["mpris:trackid"])
             : "/org/mpris/MediaPlayer2/TrackList/NoTrack";

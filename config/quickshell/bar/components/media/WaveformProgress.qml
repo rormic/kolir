@@ -153,7 +153,7 @@ Item {
     Timer {
         id: resetDragTimer
 
-        interval: 350
+        interval: 700
         repeat: false
         onTriggered: root.dragProgress = -1
     }

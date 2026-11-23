@@ -52,6 +52,12 @@ Item {
     // Idle state: no player or no active metadata
     readonly property bool idle: !hasPlayer || trackText === ""
 
+    // Optimistic ratio while dragging the compact progress line (-1 = idle)
+    property real compactDragProgress: -1
+    readonly property real compactLineProgress: compactDragProgress >= 0
+        ? compactDragProgress
+        : controller.progress
+
     // 1: Idle, 2: Compact Playing, 3: Expanded Playing
     readonly property int stateIndex: idle ? 1 : (expanded ? 3 : 2)
 
@@ -170,6 +176,16 @@ Item {
         function close() {
             root.closeExpanded();
         }
+    }
+
+    // Keeps the dragged compact ratio on screen until the player reports the
+    // new position back.
+    Timer {
+        id: compactSeekReset
+
+        interval: 700
+        repeat: false
+        onTriggered: root.compactDragProgress = -1
     }
 
     // If playback stops while expanded, collapse automatically. A short delay
@@ -422,6 +438,52 @@ Item {
                 }
             }
 
+            // Seek strip over the compact line. Declared after the body
+            // MouseArea (so it wins over the pill body) but before the content
+            // Row, so the transport button still gets its clicks.
+            MouseArea {
+                id: compactSeekArea
+
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    bottom: parent.bottom
+                }
+                height: 10
+                enabled: controller.progressSupported
+                cursorShape: Qt.PointingHandCursor
+
+                function ratioAt(x) {
+                    const inner = Math.max(1, width - Dimensions.media.progressInset * 2);
+                    return Math.max(0, Math.min(1, (x - Dimensions.media.progressInset) / inner));
+                }
+
+                onPressed: mouse => {
+                    root.compactDragProgress = ratioAt(mouse.x);
+                    controller.seekToPercent(root.compactDragProgress);
+                }
+
+                onPositionChanged: mouse => {
+                    if (pressed)
+                        root.compactDragProgress = ratioAt(mouse.x);
+                }
+
+                onReleased: mouse => {
+                    root.compactDragProgress = ratioAt(mouse.x);
+                    controller.seekToPercent(root.compactDragProgress);
+                    compactSeekReset.restart();
+                }
+
+                onCanceled: root.compactDragProgress = -1
+
+                onWheel: wheel => {
+                    if (wheel.angleDelta.y > 0)
+                        controller.nextTrack();
+                    else if (wheel.angleDelta.y < 0)
+                        controller.prevTrack();
+                }
+            }
+
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: 6
@@ -497,12 +559,12 @@ Item {
                 }
             }
 
-            // Compact thin bottom progress line
+            // Compact thin bottom progress line (click/drag to seek)
             Rectangle {
                 x: Dimensions.media.progressInset
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Dimensions.media.progressBottomMargin
-                width: Math.max(0, (parent.width - Dimensions.media.progressInset * 2) * controller.progress)
+                width: Math.max(0, (parent.width - Dimensions.media.progressInset * 2) * root.compactLineProgress)
                 height: Dimensions.media.progressThickness
                 radius: Dimensions.media.progressThickness / 2
                 visible: controller.progressSupported
