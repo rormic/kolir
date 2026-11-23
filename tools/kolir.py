@@ -53,7 +53,7 @@ OBSIDIAN_FILENAME = "matugen.css"
 REQUIRED_COMMANDS = (
     ("hyprctl", "Hyprland IPC", "hyprland"),
     ("qs", "Quickshell", "quickshell"),
-    ("matugen", "Material You palette generation", "matugen"),
+    ("matugen", "Material 3 palette generation", "matugen"),
     ("awww", "wallpaper daemon", "awww"),
     ("foot", "terminal", "foot"),
     ("brightnessctl", "internal panel brightness", "brightnessctl"),

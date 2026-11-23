@@ -1,6 +1,6 @@
 # kolir
 
-A Material You desktop for Arch Linux on Wayland: Hyprland (Lua config) plus a
+A Material 3 desktop for Arch Linux on Wayland: Hyprland (Lua config) plus a
 custom Quickshell bar, launcher, notifications, OSDs, and settings. Matugen
 derives a neutral palette from the wallpaper and updates Hyprland, Foot,
 GTK, and Quickshell.
