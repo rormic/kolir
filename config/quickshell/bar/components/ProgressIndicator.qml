@@ -44,6 +44,15 @@ Item {
     property real phase: 0
     property var wavePoints: []
 
+    // Sampling step along x. The polyline is rebuilt and re-tessellated every
+    // frame while the wave runs, so the step is the whole cost of the variant:
+    // 0.5 px costs ~172 points per frame in an OSD, 1.5 px ~58. The straight
+    // segment between two samples then strays at most 0.021 px from the sine
+    // (amplitude 3, wavelength 40) and turns by at most 6.3°, which a 4 px
+    // round-joined stroke cannot show; the endpoints stay exact because the
+    // first point sits on the round cap and the last one is pushed explicitly.
+    readonly property real waveStep: 1.5
+
     implicitHeight: root.wavy ? root.thickness + root.amplitude * 2 : root.thickness
 
     readonly property real progress: Math.max(0, Math.min(1, root.value / 100))
@@ -97,7 +106,7 @@ Item {
         const cy = root.height / 2;
         const pts = [];
 
-        for (let x = start; x <= end; x += 0.5) {
+        for (let x = start; x <= end; x += root.waveStep) {
             const y = cy + root.amplitude
                 * Math.sin((x - root.phase) * 2 * Math.PI / root.wavelength);
             pts.push(Qt.point(x, y));
