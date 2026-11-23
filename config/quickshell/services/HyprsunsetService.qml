@@ -496,9 +496,15 @@ QtObject {
         }
     }
 
-    function refresh() {
+    function refresh(bounded) {
         if (root.identityProc.running || root.temperatureProc.running)
             return;
+
+        // `bounded` keeps an automatic poll (the retry timer, the schedule
+        // tick) from resetting the retry budget; every other caller (sheet
+        // open, IPC, a command that just ran) re-arms the retries.
+        if (!bounded)
+            root.armRetries();
 
         root.pendingQueries = 2;
         root.identityProc.running = true;
@@ -516,6 +522,9 @@ QtObject {
     }
 
     function enqueue(args) {
+        // A command means the user (or the schedule) expects hyprsunset to
+        // answer, so give the retry path a fresh budget.
+        root.armRetries();
         root.commandQueue.push(args);
         root.runNextCommand();
     }
@@ -754,18 +763,55 @@ QtObject {
                 return;
 
             root.applySchedule(false);
-            root.refresh();
+
+            // The live state only needs re-reading while the schedule drives
+            // the filter or a boundary just queued a command; a passive
+            // install must not spawn two hyprctl calls every 30 seconds.
+            if (root.scheduleActive)
+                root.refresh(true);
         }
     }
 
     // hyprsunset is started by graphical-session.target. Retry until it is
-    // ready so a login race does not leave the bar without state.
+    // ready so a login race does not leave the bar without state, but give up
+    // after a bounded number of attempts: a missing daemon or a permanent
+    // failure must not spawn two hyprctl calls every 5 seconds forever. The
+    // sheet, an IPC call, a command or a successful read re-arms the retries.
+    property int retryAttempts: 0
+    property bool retryGivenUp: false
+    readonly property int retryAttemptLimit: 12
+
+    function armRetries() {
+        root.retryAttempts = 0;
+        root.retryGivenUp = false;
+    }
+
+    function noteRetryAttempt() {
+        if (root.available || root.retryGivenUp)
+            return;
+
+        root.retryAttempts += 1;
+        if (root.retryAttempts >= root.retryAttemptLimit) {
+            root.retryGivenUp = true;
+            console.warn("HyprsunsetService: hyprsunset did not answer after",
+                root.retryAttempts, "attempts; stopping automatic retries");
+        }
+    }
+
+    onAvailableChanged: {
+        if (root.available)
+            root.armRetries();
+    }
+
     property Timer retryTimer: Timer {
         interval: 5000
         repeat: true
-        running: !root.available
+        running: !root.available && !root.retryGivenUp
 
-        onTriggered: root.refresh()
+        onTriggered: {
+            root.noteRetryAttempt();
+            root.refresh(true);
+        }
     }
 
     property IpcHandler ipc: IpcHandler {
