@@ -52,6 +52,12 @@ Item {
     // Idle state: no player or no active metadata
     readonly property bool idle: !hasPlayer || trackText === ""
 
+    // A live broadcast. The controller marks a stream live when its duration
+    // stays absent during playback; a track that never reports a length is
+    // treated the same way, so no seek/times are offered where they would be
+    // meaningless.
+    readonly property bool liveTrack: !root.idle && (controller.live || controller.length <= 0)
+
     // Optimistic ratio while dragging the compact progress line (-1 = idle)
     property real compactDragProgress: -1
     readonly property real compactLineProgress: compactDragProgress >= 0
@@ -564,6 +570,19 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
 
+                    // Live broadcast dot. It lives inside the transport row so
+                    // the title width (which subtracts compactTransport.width)
+                    // keeps the play button at the same right edge.
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.liveTrack
+                        width: 5
+                        height: 5
+                        radius: 2.5
+                        color: Colors.error
+                        opacity: controller.reallyPlaying ? 1.0 : 0.45
+                    }
+
                     IconButton {
                         anchors.verticalCenter: parent.verticalCenter
                         icon: controller.reallyPlaying ? Icons.pause : Icons.playArrow
@@ -788,7 +807,7 @@ Item {
                 }
             }
 
-            // --- Bottom: Wavy Scrubber + Elapsed / Total Times ---
+            // --- Bottom: Wavy Scrubber + Elapsed / Total Times, or Live badge ---
             Item {
                 id: bottomRow
 
@@ -805,6 +824,7 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 2
+                    visible: !root.liveTrack
 
                     WaveformProgress {
                         Layout.fillWidth: true
@@ -812,7 +832,7 @@ Item {
                         progress: controller.progress
                         length: controller.length
                         playing: controller.reallyPlaying
-                        active: root.expanded && root.shown
+                        active: root.expanded && root.shown && !root.liveTrack
                         indicatorColor: Colors.onSurface
                         trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
                         onSeekRequested: ratio => controller.seekToPercent(ratio)
@@ -838,6 +858,36 @@ Item {
                             font.pixelSize: 10
                             color: Colors.withAlpha(Colors.onSurface, 0.6)
                         }
+                    }
+                }
+
+                // A broadcast has no meaningful position or duration, so it
+                // shows a live badge instead of a scrubber that would look
+                // stuck at the end of the stale duration.
+                Row {
+                    anchors {
+                        left: parent.left
+                        verticalCenter: parent.verticalCenter
+                    }
+                    spacing: 6
+                    visible: root.liveTrack
+
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 7
+                        height: 7
+                        radius: 3.5
+                        color: Colors.error
+                        opacity: controller.reallyPlaying ? 1.0 : 0.45
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Трансляція"
+                        font.family: Typography.barFont
+                        font.pixelSize: 10
+                        font.weight: Typography.weight.medium
+                        color: Colors.withAlpha(Colors.onSurface, 0.6)
                     }
                 }
             }

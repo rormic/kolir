@@ -26,10 +26,40 @@ Scope {
     property int activityTick: 0
     property var lastActiveTicks: ({})
     property var positionSamples: ({})
-    // True while the selected player looks like it is really playing (status
-    // or moving position), independent of the optimistic toggle state.
-    property bool activeSelected: false
-    readonly property bool reallyPlaying: root.assumedPlaying || root.activeSelected
+
+    // Playback evidence, independent of the optimistic toggle state.
+    //
+    // Firefox/Zen keep PlaybackStatus "Playing" after a stream or video is
+    // paused: their media element flips Rate to 0 instead, and the stale status
+    // would otherwise keep the pause glyph and the progress timer alive
+    // forever. Rate defaults to 1 when a player omits it, so a player without
+    // MPRIS Rate support is unaffected.
+    readonly property bool statusPlaying: root.player !== null
+        && root.player.playbackState === MprisPlaybackState.Playing
+    readonly property real playbackRate: {
+        if (!root.player || typeof root.player.rate !== "number" || !isFinite(root.player.rate))
+            return 1;
+        return root.player.rate;
+    }
+    readonly property bool evidencePlaying: root.statusPlaying && root.playbackRate > 0
+    readonly property bool evidencePaused: root.player !== null
+        && (root.player.playbackState === MprisPlaybackState.Stopped
+            || (root.statusPlaying && root.playbackRate <= 0))
+
+    // Fallback for players that report neither a state nor a rate after a
+    // toggle. Clear evidence always wins, so a stale status cannot resurrect
+    // playback after an external pause.
+    property bool assumedPlaying: false
+    readonly property bool reallyPlaying: root.evidencePlaying
+        ? true
+        : (root.evidencePaused ? false : root.assumedPlaying)
+
+    function playerPlaysNow(p) {
+        if (!p || p.playbackState !== MprisPlaybackState.Playing)
+            return false;
+        const rate = (typeof p.rate === "number" && isFinite(p.rate)) ? p.rate : 1;
+        return rate > 0;
+    }
 
     function pickPlayer() {
         const list = Mpris.players.values;
@@ -43,7 +73,11 @@ Scope {
             const advancing = prev !== undefined && pos > prev + 0.05 && pos < prev + 60;
             root.positionSamples[key] = pos;
 
-            if (p.isPlaying || advancing)
+            // Only real playback refreshes the activity tick. A browser that
+            // leaves PlaybackStatus "Playing" on pause must not stay the
+            // "most recently active" player forever, or another paused player
+            // could never be shown.
+            if (playerPlaysNow(p) || advancing)
                 root.lastActiveTicks[key] = tick;
 
             // Refresh the cached position for the next sample (Quickshell only
@@ -73,16 +107,19 @@ Scope {
             }
         }
 
-        const next = bestReal ?? bestProxy ?? list[0] ?? null;
+        // Keep a player that is genuinely playing so two active players do not
+        // make the island flip on every poll. A stale "Playing" (a paused
+        // browser stream) does not count as playing here.
+        let next = null;
+        if (root.player && list.includes(root.player) && playerPlaysNow(root.player))
+            next = root.player;
+        else
+            next = list.find(p => playerPlaysNow(p) && !String(p.dbusName).endsWith(".playerctld"))
+                ?? list.find(p => playerPlaysNow(p))
+                ?? bestReal ?? bestProxy ?? list[0] ?? null;
 
         if (next !== root.player)
             root.player = next;
-
-        // A player whose position is moving counts as playing even when its
-        // PlaybackStatus lies (Firefox/YouTube); this only feeds the icon and
-        // the progress polling, never the optimistic control state.
-        root.activeSelected = !!next
-            && (next.isPlaying || root.lastActiveTicks[String(next.dbusName)] === tick);
     }
 
     readonly property bool hasPlayer: player !== null
@@ -126,7 +163,23 @@ Scope {
         if (!player || !player.metadata)
             return 0;
         const len = player.metadata["mpris:length"];
-        return (typeof len === "number" && !isNaN(len) && len > 0) ? len : 0;
+        if (typeof len !== "number" || !isFinite(len) || len <= 0)
+            return 0;
+        // Some players report an "infinite" live duration as a sentinel near
+        // INT64_MAX microseconds; treat it as unknown instead of formatting
+        // hundreds of thousands of years of runtime.
+        if (len >= 9.0e15)
+            return 0;
+        // Firefox/Zen briefly report a stale, growing stream uptime as the
+        // duration when a live broadcast is resumed (the winter lofi radio
+        // reported 485 hours). No normal web video exceeds YouTube's 12 hour
+        // upload cap, so anything longer is a live stream: treat it as an
+        // unknown length so the live UI appears immediately instead of a
+        // "485:03:25" total. Local files keep their real duration.
+        const webUrl = /^https?:\/\//i.test(root.trackUrl);
+        if (webUrl && len > 12 * 3600 * 1000000)
+            return 0;
+        return len;
     }
 
     // Position and length in seconds for display
@@ -136,13 +189,21 @@ Scope {
     // tracks. Remembering the last positive duration for the current track
     // keeps the island from flipping to "live" mid-gesture.
     property real stickyLength: 0
+
+    // A live broadcast. Firefox/Zen omit mpris:length while the stream is
+    // actually playing, then re-add a stale long duration when it is paused;
+    // the absence is confirmed for a couple of seconds (a short seek gap is
+    // not enough) and kept for the rest of the track.
+    property bool live: false
+
     readonly property string currentTrackKey: player
         ? player.dbusName + "/" + String(player.uniqueId) + "/" + (player.trackTitle || "")
         : ""
 
-    readonly property real length: root.stickyLength
+    readonly property real length: root.live ? 0 : root.stickyLength
 
     onCurrentTrackKeyChanged: {
+        root.live = false;
         root.stickyLength = 0;
         if (root.rawLength > 0)
             root.stickyLength = root.rawLength / 1000000;
@@ -154,6 +215,7 @@ Scope {
     }
 
     readonly property bool progressSupported: player !== null
+        && !root.live
         && length > 0
         && (player.canSeek ?? true)
 
@@ -161,6 +223,38 @@ Scope {
     readonly property real progress: (length > 0)
         ? Math.max(0, Math.min(1, position / length))
         : 0
+
+    // Live probe: a playing track that consistently has no duration is a
+    // broadcast. The delay keeps a transient mpris:length gap during a seek
+    // from turning a normal video into a "live" one.
+    Timer {
+        id: liveProbe
+
+        interval: 2000
+        repeat: false
+        running: root.pollActive && root.hasPlayer && root.reallyPlaying
+            && !root.live && root.rawLength <= 0
+        onTriggered: {
+            if (root.pollActive && root.hasPlayer && root.reallyPlaying && root.rawLength <= 0)
+                root.live = true;
+        }
+    }
+
+    // A real duration that stays present during playback means this is a
+    // normal track after all (some players publish metadata late). A paused
+    // live stream also publishes its stale duration, but it is not playing
+    // then, so the live flag survives a pause.
+    Timer {
+        id: lengthRestoreProbe
+
+        interval: 1500
+        repeat: false
+        running: root.live && root.reallyPlaying && root.rawLength > 0
+        onTriggered: {
+            if (root.reallyPlaying && root.rawLength > 0)
+                root.live = false;
+        }
+    }
 
     // Fallback D-Bus transport for players without Quickshell seek support.
     Process {
@@ -187,7 +281,9 @@ Scope {
     // do not implement the relative Seek method at all and only honour
     // SetPosition, which also matches their own notion of the current track id.
     function seekTo(seconds) {
-        if (!player || !player.canSeek)
+        // A live broadcast has no meaningful absolute position (Firefox even
+        // reports 0 while playing and a stale value on pause), so never seek.
+        if (!player || !player.canSeek || root.live)
             return;
 
         const maxSecs = length > 0 ? length : 0;
@@ -234,24 +330,24 @@ Scope {
     }
 
     function seekToPercent(ratio) {
-        if (!player || length <= 0)
+        if (!player || root.live || length <= 0)
             return;
         seekTo(ratio * length);
     }
 
     // Optimistic playback state. Some players (Firefox/Zen) never update
     // PlaybackStatus, and quickshell's togglePlaying() then keeps sending
-    // Pause and can never resume. We flip this flag ourselves, send raw
-    // MPRIS Play/Pause, and resync whenever the player reports a real
-    // state change.
-    property bool assumedPlaying: false
-
+    // Pause and can never resume. The flag is only a fallback when the player
+    // reports neither state nor Rate; the evidence above always wins.
     function togglePlaying() {
         if (!interactive || !player)
             return;
 
-        const action = assumedPlaying ? "Pause" : "Play";
-        assumedPlaying = !assumedPlaying;
+        // Act on what the island shows, not on a possibly stale flag: after an
+        // external pause the old code would keep sending Pause.
+        const playing = root.reallyPlaying;
+        const action = playing ? "Pause" : "Play";
+        assumedPlaying = !playing;
 
         controlProc.command = [
             "busctl", "--user", "call", player.dbusName,
@@ -263,7 +359,16 @@ Scope {
     }
 
     function syncAssumedState() {
-        assumedPlaying = player ? player.isPlaying : false;
+        if (!player) {
+            assumedPlaying = false;
+            return;
+        }
+        if (root.evidencePlaying)
+            assumedPlaying = true;
+        else if (root.evidencePaused)
+            assumedPlaying = false;
+        else
+            assumedPlaying = root.statusPlaying;
     }
 
     function nextTrack() {
