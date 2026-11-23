@@ -25,6 +25,9 @@ QtObject {
     readonly property int fade: 120
     // Position/size transitions (ProgressIndicator segments).
     readonly property int move: 180
+    // Workspace switch: one bar highlight travels between cells in this time,
+    // while the compositor slide runs slightly longer (~240-280 ms).
+    readonly property int workspace: 200
     // Now-playing position line, which advances once per second.
     readonly property int mediaProgress: 800
     // Rotation transitions (settings gear).

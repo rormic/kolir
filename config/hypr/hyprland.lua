@@ -185,6 +185,10 @@ hl.curve("easeInOutCubic", { type = "bezier", points = { { 0.65, 0.05 }, { 0.36,
 hl.curve("linear", { type = "bezier", points = { { 0, 0 }, { 1, 1 } } })
 hl.curve("almostLinear", { type = "bezier", points = { { 0.5, 0.5 }, { 0.75, 1 } } })
 hl.curve("quick", { type = "bezier", points = { { 0.15, 0 }, { 0.1, 1 } } })
+-- Material 3 emphasized decelerate, used by the workspace switch and the
+-- scratchpad sheet. The compositor duration is `100 * speed` ms, so 2.4-2.8
+-- keeps the whole transition at ~240-280 ms.
+hl.curve("kolirSwitch", { type = "bezier", points = { { 0.05, 0.7 }, { 0.1, 1 } } })
 
 -- Default springs
 hl.curve("easy", { type = "spring", mass = 1, stiffness = 238.1191, dampening = 24.21279333 })
@@ -207,9 +211,18 @@ hl.animation({ leaf = "layersIn", enabled = true, speed = 4, bezier = "easeOutQu
 hl.animation({ leaf = "layersOut", enabled = true, speed = 1.5, bezier = "linear", style = "fade" })
 hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
-hl.animation({ leaf = "workspaces", enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
-hl.animation({ leaf = "workspacesIn", enabled = true, speed = 1.21, bezier = "almostLinear", style = "fade" })
-hl.animation({ leaf = "workspacesOut", enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
+-- Workspaces slide with a fade instead of a plain crossfade, and the incoming
+-- desktop settles faster than the outgoing one leaves, so a switch reads as
+-- movement. `slidefade 100%` (full travel) deliberately matches the live
+-- 3-finger swipe, whose release always animates the full monitor width.
+hl.animation({ leaf = "workspaces", enabled = true, speed = 2.6, bezier = "kolirSwitch", style = "slidefade 100%" })
+hl.animation({ leaf = "workspacesIn", enabled = true, speed = 2.4, bezier = "kolirSwitch", style = "slidefade 100%" })
+hl.animation({ leaf = "workspacesOut", enabled = true, speed = 2.8, bezier = "kolirSwitch", style = "slidefade 100%" })
+-- The scratchpad drops in from the top like a sheet, so SUPER+S is visually
+-- distinct from a normal workspace move.
+hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 2.6, bezier = "kolirSwitch", style = "slidevert" })
+hl.animation({ leaf = "specialWorkspaceIn", enabled = true, speed = 2.4, bezier = "kolirSwitch", style = "slidevert" })
+hl.animation({ leaf = "specialWorkspaceOut", enabled = true, speed = 2.8, bezier = "kolirSwitch", style = "slidevert" })
 hl.animation({ leaf = "zoomFactor", enabled = true, speed = 7, bezier = "quick" })
 
 -- Ref https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/
@@ -298,6 +311,18 @@ hl.gesture({
 	fingers = 3,
 	direction = "horizontal",
 	action = "workspace",
+})
+
+-- Shorter travel and an earlier commit point: a deliberate swipe reaches the
+-- neighbour sooner, and a quick flick switches without dragging most of the
+-- way. `workspace_swipe_create_new` stays at its default so swiping past the
+-- last workspace still creates one.
+hl.config({
+	gestures = {
+		workspace_swipe_distance = 240,
+		workspace_swipe_cancel_ratio = 0.35,
+		workspace_swipe_min_speed_to_force = 15,
+	},
 })
 
 -- Example per-device config
