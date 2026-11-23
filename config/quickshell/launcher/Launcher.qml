@@ -87,24 +87,40 @@ Scope {
             return (isClipboardMode && item && item.isImage) ? imageRowHeight : appRowHeight
         }
 
+        // Поверхня завжди повноекранна: картка анімується всередині неї, а
+        // прозора решта площі ловить клік повз картку (див. MouseArea нижче).
+        // Маленьке вікно розміром із картку не отримувало таких кліків взагалі,
+        // бо вони йшли повз його поверхню.
         visible: false
-        implicitWidth: 620
-        // Вікно завжди розгорнутого розміру: анімуємо картку, а не Wayland-поверхню,
-        // інакше композитор масштабує старий буфер і анімація виглядає рваною.
-        implicitHeight: expandedHeight
+        implicitWidth: screen ? screen.width : 0
+        implicitHeight: screen ? screen.height : 0
         color: "transparent"
 
-        anchors.top: true
-        margins.top: win.screen
-            ? Math.max(8, Math.min(
-                (win.screen.height - Dimensions.bar.height - Dimensions.bar.margin - compactHeight) / 2,
-                win.screen.height - Dimensions.bar.height - Dimensions.bar.margin - expandedHeight - 8))
-            : 0
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
+
+        // Ignore, not a normal exclusive zone: the dismissal layer has to cover
+        // the bar strip too, so a click there closes the launcher instead of
+        // leaving it open behind the bar.
+        exclusionMode: ExclusionMode.Ignore
 
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
         WlrLayershell.namespace: "launcher"
-        WlrLayershell.exclusiveZone: 0
+
+        // Вертикальне положення картки в межах усієї поверхні: смугу бару
+        // віднімаємо тут, бо поверхня тепер покриває і її.
+        readonly property int cardTop: Dimensions.bar.height
+            + Math.max(8, Math.min(
+                (height - Dimensions.bar.height - Dimensions.bar.margin - compactHeight) / 2,
+                height - Dimensions.bar.height - Dimensions.bar.margin - expandedHeight - 8))
+
+        // Картка трохи вужча за поверхню на малих екранах.
+        readonly property int cardWidth: Math.min(620, width - 16)
 
         readonly property bool isClipboardMode: search.text.startsWith(";")
         readonly property bool isNoteMode: search.text.startsWith(".")
@@ -228,9 +244,10 @@ Scope {
             id: card
             anchors {
                 top: parent.top
-                left: parent.left
-                right: parent.right
+                topMargin: win.cardTop
+                horizontalCenter: parent.horizontalCenter
             }
+            width: win.cardWidth
             height: win.targetHeight
             radius: Dimensions.radius.largeIncreased
             // Напівпрозора панель, як вікна Hyprland: крізь неї видно шпалери
