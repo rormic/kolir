@@ -302,8 +302,45 @@ run_matugen() {
 # hyprlock reads a pre-blurred, vignetted wallpaper so the lock starts fast
 # and the edges stay darker than the center.
 LOCK_BACKGROUND=$HOME/.cache/kolir/lock-background.png
+LOCK_GLOW=$HOME/.cache/kolir/lock-glow.png
+# Both renders cost more than the palette itself (the blurred background takes
+# ~1.2 s), and only a wallpaper, geometry or filter change alters their pixels.
+# They therefore live in a content-addressed cache and hyprlock's fixed paths
+# are hard links to the current entry.
+LOCK_CACHE_DIR=$HOME/.cache/kolir/lock-cache
+
+# $1 = fixed path hyprlock.conf reads, $2 = key material, rest = ffmpeg output
+# arguments. The key must cover every input that changes the pixels, so a
+# filter edit or a new geometry produces a new file instead of a stale hit. A
+# hit runs no ffmpeg at all and only re-links the cached file into place.
+lock_render() {
+    local destination=$1 key=$2 digest cache temporary
+    shift 2
+
+    digest=$(printf '%s' "$key" | sha1sum) || return 1
+    cache=$LOCK_CACHE_DIR/${digest%% *}.png
+    if [[ ! -s $cache ]]; then
+        # Rendered aside and moved in, so an interrupted run can never leave a
+        # truncated file behind for either the cache or hyprlock.
+        temporary=$cache.tmp.$$.png
+        if ! ffmpeg -y -loglevel error "$@" "$temporary" || [[ ! -s $temporary ]]; then
+            rm -f -- "$temporary"
+            return 1
+        fi
+        if ! mv -f -- "$temporary" "$cache"; then
+            rm -f -- "$temporary"
+            return 1
+        fi
+    fi
+
+    # A hard link keeps the cache entry's mtime and costs no copy; fall back to
+    # a copy when the cache is somehow on another filesystem.
+    ln -f -- "$cache" "$destination" 2>/dev/null && return 0
+    cp -f -- "$cache" "$destination"
+}
+
 if command -v ffmpeg >/dev/null 2>&1; then
-    if ! mkdir -p -- "${LOCK_BACKGROUND%/*}"; then
+    if ! mkdir -p -- "${LOCK_BACKGROUND%/*}" "$LOCK_CACHE_DIR"; then
         warn "could not create ${LOCK_BACKGROUND%/*}; skipping the lock-screen background"
     else
         GEOMETRY=$(kolir_monitor_geometry)
@@ -317,17 +354,22 @@ if command -v ffmpeg >/dev/null 2>&1; then
         fi
         MON_W=${MON_W:-2560}
         MON_H=${MON_H:-1440}
-        if ! ffmpeg -y -loglevel error -i "$IMAGE_PATH" \
-            -vf "scale=${MON_W}:${MON_H}:force_original_aspect_ratio=increase,crop=${MON_W}:${MON_H},gblur=sigma=28,eq=brightness=0.03:saturation=1.0,vignette=PI/5" \
-            -frames:v 1 "$LOCK_BACKGROUND"; then
+
+        BACKGROUND_FILTER="scale=${MON_W}:${MON_H}:force_original_aspect_ratio=increase,crop=${MON_W}:${MON_H},gblur=sigma=28,eq=brightness=0.03:saturation=1.0,vignette=PI/5"
+        BACKGROUND_MTIME=$(stat -c '%Y' -- "$IMAGE_PATH" 2>/dev/null) || BACKGROUND_MTIME=0
+        BACKGROUND_KEY=$(printf 'background\n%s\n%s\n%sx%s\n%s\n' \
+            "$IMAGE_PATH" "$BACKGROUND_MTIME" "$MON_W" "$MON_H" "$BACKGROUND_FILTER")
+        if ! lock_render "$LOCK_BACKGROUND" "$BACKGROUND_KEY" \
+            -i "$IMAGE_PATH" -vf "$BACKGROUND_FILTER" -frames:v 1; then
             warn "ffmpeg could not generate $LOCK_BACKGROUND; continuing without it"
         fi
 
         # 25% black in the centre, fading to transparent at a 600 px radius
-        LOCK_GLOW="$HOME/.cache/kolir/lock-glow.png"
-        if ! ffmpeg -y -loglevel error -f lavfi -i "color=c=black:s=1200x1200,format=rgba" \
-            -vf "geq=r=0:g=0:b=0:a='255*0.25*max(0,1-(pow(X-W/2,2)+pow(Y-H/2,2))/pow(W/2,2))'" \
-            -frames:v 1 "$LOCK_GLOW"; then
+        GLOW_FILTER="geq=r=0:g=0:b=0:a='255*0.25*max(0,1-(pow(X-W/2,2)+pow(Y-H/2,2))/pow(W/2,2))'"
+        GLOW_KEY=$(printf 'glow\n%sx%s\n%s\n' "$MON_W" "$MON_H" "$GLOW_FILTER")
+        if ! lock_render "$LOCK_GLOW" "$GLOW_KEY" \
+            -f lavfi -i "color=c=black:s=1200x1200,format=rgba" \
+            -vf "$GLOW_FILTER" -frames:v 1; then
             warn "ffmpeg could not generate $LOCK_GLOW; continuing without it"
         fi
     fi
