@@ -41,7 +41,20 @@ QtObject {
     property string pendingOutputSink: ""
     property real pendingInputVolume: -1
     property string pendingInputSource: ""
+    // Whether the action now running must be followed by a pactl re-read.
+    // Set per queue entry; volume/mute writes clear it (the subscriber
+    // reports them), default/route/profile switches set it.
+    property bool actionNeedsRefresh: false
     property var actionQueue: []
+
+    // Last volume this service wrote to the default output but has not yet
+    // confirmed through a refresh. Relative steps (wheel, IPC) build on it so a
+    // burst keeps summing while the model catches up; the post-write refresh
+    // used to provide that freshness. A refresh drops it once it reports the
+    // same value, and it expires so a failed write cannot skew later steps.
+    property int outputVolumeInFlight: -1
+    property double outputVolumeInFlightAt: 0
+    readonly property int outputVolumeInFlightWindow: 1500
 
     property Timer outputVolumeTimer: Timer {
         id: outputVolumeTimer
@@ -152,22 +165,41 @@ QtObject {
         return root.cards.find(c => c.name === name) || null;
     }
 
-    function markDefaults() {
-        const nextSinks = [];
-        for (let i = 0; i < root.sinks.length; i++) {
-            const sink = root.sinks[i];
-            sink.isDefault = sink.name === root.defaultSinkName;
-            nextSinks.push(sink);
+    // Sets `isDefault` on a device list in place and reports whether a flag
+    // actually moved. Callers publish the list themselves, so a refresh that
+    // changes nothing does not rebuild the device rows a second time.
+    function applyDefaults(devices, defaultName) {
+        let changed = false;
+        for (let i = 0; i < devices.length; i++) {
+            const device = devices[i];
+            const isDefault = device.name === defaultName;
+            if (device.isDefault !== isDefault) {
+                device.isDefault = isDefault;
+                changed = true;
+            }
         }
-        root.sinks = nextSinks;
+        return changed;
+    }
 
-        const nextSources = [];
-        for (let j = 0; j < root.sources.length; j++) {
-            const source = root.sources[j];
-            source.isDefault = source.name === root.defaultSourceName;
-            nextSources.push(source);
-        }
-        root.sources = nextSources;
+    // Publishes a freshly parsed list with the default flag already applied, so
+    // one subscriber event produces one model update instead of an assignment
+    // followed by markDefaults()'s second one.
+    function publishDevices(kind, devices) {
+        root.applyDefaults(devices, kind === "sink" ? root.defaultSinkName : root.defaultSourceName);
+        if (kind === "sink")
+            root.sinks = devices;
+        else
+            root.sources = devices;
+        root.markDefaults();
+    }
+
+    function markDefaults() {
+        // Lists arrive here already marked by publishDevices(); only a default
+        // that changed since the last publish is reassigned (and notified).
+        if (root.applyDefaults(root.sinks, root.defaultSinkName))
+            root.sinks = root.sinks.slice();
+        if (root.applyDefaults(root.sources, root.defaultSourceName))
+            root.sources = root.sources.slice();
 
         // A default endpoint can disappear from `pactl list` (e.g. a BlueZ
         // device). Keep it selectable by querying it directly once per refresh.
@@ -203,6 +235,9 @@ QtObject {
         root.volume = vol;
         root.muted = out.muted;
         root.ready = true;
+        // The write was confirmed, so the model value is authoritative again.
+        if (root.outputVolumeInFlight >= 0 && vol === root.outputVolumeInFlight)
+            root.outputVolumeInFlight = -1;
     }
 
     // Insert/update a default endpoint that pactl's list didn't contain.
@@ -234,6 +269,12 @@ QtObject {
             });
         }
 
+        // The list was mutated in place; publish it once so the rows redraw.
+        if (kind === "sink")
+            root.sinks = devices.slice();
+        else
+            root.sources = devices.slice();
+
         root.ensureLegacyVolume();
     }
 
@@ -248,9 +289,10 @@ QtObject {
             cardProc.running = true;
     }
 
-    function enqueueCommand(command) {
+    function enqueueCommand(command, refreshAfter) {
         root.actionQueue.push({
-            command: command
+            command: command,
+            refreshAfter: refreshAfter === true
         });
         root.runNextAction();
     }
@@ -260,16 +302,24 @@ QtObject {
             return;
         const next = root.actionQueue.shift();
         root.actionProc.buffer = "";
+        root.actionNeedsRefresh = next.refreshAfter === true;
         root.actionProc.command = next.command;
         root.actionProc.running = true;
     }
 
+    // Volume and mute writes are reported by the subscriber (every write is an
+    // `Event 'change' on sink/source`), so they must not pull a refresh.
     function applyVolumeToDevice(kind, name, percent) {
         const target = root.clampPercent(percent);
-        if (kind === "sink")
+        if (kind === "sink") {
+            if (name === root.defaultSinkName) {
+                root.outputVolumeInFlight = target;
+                root.outputVolumeInFlightAt = Date.now();
+            }
             root.enqueueCommand(["pactl", "set-sink-volume", name, target + "%"]);
-        else
+        } else {
             root.enqueueCommand(["pactl", "set-source-volume", name, target + "%"]);
+        }
     }
 
     function toggleMuteForDevice(kind, name) {
@@ -288,13 +338,16 @@ QtObject {
         const script = 'pactl set-default-sink "$1" && pactl list short sink-inputs'
             + ' | awk \'{print $1}\' | while read -r id; do'
             + ' pactl move-sink-input "$id" "$1" >/dev/null 2>&1; done';
-        root.enqueueCommand(["sh", "-c", script, "sh", name]);
+        // The subscriber reports the server/sink-input changes, but the moved
+        // streams and the fallback-device bookkeeping are safer to re-read.
+        root.outputVolumeInFlight = -1;
+        root.enqueueCommand(["sh", "-c", script, "sh", name], true);
     }
 
     function setDefaultSource(name) {
         if (!name)
             return;
-        root.enqueueCommand(["pactl", "set-default-source", name]);
+        root.enqueueCommand(["pactl", "set-default-source", name], true);
     }
 
     // Switch the active Bluetooth codec by selecting its card profile
@@ -302,7 +355,7 @@ QtObject {
     function setCardProfile(cardName, profileName) {
         if (!cardName || !profileName)
             return;
-        root.enqueueCommand(["pactl", "set-card-profile", cardName, profileName]);
+        root.enqueueCommand(["pactl", "set-card-profile", cardName, profileName], true);
     }
 
     // These are throttled: every slider move updates the pending value, and
@@ -348,11 +401,19 @@ QtObject {
     }
 
     function volumeUp() {
-        root.setOutputVolume(root.volume + 2);
+        root.setOutputVolume(root.stepBaseOutputVolume() + 2);
     }
 
     function volumeDown() {
-        root.setOutputVolume(root.volume - 2);
+        root.setOutputVolume(root.stepBaseOutputVolume() - 2);
+    }
+
+    // Newest known output level: the write still in flight, else the model.
+    function stepBaseOutputVolume() {
+        if (root.outputVolumeInFlight >= 0
+                && Date.now() - root.outputVolumeInFlightAt < root.outputVolumeInFlightWindow)
+            return root.outputVolumeInFlight;
+        return root.volume;
     }
 
     // ── Processes ───────────────────────────────────────────────────────────
@@ -386,8 +447,7 @@ QtObject {
                 const devices = root.parseDevices(text, "sink");
                 if (!devices)
                     return;
-                root.sinks = devices;
-                root.markDefaults();
+                root.publishDevices("sink", devices);
             }
         }
     }
@@ -400,8 +460,7 @@ QtObject {
                 const devices = root.parseDevices(text, "source");
                 if (!devices)
                     return;
-                root.sources = devices;
-                root.markDefaults();
+                root.publishDevices("source", devices);
             }
         }
     }
@@ -433,6 +492,10 @@ QtObject {
                     if (line.startsWith("SINK:")) {
                         const name = line.slice(5).trim();
                         if (name) {
+                            // A different default means the in-flight level
+                            // belonged to the previous device.
+                            if (name !== root.defaultSinkName)
+                                root.outputVolumeInFlight = -1;
                             root.defaultSinkName = name;
                             changed = true;
                         }
@@ -517,14 +580,19 @@ QtObject {
             actionProc.buffer = "";
             if (code !== 0)
                 console.warn("AudioService: action failed with code", code);
+            // Read before runNextAction() loads the next command's flag.
+            const needsRefresh = root.actionNeedsRefresh;
             root.runNextAction();
-            root.refresh();
+            if (needsRefresh)
+                root.refresh();
         }
     }
 
-    // Occasional polling picks up changes made outside the shell.
+    // Slow recovery net only: the subscriber above is the source of truth. This
+    // exists so a pactl subscriber that died (e.g. after a pipewire-pulse
+    // restart) cannot leave the bar permanently stale.
     property Timer pollTimer: Timer {
-        interval: 30000
+        interval: 300000
         repeat: true
         running: true
         onTriggered: root.refresh()
