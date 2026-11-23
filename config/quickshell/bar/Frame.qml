@@ -1,8 +1,9 @@
+pragma ComponentBehavior: Bound
+
 import "../theme"
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
-import QtQuick.Shapes
 
 // Caelestia-style screen frame, split out of the bar so it can sit below the
 // windows. The surface covers the whole screen and paints the window gaps as
@@ -46,46 +47,142 @@ PanelWindow {
     // where the first window row starts.
     readonly property int holeY: frame.barHeight + frame.thickness
 
-    // Ring around the desktop: an outer rectangle starting at the bar strip
-    // (Bar.qml paints 0..barHeight on the Top layer, so the two surfaces
-    // never overlap) minus the rounded cut-out on the decorated window box.
-    readonly property string framePath: {
-        const w = frame.width;
-        const h = frame.height;
-        const t = frame.thickness;
-        const r = frame.radius;
-        const y0 = frame.holeY;
-        const hx = t;
-        const hw = w - t * 2;
-        const hh = h - y0 - t;
-        const hole = `M${hx + r} ${y0} H${hx + hw - r} A${r} ${r} 0 0 1 ${hx + hw} ${y0 + r}` + ` V${y0 + hh - r} A${r} ${r} 0 0 1 ${hx + hw - r} ${y0 + hh}` + ` H${hx + r} A${r} ${r} 0 0 1 ${hx} ${y0 + hh - r}` + ` V${y0 + r} A${r} ${r} 0 0 1 ${hx + r} ${y0} Z`;
-        return `M0 ${frame.barHeight} H${w} V${h} H0 Z ${hole}`;
+    // Opaque on purpose: the frame ring is part of the same chrome as the bar
+    // and the settings sheet, so it must not tint with the wallpaper. A
+    // translucent ring reads as a see-through outline in the dark theme,
+    // where 6% of a bright wallpaper is very visible.
+    readonly property color ringColor: Colors.surfaceContainerLow
+
+    // The ring is an outer rectangle minus a rounded cut-out, but only its
+    // four corners are curved. Drawing the whole thing as one shape forced a
+    // multisampled layer the size of the screen (2560x1440 x 4 samples, ~59
+    // MB of render buffer) so that four 30x30 arcs would be antialiased.
+    //
+    // So the straight parts are plain axis-aligned rectangles, which are crisp
+    // at integer geometry without any antialiasing, and each corner is its own
+    // 30x30 spandrel: the square corner minus the quarter circle. Those are
+    // drawn on a Canvas, which antialiases the arc itself and lets us repaint
+    // explicitly.
+    //
+    // A Shape was the natural fit here, but its ShapePath only repaints when
+    // the geometry changes: a fill-colour-only change never reached the
+    // screen, so the corners kept the Colors.qml placeholder after the first
+    // palette load until the next palette animation happened to redraw them.
+    //
+    // `cornerPath()` draws one spandrel in a 30x30 box: from the ring corner
+    // along one box edge to the arc's tangency point, around the arc to the
+    // other tangency point, and back. The arc is the same quarter circle the
+    // single cut-out path used, so the inner edge stays exactly where it was.
+    function cornerPath(ctx, corner, r) {
+        // Arc centre, ring corner and the tangency point the arc starts from,
+        // all in the 30x30 box of this corner.
+        const centres = [[r, r], [0, r], [r, 0], [0, 0]];
+        const ringCorners = [[0, 0], [r, 0], [0, r], [r, r]];
+        const from = [[r, 0], [0, 0], [0, 0], [r, 0]];
+        // Canvas angles grow clockwise on screen, so a quarter that turns the
+        // other way has to ask for an anticlockwise sweep.
+        const startAngles = [-Math.PI / 2, -Math.PI / 2, Math.PI, 0];
+        const endAngles = [Math.PI, 0, Math.PI / 2, Math.PI / 2];
+        const anticlockwise = [true, false, true, false];
+
+        ctx.moveTo(ringCorners[corner][0], ringCorners[corner][1]);
+        ctx.lineTo(from[corner][0], from[corner][1]);
+        ctx.arc(centres[corner][0], centres[corner][1], r,
+                startAngles[corner], endAngles[corner], anticlockwise[corner]);
+        ctx.closePath();
     }
 
-    // Keep the default geometry renderer: it rasterizes the path exactly
-    // where it is defined, while CurveRenderer would pull the rounded hole
-    // about 1px inside it. The default renderer has no antialiasing of its
-    // own, so the Shape renders through a multisampled layer that smooths
-    // the cut-out edge where it frames the empty desktop.
-    Shape {
-        anchors.fill: parent
+    // One rounded corner of the cut-out. Repainted only when the palette or
+    // the geometry changes, never per frame.
+    component CornerRing: Canvas {
+        id: cornerRing
 
-        // MSAA layer: antialiases the rounded cut-out without moving it.
-        layer.enabled: true
-        layer.samples: 4
+        property int corner: 0
+        property color fillColor: "transparent"
 
-        ShapePath {
-            // Opaque on purpose: the frame ring is part of the same chrome as
-            // the bar and the settings sheet, so it must not tint with the
-            // wallpaper. A translucent ring reads as a see-through outline in
-            // the dark theme, where 6% of a bright wallpaper is very visible.
-            fillColor: Colors.surfaceContainerLow
-            strokeWidth: 0
-            fillRule: ShapePath.OddEvenFill
+        width: frame.radius
+        height: frame.radius
 
-            PathSvg {
-                path: frame.framePath
-            }
+        onFillColorChanged: cornerRing.requestPaint()
+        onCornerChanged: cornerRing.requestPaint()
+        onWidthChanged: cornerRing.requestPaint()
+        onHeightChanged: cornerRing.requestPaint()
+
+        onPaint: {
+            const ctx = cornerRing.getContext("2d");
+            ctx.reset();
+            ctx.antialias = true;
+            ctx.beginPath();
+            frame.cornerPath(ctx, cornerRing.corner,
+                             Math.min(cornerRing.width, cornerRing.height));
+            ctx.fillStyle = cornerRing.fillColor;
+            ctx.fill();
         }
+    }
+
+    // Top strip, from the bar's bottom edge down to the cut-out.
+    Rectangle {
+        x: 0
+        y: frame.barHeight
+        width: frame.width
+        height: frame.thickness
+        color: frame.ringColor
+    }
+
+    // Bottom strip, up to the last pixel row.
+    Rectangle {
+        x: 0
+        y: frame.height - frame.thickness
+        width: frame.width
+        height: frame.thickness
+        color: frame.ringColor
+    }
+
+    // Left and right strips run the full outer height, so the four corners of
+    // the outer rectangle are already covered and the rings only have to fill
+    // the cut-out corners.
+    Rectangle {
+        x: 0
+        y: frame.barHeight
+        width: frame.thickness
+        height: frame.height - frame.barHeight
+        color: frame.ringColor
+    }
+
+    Rectangle {
+        x: frame.width - frame.thickness
+        y: frame.barHeight
+        width: frame.thickness
+        height: frame.height - frame.barHeight
+        color: frame.ringColor
+    }
+
+    // One ring per rounded corner of the cut-out.
+    CornerRing {
+        corner: 0
+        fillColor: frame.ringColor
+        x: frame.thickness
+        y: frame.holeY
+    }
+
+    CornerRing {
+        corner: 1
+        fillColor: frame.ringColor
+        x: frame.width - frame.thickness - frame.radius
+        y: frame.holeY
+    }
+
+    CornerRing {
+        corner: 2
+        fillColor: frame.ringColor
+        x: frame.thickness
+        y: frame.height - frame.thickness - frame.radius
+    }
+
+    CornerRing {
+        corner: 3
+        fillColor: frame.ringColor
+        x: frame.width - frame.thickness - frame.radius
+        y: frame.height - frame.thickness - frame.radius
     }
 }
