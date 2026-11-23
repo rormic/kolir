@@ -62,6 +62,7 @@ QtObject {
     // own range, so a laptop keeps controlling its panel while a DDC/CI
     // monitor next to it follows along (the pre-service hybrid behaviour).
     function adjust(step) {
+        root.armFastRetry();
         if (!root.available)
             return;
 
@@ -79,6 +80,7 @@ QtObject {
 
     // Absolute value for the IPC `set` method: one number for the whole setup.
     function setValue(percent) {
+        root.armFastRetry();
         const numeric = Number(percent);
         if (!root.available || isNaN(numeric))
             return;
@@ -147,10 +149,55 @@ QtObject {
     }
 
     function refresh() {
-        if (!root.internalReadProc.running && !root.internalWriteProc.running && root.pendingInternalRaw < 0)
+        let started = false;
+
+        if (!root.internalReadProc.running && !root.internalWriteProc.running && root.pendingInternalRaw < 0) {
             root.internalReadProc.running = true;
-        if (!root.externalReadProc.running && !root.externalWriteProc.running && root.pendingExternalRaw < 0)
+            started = true;
+        }
+        if (!root.externalReadProc.running && !root.externalWriteProc.running && root.pendingExternalRaw < 0) {
             root.externalReadProc.running = true;
+            started = true;
+        }
+
+        if (started)
+            root.noteReadAttempt();
+    }
+
+    // Polling is cheap while a backend answers, but a monitor without DDC/CI
+    // (or a laptop panel that rejects it) must not spawn a 380 ms ddcutil call
+    // every 5 seconds forever. The fast retry is therefore bounded: after a
+    // few attempts the service settles on a slow poll that still picks a
+    // backend up when it appears, and a successful read or a user action
+    // re-arms the fast path.
+    readonly property int healthyPollInterval: 120000
+    readonly property int fastRetryInterval: 5000
+    readonly property int slowRetryInterval: 300000
+    readonly property int fastRetryLimit: 6
+
+    property int fastRetries: 0
+    property bool fastRetryExhausted: false
+
+    readonly property int pollInterval: root.available
+        ? root.healthyPollInterval
+        : (root.fastRetryExhausted ? root.slowRetryInterval : root.fastRetryInterval)
+
+    function armFastRetry() {
+        root.fastRetries = 0;
+        root.fastRetryExhausted = false;
+    }
+
+    function noteReadAttempt() {
+        if (root.available)
+            return;
+
+        root.fastRetries += 1;
+        if (root.fastRetries >= root.fastRetryLimit && !root.fastRetryExhausted) {
+            root.fastRetryExhausted = true;
+            console.warn("BrightnessService: no brightness backend answered after",
+                root.fastRetries, "attempts; polling every",
+                root.slowRetryInterval / 1000, "seconds");
+        }
     }
 
     // `-c backlight` keeps keyboard LEDs out of the picture: without it,
@@ -181,6 +228,7 @@ QtObject {
                     root.internalRaw = current;
                 root.internalAvailable = true;
                 root.internalReady = true;
+                root.armFastRetry();
 
                 // Only the backend currently shown by the chip may raise the
                 // OSD; a panel change while the external display is primary
@@ -199,6 +247,8 @@ QtObject {
             if (root.internalAvailable) {
                 root.internalAvailable = false;
                 console.warn("BrightnessService: brightnessctl read failed with code", exitCode);
+                if (!root.available)
+                    root.armFastRetry();
             }
         }
     }
@@ -239,6 +289,7 @@ QtObject {
                     root.externalRaw = current;
                 root.externalAvailable = true;
                 root.externalReady = true;
+                root.armFastRetry();
 
                 if (wasReady && root.externalValue !== previousValue)
                     root.brightnessChangedManually(root.externalValue);
@@ -252,6 +303,8 @@ QtObject {
             if (root.externalAvailable) {
                 root.externalAvailable = false;
                 console.warn("BrightnessService: ddcutil getvcp failed with code", exitCode);
+                if (!root.available)
+                    root.armFastRetry();
             }
         }
     }
@@ -268,10 +321,10 @@ QtObject {
     }
 
     // Poll occasionally so changes made with the monitor buttons or another
-    // brightness tool are picked up. While no backend answers (shell start,
-    // monitor waking up) retry faster so the chip returns quickly.
+    // brightness tool are picked up, and retry quickly while no backend
+    // answers (shell start, monitor waking up) so the chip returns soon.
     property Timer refreshTimer: Timer {
-        interval: root.available ? 30000 : 5000
+        interval: root.pollInterval
         repeat: true
         running: true
 
