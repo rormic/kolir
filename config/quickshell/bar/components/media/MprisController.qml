@@ -13,9 +13,76 @@ Scope {
     // Set by the view: polling runs only while the island is visible.
     property bool pollActive: false
 
-    readonly property var player: {
+    // Mpris.players is an unnotified model, so a binding over `.values` would
+    // evaluate only once. Keep `player` as a plain property and refresh it from
+    // a timer while the island is visible.
+    property var player: null
+
+    // Selection prefers whatever looks like it is playing right now and falls
+    // back to the most recently active player of this session (no persistence).
+    // PlaybackStatus alone is not enough: Firefox/YouTube often leave it stale,
+    // so a moving position counts as playback too. Position readings need the
+    // monitoring signal to be emitted for every player we inspect.
+    property int activityTick: 0
+    property var lastActiveTicks: ({})
+    property var positionSamples: ({})
+    // True while the selected player looks like it is really playing (status
+    // or moving position), independent of the optimistic toggle state.
+    property bool activeSelected: false
+    readonly property bool reallyPlaying: root.assumedPlaying || root.activeSelected
+
+    function pickPlayer() {
         const list = Mpris.players.values;
-        return list.find(p => p.isPlaying) ?? list[0] ?? null;
+        const tick = root.activityTick + 1;
+        root.activityTick = tick;
+
+        for (const p of list) {
+            const key = String(p.dbusName);
+            const pos = (typeof p.position === "number" && isFinite(p.position)) ? p.position : 0;
+            const prev = root.positionSamples[key];
+            const advancing = prev !== undefined && pos > prev + 0.05 && pos < prev + 60;
+            root.positionSamples[key] = pos;
+
+            if (p.isPlaying || advancing)
+                root.lastActiveTicks[key] = tick;
+
+            // Refresh the cached position for the next sample (Quickshell only
+            // monitors positions that ask for it).
+            if (p.positionChanged)
+                p.positionChanged();
+        }
+
+        let bestReal = null;
+        let bestRealTick = -1;
+        let bestProxy = null;
+        let bestProxyTick = -1;
+        for (const p of list) {
+            const t = root.lastActiveTicks[String(p.dbusName)];
+            if (t === undefined)
+                continue;
+            // playerctld only mirrors another player and can carry stale
+            // metadata, so prefer the real bus when both look equally active.
+            if (String(p.dbusName).endsWith(".playerctld")) {
+                if (t > bestProxyTick) {
+                    bestProxyTick = t;
+                    bestProxy = p;
+                }
+            } else if (t > bestRealTick) {
+                bestRealTick = t;
+                bestReal = p;
+            }
+        }
+
+        const next = bestReal ?? bestProxy ?? list[0] ?? null;
+
+        if (next !== root.player)
+            root.player = next;
+
+        // A player whose position is moving counts as playing even when its
+        // PlaybackStatus lies (Firefox/YouTube); this only feeds the icon and
+        // the progress polling, never the optimistic control state.
+        root.activeSelected = !!next
+            && (next.isPlaying || root.lastActiveTicks[String(next.dbusName)] === tick);
     }
 
     readonly property bool hasPlayer: player !== null
@@ -64,10 +131,30 @@ Scope {
 
     // Position and length in seconds for display
     readonly property real position: rawPosition
-    readonly property real length: rawLength / 1000000
+
+    // Firefox/YouTube briefly drop mpris:length while seeking or changing
+    // tracks. Remembering the last positive duration for the current track
+    // keeps the island from flipping to "live" mid-gesture.
+    property real stickyLength: 0
+    readonly property string currentTrackKey: player
+        ? player.dbusName + "/" + String(player.uniqueId) + "/" + (player.trackTitle || "")
+        : ""
+
+    readonly property real length: root.stickyLength
+
+    onCurrentTrackKeyChanged: {
+        root.stickyLength = 0;
+        if (root.rawLength > 0)
+            root.stickyLength = root.rawLength / 1000000;
+    }
+
+    onRawLengthChanged: {
+        if (root.rawLength > 0)
+            root.stickyLength = root.rawLength / 1000000;
+    }
 
     readonly property bool progressSupported: player !== null
-        && rawLength > 0
+        && length > 0
         && (player.canSeek ?? true)
 
     // 0..1 position in the current track
@@ -96,38 +183,42 @@ Scope {
         }
     }
 
-    // Seek through Quickshell's MprisPlayer so the D-Bus details (track id,
-    // units, capability checks) follow the player's own implementation.
+    // Absolute MPRIS seek via D-Bus SetPosition. Some players (Firefox/YouTube)
+    // do not implement the relative Seek method at all and only honour
+    // SetPosition, which also matches their own notion of the current track id.
     function seekTo(seconds) {
         if (!player || !player.canSeek)
             return;
 
         const maxSecs = length > 0 ? length : 0;
         const targetSecs = maxSecs > 0 ? Math.max(0, Math.min(maxSecs, seconds)) : Math.max(0, seconds);
-        const delta = targetSecs - position;
-        if (Math.abs(delta) < 0.05)
-            return;
 
-        if (typeof player.seek === "function") {
-            player.seek(delta);
-        } else {
-            seekViaDbus(targetSecs);
+        if (!player.dbusName) {
+            // Last resort without a bus name: relative offset through Quickshell.
+            if (typeof player.seek === "function")
+                player.seek(targetSecs - position);
+            return;
         }
 
-        if (player.positionChanged)
-            player.positionChanged();
-    }
+        const microSecs = Math.round(targetSecs * 1000000);
 
-    // Fallback for a player without Quickshell seek support: raw SetPosition
-    // (position in microseconds).
-    function seekViaDbus(seconds) {
-        if (!player || !player.dbusName)
-            return;
-
-        const microSecs = Math.round(seconds * 1000000);
-        const trackId = (player.metadata && player.metadata["mpris:trackid"])
-            ? String(player.metadata["mpris:trackid"])
-            : "/org/mpris/MediaPlayer2/TrackList/NoTrack";
+        // Quickshell exposes mpris:trackid as a QVariant(QDBusObjectPath) whose
+        // debug form is not an object path, so recover the real path when Qt's
+        // wrapper format matches and otherwise fall back to the conventional
+        // "no track" id (players that honour SetPosition accept it).
+        const rawTid = player.metadata ? player.metadata["mpris:trackid"] : undefined;
+        let trackId = "";
+        if (rawTid && typeof rawTid === "object" && typeof rawTid.path === "string")
+            trackId = rawTid.path;
+        else if (typeof rawTid === "string")
+            trackId = rawTid;
+        else {
+            const match = String(rawTid).match(/QDBusObjectPath\("([^"]+)"\)/);
+            if (match)
+                trackId = match[1];
+        }
+        if (!trackId.startsWith("/"))
+            trackId = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
 
         seekProc.command = [
             "busctl", "--user", "call", player.dbusName,
@@ -137,6 +228,9 @@ Scope {
             "ox", trackId, String(microSecs)
         ];
         seekProc.running = true;
+
+        if (player.positionChanged)
+            player.positionChanged();
     }
 
     function seekToPercent(ratio) {
@@ -182,7 +276,21 @@ Scope {
             player.previous();
     }
 
-    onPlayerChanged: syncAssumedState()
+    onPlayerChanged: {
+        root.stickyLength = 0;
+        syncAssumedState();
+    }
+
+    // Player selection has to be polled: the Mpris players model carries no
+    // change notification.
+    Timer {
+        interval: 500
+        running: root.pollActive
+        repeat: true
+        triggeredOnStart: true
+
+        onTriggered: root.pickPlayer()
+    }
 
     IpcHandler {
         target: "nowPlaying"
@@ -204,7 +312,7 @@ Scope {
     // per second while playing (the pattern recommended by the Quickshell
     // MprisPlayer docs).
     Timer {
-        running: root.pollActive && root.hasPlayer && root.assumedPlaying
+        running: root.pollActive && root.hasPlayer && root.reallyPlaying
         interval: 1000
         repeat: true
         triggeredOnStart: true
@@ -246,6 +354,7 @@ Scope {
     }
 
     Component.onCompleted: {
+        root.pickPlayer();
         syncAssumedState();
     }
 }

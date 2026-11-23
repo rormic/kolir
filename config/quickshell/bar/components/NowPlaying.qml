@@ -225,7 +225,9 @@ Item {
             horizontalCenter: parent.horizontalCenter
         }
         width: root.fixedWidth + root.notchShoulderRadius * 2
-        height: root.height
+        // Cover the strip and the poured body, not the layout reserve below
+        // the notch, so leaving the silhouette closes the card at once.
+        height: Math.max(Dimensions.bar.height, root.notchDrop)
         z: 2
 
         HoverHandler {
@@ -300,7 +302,9 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         y: (Dimensions.bar.height - Dimensions.control.height) / 2
         implicitHeight: Dimensions.control.height
-        implicitWidth: root.fixedWidth
+        // Same painted width as the playing morph card so idle<->playing
+        // crossfades never resize the pill.
+        implicitWidth: root.fixedWidth - 16
         radius: Dimensions.radius.full
         surfaceColor: Colors.surfaceContainerHigh
         borderColor: Colors.withAlpha(Colors.outlineVariant, 0.18)
@@ -530,7 +534,7 @@ Item {
                 // Single-line track text
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - Dimensions.media.cover - Dimensions.media.coverSpacing - compactTransport.width - 12
+                    width: parent.width - Dimensions.media.cover - Dimensions.media.coverSpacing - compactTransport.width
                     text: root.trackText
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
@@ -548,7 +552,7 @@ Item {
 
                     IconButton {
                         anchors.verticalCenter: parent.verticalCenter
-                        icon: controller.assumedPlaying ? Icons.pause : Icons.playArrow
+                        icon: controller.reallyPlaying ? Icons.pause : Icons.playArrow
                         iconSize: Dimensions.icon.medium
                         iconColor: root.accentColor
                         iconHoverColor: root.accentColor
@@ -568,7 +572,7 @@ Item {
                 height: Dimensions.media.progressThickness
                 radius: Dimensions.media.progressThickness / 2
                 visible: controller.progressSupported
-                color: controller.assumedPlaying
+                color: controller.reallyPlaying
                     ? Colors.withAlpha(root.accentColor, 0.75)
                     : Colors.withAlpha(root.accentColor, 0.3)
             }
@@ -732,6 +736,7 @@ Item {
                         height: 42
                         radius: 14
                         color: root.accentColor
+                        opacity: root.interactive ? 1.0 : 0.4
                         scale: playMouseArea.containsMouse ? 1.08 : 1.0
 
                         Behavior on scale {
@@ -740,7 +745,7 @@ Item {
 
                         Text {
                             anchors.centerIn: parent
-                            text: controller.assumedPlaying ? Icons.pause : Icons.playArrow
+                            text: controller.reallyPlaying ? Icons.pause : Icons.playArrow
                             font.family: Typography.iconFont
                             font.pixelSize: 20
                             color: root.accentTextColor
@@ -792,7 +797,7 @@ Item {
                         Layout.fillHeight: true
                         progress: controller.progress
                         length: controller.length
-                        playing: controller.assumedPlaying
+                        playing: controller.reallyPlaying
                         indicatorColor: Colors.onSurface
                         trackColor: Colors.withAlpha(Colors.onSurface, 0.25)
                         onSeekRequested: ratio => controller.seekToPercent(ratio)

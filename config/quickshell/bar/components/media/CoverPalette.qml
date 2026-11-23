@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "../../../services"
+import "../../../theme"
 
 // Cover-art palette for the now-playing island.
 //
@@ -26,6 +27,20 @@ Scope {
     property color containerTextColor: "transparent"
     property color accentColor: "transparent"
     property color accentTextColor: "transparent"
+
+    // Palette changes crossfade like the rest of the shell instead of cutting.
+    Behavior on containerColor {
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+    }
+    Behavior on containerTextColor {
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+    }
+    Behavior on accentColor {
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+    }
+    Behavior on accentTextColor {
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+    }
 
     // URL the running helper was started for. A late answer from a previous
     // track is dropped by comparing it with `artUrl`.
