@@ -23,7 +23,9 @@ import sys
 import urllib.parse
 import urllib.request
 
-ROLES = ("primary_container", "on_primary_container")
+REQUIRED_ROLES = ("primary_container", "on_primary_container")
+OPTIONAL_ROLES = ("primary", "on_primary")
+ROLES = REQUIRED_ROLES + OPTIONAL_ROLES
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")
 DOWNLOAD_TIMEOUT = 10
 MATUGEN_TIMEOUT = 30
@@ -130,7 +132,7 @@ def palette(image, mode):
         if isinstance(value, dict) and isinstance(value.get("color"), str):
             values[role] = value["color"]
 
-    missing = [role for role in ROLES if role not in values]
+    missing = [role for role in REQUIRED_ROLES if role not in values]
     if missing:
         raise RuntimeError(f"matugen returned no {', '.join(missing)}")
 

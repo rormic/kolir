@@ -24,6 +24,8 @@ Scope {
     property bool paletteReady: false
     property color containerColor: "transparent"
     property color containerTextColor: "transparent"
+    property color accentColor: "transparent"
+    property color accentTextColor: "transparent"
 
     // URL the running helper was started for. A late answer from a previous
     // track is dropped by comparing it with `artUrl`.
@@ -57,6 +59,8 @@ Scope {
             root.pendingRun = false;
             root.containerColor = cached.container;
             root.containerTextColor = cached.onContainer;
+            root.accentColor = cached.accent || cached.onContainer;
+            root.accentTextColor = cached.accentText || cached.container;
             root.paletteReady = true;
             return;
         }
@@ -99,6 +103,8 @@ Scope {
             const parsed = JSON.parse(content);
             const container = parsed.primary_container;
             const onContainer = parsed.on_primary_container;
+            const primary = parsed.primary || onContainer;
+            const onPrimary = parsed.on_primary || container;
 
             if (typeof container !== "string" || typeof onContainer !== "string")
                 return;
@@ -106,9 +112,13 @@ Scope {
             root.palettes[root.artUrl] = {
                 container: container,
                 onContainer: onContainer,
+                accent: primary,
+                accentText: onPrimary,
             };
             root.containerColor = container;
             root.containerTextColor = onContainer;
+            root.accentColor = primary;
+            root.accentTextColor = onPrimary;
             root.paletteReady = true;
         } catch (error) {
             console.warn("CoverPalette: invalid palette JSON:", error);

@@ -28,3 +28,19 @@ function youtubeThumbnail(url) {
 
     return match ? "https://i.ytimg.com/vi/" + match[1] + "/mqdefault.jpg" : "";
 }
+
+function formatDuration(seconds) {
+    if (!seconds || isNaN(seconds) || seconds < 0)
+        return "0:00";
+
+    const totalSecs = Math.floor(seconds);
+    const hrs = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    const secStr = secs < 10 ? "0" + secs : String(secs);
+    if (hrs > 0) {
+        const minStr = mins < 10 ? "0" + mins : String(mins);
+        return `${hrs}:${minStr}:${secStr}`;
+    }
+    return `${mins}:${secStr}`;
+}

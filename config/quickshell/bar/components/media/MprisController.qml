@@ -48,17 +48,70 @@ Scope {
         ? trackArtUrl
         : TrackText.youtubeThumbnail(trackUrl)
 
-    readonly property bool progressSupported: player !== null
-        && player.lengthSupported
-        && player.positionSupported
-        && player.length > 0
-
-    // 0..1 position in the current track. `position` does not update
-    // reactively; the poll Timer below emits its change signal while
-    // playing so this binding re-reads the fresh value.
-    readonly property real progress: progressSupported && player
-        ? Math.max(0, Math.min(1, player.position / player.length))
+    // In MPRIS, Position and mpris:length are in microseconds (1 sec = 1,000,000 usec).
+    readonly property real rawPosition: (player && typeof player.position === "number" && !isNaN(player.position))
+        ? player.position
         : 0
+
+    readonly property real rawLength: {
+        if (!player || !player.metadata)
+            return 0;
+        const len = player.metadata["mpris:length"];
+        return (typeof len === "number" && !isNaN(len) && len > 0) ? len : 0;
+    }
+
+    // Position and length in seconds for display
+    readonly property real position: rawPosition / 1000000
+    readonly property real length: rawLength / 1000000
+
+    readonly property bool progressSupported: player !== null
+        && rawLength > 0
+        && (player.canSeek ?? true)
+
+    // 0..1 position in the current track
+    readonly property real progress: (rawLength > 0)
+        ? Math.max(0, Math.min(1, rawPosition / rawLength))
+        : 0
+
+    // Raw MPRIS seek via D-Bus SetPosition (position in microseconds)
+    Process {
+        id: seekProc
+
+        running: false
+
+        onExited: (code, status) => {
+            if (root.player)
+                root.player.positionChanged();
+        }
+    }
+
+    function seekTo(seconds) {
+        if (!player || !player.dbusName)
+            return;
+
+        const maxSecs = length > 0 ? length : 0;
+        const targetSecs = maxSecs > 0 ? Math.max(0, Math.min(maxSecs, seconds)) : Math.max(0, seconds);
+        const microSecs = Math.round(targetSecs * 1000000);
+
+        const trackId = (player.metadata && player.metadata["mpris:trackid"])
+            ? String(player.metadata["mpris:trackid"])
+            : "/org/mpris/MediaPlayer2/TrackList/NoTrack";
+
+        seekProc.command = [
+            "busctl", "--user", "call", player.dbusName,
+            "/org/mpris/MediaPlayer2",
+            "org.mpris.MediaPlayer2.Player",
+            "SetPosition",
+            "ox", trackId, String(microSecs)
+        ];
+        seekProc.running = true;
+    }
+
+    function seekToPercent(ratio) {
+        if (!player || length <= 0)
+            return;
+        seekTo(ratio * length);
+    }
 
     // Optimistic playback state. Some players (Firefox/Zen) never update
     // PlaybackStatus, and quickshell's togglePlaying() then keeps sending
@@ -102,15 +155,15 @@ Scope {
     IpcHandler {
         target: "nowPlaying"
 
-        function playPause(): void {
+        function playPause() {
             root.togglePlaying();
         }
 
-        function next(): void {
+        function next() {
             root.nextTrack();
         }
 
-        function previous(): void {
+        function previous() {
             root.prevTrack();
         }
     }

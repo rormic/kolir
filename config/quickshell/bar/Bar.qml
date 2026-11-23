@@ -41,14 +41,23 @@ PanelWindow {
 
     color: "transparent"
 
-    // Bar input region: only the bar strip is interactive, the rest of the
-    // surface is click-through. The decorative screen frame is a separate
-    // Bottom-layer surface (Frame.qml) with an empty mask of its own.
+    // Bar input region: only the bar strip and any active compact notch are
+    // interactive; the rest of the surface is click-through.
     readonly property Region barMask: Region {
-        x: 0
-        y: 0
-        width: bar.width
-        height: Dimensions.bar.height
+        Region {
+            x: 0
+            y: 0
+            width: bar.width
+            height: Dimensions.bar.height
+        }
+        Region {
+            x: Math.max(0, Math.floor(nowPlaying.x - nowPlaying.notchShoulderRadius))
+            y: Dimensions.bar.height
+            width: Math.ceil(nowPlaying.notchWidth + nowPlaying.notchShoulderRadius * 2)
+            height: nowPlaying.expanded
+                ? (nowPlaying.expandedBodyHeight + 30)
+                : Math.ceil(nowPlaying.notchDrop)
+        }
     }
 
     // While an embedded sheet is open the whole surface becomes modal, so its
@@ -96,126 +105,137 @@ PanelWindow {
             left: parent.left
             right: parent.right
         }
-        height: Dimensions.bar.height
+        height: Math.max(Dimensions.bar.height,
+            Dimensions.bar.height + (nowPlaying.expanded ? (nowPlaying.expandedBodyHeight + 40) : Math.ceil(nowPlaying.notchDrop)))
         z: 2
 
-        // Settings trigger. The panel is drawn by the full-window overlay
-        // below, but the button stays in the bar strip above it.
-        IconButton {
-            id: settingsTrigger
+        Item {
+            id: barStrip
 
-            anchors.left: parent.left
-            anchors.leftMargin: Dimensions.padding.barContent
-            anchors.verticalCenter: parent.verticalCenter
-            icon: Icons.settings
-            iconSize: Dimensions.icon.large
-            iconOffsetX: -0.5
-            iconOffsetY: 1
-            active: settingsMenu.opened
-            rotation: settingsMenu.opened ? 90 : 0
-            onClicked: {
-                brightnessPopup.close();
-                volumePopup.close();
-                settingsMenu.toggle();
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+            }
+            height: Dimensions.bar.height
+
+            // Settings trigger. The panel is drawn by the full-window overlay
+            // below, but the button stays in the bar strip above it.
+            IconButton {
+                id: settingsTrigger
+
+                anchors.left: parent.left
+                anchors.leftMargin: Dimensions.padding.barContent
+                anchors.verticalCenter: parent.verticalCenter
+                icon: Icons.settings
+                iconSize: Dimensions.icon.large
+                iconOffsetX: -0.5
+                iconOffsetY: 1
+                active: settingsMenu.opened
+                rotation: settingsMenu.opened ? 90 : 0
+                onClicked: {
+                    brightnessPopup.close();
+                    volumePopup.close();
+                    settingsMenu.toggle();
+                }
+
+                Behavior on rotation {
+                    NumberAnimation { duration: Motion.rotate; easing.type: Easing.OutCubic }
+                }
             }
 
-            Behavior on rotation {
-                NumberAnimation { duration: Motion.rotate; easing.type: Easing.OutCubic }
+            // Left: active window, after the settings button slot.
+            ActiveWindow {
+                id: activeWindow
+                anchors.left: parent.left
+                anchors.leftMargin: Dimensions.padding.barContent + Dimensions.control.iconButton + Dimensions.spacing.small
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(190, Math.max(120, barStrip.width * 0.16))
+            }
+
+            // Center: workspaces. No optical offset: the chips on both sides of
+            // the pill now share one width, so the pill sits at the screen center.
+            Workspaces {
+                id: workspaces
+                anchors.centerIn: parent
+            }
+
+            // Right of center: clock
+            Clock {
+                id: clock
+                anchors.left: workspaces.right
+                anchors.leftMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            // Right edge
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: Dimensions.padding.barContent
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Dimensions.spacing.small
+
+                Tray            { anchors.verticalCenter: parent.verticalCenter }
+                RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
+                CaffeineIndicator {
+                    anchors.verticalCenter: parent.verticalCenter
+                    onActivated: {
+                        brightnessPopup.close();
+                        volumePopup.close();
+                        settingsMenu.open("main");
+                    }
+                }
+                DeviceBattery   { anchors.verticalCenter: parent.verticalCenter }
+                Battery         { anchors.verticalCenter: parent.verticalCenter }
+                Brightness      {
+                    id: brightnessChip
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    popupActive: brightnessPopup.modal
+                    overlayOpen: settingsMenu.modal || volumePopup.modal
+                        || notificationCenter.modal
+                    onActivated: {
+                        settingsMenu.close();
+                        volumePopup.close();
+                        brightnessPopup.toggle();
+                    }
+                }
+                Volume          {
+                    id: volumeChip
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    popupActive: volumePopup.modal
+                    onActivated: {
+                        settingsMenu.close();
+                        brightnessPopup.close();
+                        volumePopup.toggle();
+                    }
+                }
+                NotificationBell {
+                    id: notificationBell
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    active: notificationCenter.modal
+                    onActivated: {
+                        settingsMenu.close();
+                        brightnessPopup.close();
+                        volumePopup.close();
+                        notificationCenter.toggle();
+                    }
+                }
+                ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
             }
         }
 
-        // Left: active window, after the settings button slot.
-        ActiveWindow {
-            id: activeWindow
-            anchors.left: parent.left
-            anchors.leftMargin: Dimensions.padding.barContent + Dimensions.control.iconButton + Dimensions.spacing.small
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(190, Math.max(120, content.width * 0.16))
-        }
-
-        // Center: workspaces. No optical offset: the chips on both sides of
-        // the pill now share one width, so the pill sits at the screen center.
-        Workspaces {
-            id: workspaces
-            anchors.centerIn: parent
-        }
-
-        // Left of center: now playing. The island mirrors the clock width so
-        // the pill keeps a neighbour even when nothing is playing; a long
-        // title widens it past the slot, growing leftwards.
+        // Left of center: now playing. Sits inside content alongside barStrip,
+        // anchored to workspaces.left, expanding downward when open.
         NowPlaying {
             id: nowPlaying
-            enabled: content.width >= 1100
+            enabled: barStrip.width >= 1100
             slotWidth: clock.implicitWidth
-            anchors.right: workspaces.left
-            anchors.rightMargin: 10
-            anchors.verticalCenter: parent.verticalCenter
-        }
-
-        // Right of center: clock
-        Clock {
-            id: clock
-            anchors.left: workspaces.right
-            anchors.leftMargin: 10
-            anchors.verticalCenter: parent.verticalCenter
-        }
-
-        // Right edge
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: Dimensions.padding.barContent
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Dimensions.spacing.small
-
-            Tray            { anchors.verticalCenter: parent.verticalCenter }
-            RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
-            CaffeineIndicator {
-                anchors.verticalCenter: parent.verticalCenter
-                onActivated: {
-                    brightnessPopup.close();
-                    volumePopup.close();
-                    settingsMenu.open("main");
-                }
-            }
-            DeviceBattery   { anchors.verticalCenter: parent.verticalCenter }
-            Battery         { anchors.verticalCenter: parent.verticalCenter }
-            Brightness      {
-                id: brightnessChip
-
-                anchors.verticalCenter: parent.verticalCenter
-                popupActive: brightnessPopup.modal
-                overlayOpen: settingsMenu.modal || volumePopup.modal
-                    || notificationCenter.modal
-                onActivated: {
-                    settingsMenu.close();
-                    volumePopup.close();
-                    brightnessPopup.toggle();
-                }
-            }
-            Volume          {
-                id: volumeChip
-
-                anchors.verticalCenter: parent.verticalCenter
-                popupActive: volumePopup.modal
-                onActivated: {
-                    settingsMenu.close();
-                    brightnessPopup.close();
-                    volumePopup.toggle();
-                }
-            }
-            NotificationBell {
-                id: notificationBell
-
-                anchors.verticalCenter: parent.verticalCenter
-                active: notificationCenter.modal
-                onActivated: {
-                    settingsMenu.close();
-                    brightnessPopup.close();
-                    volumePopup.close();
-                    notificationCenter.toggle();
-                }
-            }
-            ThemeToggle     { anchors.verticalCenter: parent.verticalCenter }
+            x: workspaces.x - width - 10
+            y: 0
+            height: Dimensions.bar.height + (expanded ? (expandedBodyHeight + 40) : Math.max(0, notchDrop))
         }
     }
 
@@ -269,6 +289,7 @@ PanelWindow {
                 settingsMenu.close();
                 volumePopup.close();
                 notificationCenter.close();
+                nowPlaying.closeExpanded();
             }
         }
     }
@@ -281,6 +302,7 @@ PanelWindow {
                 settingsMenu.close();
                 brightnessPopup.close();
                 notificationCenter.close();
+                nowPlaying.closeExpanded();
             }
         }
     }
@@ -293,6 +315,7 @@ PanelWindow {
                 brightnessPopup.close();
                 volumePopup.close();
                 notificationCenter.close();
+                nowPlaying.closeExpanded();
             }
         }
     }
@@ -305,6 +328,20 @@ PanelWindow {
                 settingsMenu.close();
                 brightnessPopup.close();
                 volumePopup.close();
+                nowPlaying.closeExpanded();
+            }
+        }
+    }
+
+    Connections {
+        target: nowPlaying
+
+        function onExpandedChanged() {
+            if (nowPlaying.expanded) {
+                settingsMenu.close();
+                brightnessPopup.close();
+                volumePopup.close();
+                notificationCenter.close();
             }
         }
     }
