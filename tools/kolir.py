@@ -563,7 +563,16 @@ class Deployer:
         try:
             original = config_path.read_text(encoding="utf-8")
         except OSError as exc:
-            raise SetupError(f"cannot read {config_path}: {exc}") from exc
+            if not self.dry_run:
+                raise SetupError(f"cannot read {config_path}: {exc}") from exc
+            # A dry run does not write the copied config, so plan the entry
+            # against the shipped file instead of failing.
+            try:
+                original = (self.root / MATUGEN_CONFIG_REL).read_text(
+                    encoding="utf-8"
+                )
+            except OSError:
+                raise SetupError(f"cannot read {config_path}: {exc}") from exc
 
         updated = replace_obsidian_block(original, output)
         if updated == original:
@@ -574,6 +583,7 @@ class Deployer:
                 )
             else:
                 self.note(f"obsidian: {config_path} already writes to {output}")
+            report_obsidian_snippet(output)
             return
 
         if config_path.is_symlink():
@@ -584,7 +594,7 @@ class Deployer:
                 f"obsidian: replaced the {config_path} symlink with a local copy "
                 "before adding the entry"
             )
-        else:
+        elif os.path.lexists(config_path):
             self.backup(config_path)
 
         self._change(
@@ -592,6 +602,7 @@ class Deployer:
             f"add [templates.obsidian] -> {output} to {config_path}",
         )
         self._write(config_path, updated)
+        report_obsidian_snippet(output)
 
 
 def toml_value(value: str) -> str:
@@ -896,6 +907,49 @@ def install_reload_units(deploy: Deployer, no_systemd: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
+def obsidian_vault(output: str | Path) -> Path | None:
+    """Return the vault root when output is <vault>/.obsidian/snippets/*.css."""
+    path = Path(output)
+    if path.parent.name == "snippets" and path.parent.parent.name == ".obsidian":
+        return path.parent.parent.parent
+    return None
+
+
+def obsidian_snippet_enabled(output: str | Path) -> bool | None:
+    """Whether Obsidian enables the snippet; None when the path is outside a vault."""
+    vault = obsidian_vault(output)
+    if vault is None:
+        return None
+    appearance = vault / ".obsidian" / "appearance.json"
+    try:
+        data = json.loads(appearance.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    snippets = data.get("enabledCssSnippets") if isinstance(data, dict) else None
+    return isinstance(snippets, list) and Path(output).stem in snippets
+
+
+def report_obsidian_snippet(output: str) -> None:
+    """Remind the user that Obsidian snippets are opt-in inside Obsidian."""
+    path = Path(output)
+    name = path.stem
+    if not path.is_file():
+        info(
+            f"obsidian: {path} does not exist yet; "
+            "run 'kolir reload --colors' to generate it"
+        )
+    if obsidian_snippet_enabled(output):
+        info(
+            f"obsidian: '{name}' is enabled in Obsidian "
+            "(Settings -> Appearance -> CSS snippets)"
+        )
+    else:
+        info(
+            f"obsidian: enable the '{name}' snippet in Obsidian: "
+            "Settings -> Appearance -> CSS snippets -> Refresh, then switch it on"
+        )
+
+
 def normalize_obsidian_output(value: str, explicit_file: bool = False) -> str:
     raw = value.strip()
     if not raw:
@@ -1118,7 +1172,9 @@ def setup_zsh(deploy: Deployer, root: Path) -> None:
         )
 
 
-def print_setup_summary(deploy: Deployer, args: argparse.Namespace) -> None:
+def print_setup_summary(
+    deploy: Deployer, args: argparse.Namespace, obsidian_output: str | None = None
+) -> None:
     step("Summary")
     if deploy.changes:
         if deploy.dry_run:
@@ -1133,6 +1189,12 @@ def print_setup_summary(deploy: Deployer, args: argparse.Namespace) -> None:
     print("  - kolir reload            reload Hyprland and restart the shell")
     print("  - kolir shell             start Quickshell without restarting Hyprland")
     print("  - git pull && kolir reload   update a checkout (AUR package: phase 2)")
+    if obsidian_output and not obsidian_snippet_enabled(obsidian_output):
+        name = Path(obsidian_output).stem
+        print(
+            f"  - enable the '{name}' snippet in Obsidian: "
+            "Settings -> Appearance -> CSS snippets -> Refresh, then switch it on"
+        )
     if not args.zsh:
         print(
             "  - rerun 'kolir setup --zsh' to link ~/.zshrc and the dice Oh My Zsh theme"
@@ -1196,7 +1258,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
             )
 
         offer_optional_packages(deploy, args)
-        print_setup_summary(deploy, args)
+        print_setup_summary(deploy, args, obsidian_output)
         return 0
     except SetupError as exc:
         error(str(exc))
@@ -1743,13 +1805,33 @@ def check_matugen_config(report: Report) -> None:
         output_value = obsidian.get("output_path")
         if isinstance(output_value, str) and output_value.strip():
             output_path = expand_matugen_path(output_value, config_path)
-            if output_path.parent.is_dir():
-                report.ok(f"obsidian: writes to {output_path}")
-            else:
+            if not output_path.parent.is_dir():
                 report.warn(
                     f"obsidian: output directory is missing: {output_path.parent} "
                     "(create the vault or rerun 'kolir setup --obsidian <vault>')"
                 )
+            elif not output_path.is_file():
+                report.warn(
+                    f"obsidian: {output_path} has not been generated yet "
+                    "(run 'kolir reload --colors')"
+                )
+            else:
+                report.ok(f"obsidian: writes to {output_path}")
+                name = output_path.stem
+                enabled = obsidian_snippet_enabled(output_path)
+                if enabled:
+                    report.ok(f"obsidian: '{name}' snippet enabled in Obsidian")
+                elif enabled is False:
+                    report.warn(
+                        f"obsidian: '{name}' snippet is not enabled; open Obsidian "
+                        "Settings -> Appearance -> CSS snippets, click Refresh and "
+                        "switch it on"
+                    )
+                else:
+                    report.note(
+                        f"obsidian: outside a vault; enable '{name}' in Obsidian "
+                        "Settings -> Appearance -> CSS snippets"
+                    )
         else:
             report.warn("obsidian: [templates.obsidian] has no output_path")
     else:
@@ -2553,11 +2635,13 @@ def build_parser() -> argparse.ArgumentParser:
     obsidian = setup.add_mutually_exclusive_group()
     obsidian.add_argument(
         "--obsidian", metavar="VAULT_OR_CSS",
-        help="enable Obsidian theming for this vault directory or .css file",
+        help="enable Obsidian theming for this vault directory or .css file "
+             "(enable the snippet in Obsidian afterwards)",
     )
     obsidian.add_argument(
         "--obsidian-output", metavar="FILE",
-        help="enable Obsidian theming writing to this .css file",
+        help="enable Obsidian theming writing to this .css file "
+             "(enable the snippet in Obsidian afterwards)",
     )
     obsidian.add_argument(
         "--no-obsidian", action="store_true",

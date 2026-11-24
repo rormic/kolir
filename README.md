@@ -96,7 +96,26 @@ What it creates:
 A real `~/.config/matugen/templates` directory is kept: missing shipped
 templates are added as individual symlinks, and your files are never
 overwritten. Obsidian has **no default vault path**; it is configured only when
-you pass a path (or answer "yes" and enter one).
+you pass a path (or answer "yes" and enter one) — see [Obsidian](#obsidian)
+below.
+
+### Obsidian
+
+Obsidian theming is opt-in because the vault path cannot be guessed:
+
+```sh
+kolir setup --obsidian ~/Documents/MyVault
+```
+
+This appends a `[templates.obsidian]` block that writes
+`<vault>/.obsidian/snippets/matugen.css` (use `--obsidian-output FILE` for an
+explicit file). Matugen only writes the CSS; Obsidian does not load a new
+snippet by itself. Enable it once in Obsidian:
+
+**Settings → Appearance → CSS snippets** → **Refresh** → switch **matugen** on.
+
+If the file does not exist yet, run `kolir reload --colors` first. `kolir
+doctor` warns while the configured snippet is missing or disabled.
 
 ## First run
 
