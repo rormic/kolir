@@ -2,8 +2,13 @@ import QtQuick
 import Quickshell
 import "../../theme"
 
-// Clock chip: date dim + neon time + keyboard layout.
-Surface {
+// Clock: date, time and keyboard layout drawn directly on the bar strip.
+//
+// This is information, not a menu. It used to sit in a filled pill like the
+// brightness/volume chips, which made it look clickable while it did nothing;
+// the flat layout keeps the pill reserved for controls. The reserved width
+// still mirrors the now-playing island so the workspaces pill stays centered.
+Item {
     id: root
 
     implicitHeight: Dimensions.control.height
@@ -12,8 +17,6 @@ Surface {
     // figures, so its width no longer changes with every second.
     implicitWidth: Math.max(Dimensions.bar.centerSlot,
         row.implicitWidth + Dimensions.padding.chipHorizontal * 2)
-    radius: Dimensions.radius.full
-    surfaceColor: Colors.surfaceContainerHigh
 
     SystemClock { id: sysClock; precision: SystemClock.Seconds }
 

@@ -33,6 +33,12 @@ QtObject {
     property bool watchPrimed: false
     property bool warned: false
 
+    // A user-requested or event-driven forced read, as opposed to the once-a-
+    // minute poll. The bar status uses this for its rotating refresh glyph so
+    // the ordinary poll does not flash a spinner every minute.
+    readonly property bool refreshing: root.reading
+        && (root.forceRead || root.pendingForce)
+
     readonly property var primary: root.devices.length > 0 ? root.devices[0] : null
     readonly property bool available: root.primary !== null
     readonly property int percentage: root.primary ? root.primary.percent : 0

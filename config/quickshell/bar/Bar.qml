@@ -23,6 +23,18 @@ PanelWindow {
     // The "active window" chip on the left of the strip is disabled for now.
     // The component and its slot stay in the tree so re-enabling is one flag.
     readonly property bool showActiveWindow: false
+
+    // Gap between the read-only status zone, its divider and the control row.
+    readonly property int statusGap: 16
+    // The status zone only exists while one of its items does. It is hidden as
+    // a whole when the bar is too narrow for it to clear the clock, so status
+    // text can never run into the time or the menus.
+    // Use the services/state rather than the children's `visible`: hiding the
+    // row would also hide its children and make that binding self-defeating.
+    readonly property bool hasStatus: recordingStatus.active
+        || CaffeineService.enabled || DeviceBatteryService.available
+    readonly property bool statusFits: (rightRow.x - (clock.x + clock.width)
+        - bar.statusGap * 3 - 1) >= statusRow.implicitWidth
     // The embedded sheets live in this surface instead of separate windows.
     // OnDemand lets them receive keyboard focus (Escape) after they are
     // clicked without stealing focus while closed.
@@ -176,7 +188,9 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
-            // Right edge
+            // Right edge: controls only. Every item here opens a sheet or
+            // performs an action, and every one carries the filled-pill or
+            // hoverable-icon affordance.
             Row {
                 id: rightRow
 
@@ -186,17 +200,6 @@ PanelWindow {
                 spacing: Dimensions.spacing.small
 
                 Tray            { anchors.verticalCenter: parent.verticalCenter }
-                RecordingStatus { anchors.verticalCenter: parent.verticalCenter }
-                CaffeineIndicator {
-                    anchors.verticalCenter: parent.verticalCenter
-                    onActivated: {
-                        brightnessPopup.close();
-                        volumePopup.close();
-                        batteryPopup.close();
-                        settingsMenu.open("main");
-                    }
-                }
-                DeviceBattery   { anchors.verticalCenter: parent.verticalCenter }
                 Battery {
                     id: batteryChip
 
@@ -253,6 +256,48 @@ PanelWindow {
                         batteryPopup.close();
                         notificationCenter.toggle();
                     }
+                }
+            }
+
+            // Status zone: flat status items separated from the control row.
+            // A status may refresh itself or stop a recording, but it never
+            // opens a sheet; the hairline makes that boundary visible before
+            // the pointer reaches anything.
+            Rectangle {
+                id: statusDivider
+
+                anchors.right: rightRow.left
+                anchors.rightMargin: bar.statusGap
+                anchors.verticalCenter: parent.verticalCenter
+                visible: statusRow.visible
+                width: 1
+                height: 12
+                radius: 0.5
+                color: Colors.withAlpha(Colors.outlineVariant, 0.5)
+            }
+
+            Row {
+                id: statusRow
+
+                anchors.right: statusDivider.left
+                anchors.rightMargin: bar.statusGap
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12
+                visible: bar.hasStatus && bar.statusFits
+
+                RecordingStatus {
+                    id: recordingStatus
+                }
+
+                CaffeineIndicator {
+                    id: caffeineStatus
+                }
+
+                DeviceBattery {
+                    id: deviceBatteryStatus
+
+                    leadingTextMaxWidth: Math.min(150, Math.max(70,
+                        Math.round(bar.width * 0.06)))
                 }
             }
         }

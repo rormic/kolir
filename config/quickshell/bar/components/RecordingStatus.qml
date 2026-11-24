@@ -3,8 +3,12 @@ import "../../theme"
 import Quickshell.Io
 import QtQuick
 
-// Recording indicator: pulsing dot + elapsed time. Click stops the recording.
-Surface {
+// Recording status: a flat red alert, not a menu chip.
+//
+// The pulsing dot and elapsed time are information; clicking the alert stops
+// the recording, which is the action the alert itself implies. Keeping it flat
+// stops it from competing with the brightness/volume pills next to it.
+StatusItem {
     id: root
 
     property bool active: false
@@ -12,10 +16,17 @@ Surface {
     property int elapsed: 0
 
     visible: root.active
-    implicitHeight: Dimensions.control.height
-    implicitWidth: row.implicitWidth + 16
-    radius: Dimensions.radius.full
-    surfaceColor: Colors.errorContainer
+    icon: Icons.record
+    iconSize: 10
+    iconColor: Colors.error
+    text: "REC " + root.formatTime(root.elapsed)
+    textWeight: Typography.weight.bold
+    textColor: Colors.error
+    spacing: 5
+
+    // Leave the dot at full opacity for the next recording instead of keeping
+    // whatever dim phase the pulse stopped on.
+    onActiveChanged: if (!active) iconItem.opacity = 1
 
     function formatTime(sec) {
         const h = Math.floor(sec / 3600);
@@ -30,46 +41,30 @@ Surface {
         root.elapsed = Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(root.startedAt));
     }
 
-    Row {
-        id: row
-        anchors.centerIn: parent
-        spacing: 6
+    // The dot breathes while a recording is running. The item is hidden when
+    // it is not, so the animation costs nothing at rest.
+    SequentialAnimation {
+        running: root.active
+        loops: Animation.Infinite
 
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width: 6
-            height: 6
-            radius: 3
-            color: Colors.onErrorContainer
-
-            SequentialAnimation on opacity {
-                running: root.active
-                loops: Animation.Infinite
-                NumberAnimation {
-                    to: 0.25
-                    duration: 650
-                    easing.type: Easing.InOutQuad
-                }
-                NumberAnimation {
-                    to: 1.0
-                    duration: 650
-                    easing.type: Easing.InOutQuad
-                }
-            }
+        NumberAnimation {
+            target: root.iconItem
+            property: "opacity"
+            to: 0.25
+            duration: 650
+            easing.type: Easing.InOutQuad
         }
 
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "REC " + root.formatTime(root.elapsed)
-            color: Colors.onErrorContainer
-            font.family: Typography.barFont
-            font.pixelSize: Typography.size.labelMedium
-            font.weight: Typography.weight.bold
+        NumberAnimation {
+            target: root.iconItem
+            property: "opacity"
+            to: 1.0
+            duration: 650
+            easing.type: Easing.InOutQuad
         }
     }
 
     MouseArea {
-        id: mouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
