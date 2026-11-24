@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import "../theme"
 import "../services"
 import QtQuick
@@ -37,13 +39,55 @@ Scope {
         Column {
             id: col
             width: parent.width
-            spacing: 8
+            // The gap lives inside each slot (see baseHeight) so it collapses
+            // together with the card instead of leaving a 8 px step behind.
+            spacing: 0
 
             Repeater {
                 model: NotificationService.server.trackedNotifications
 
-                delegate: NotificationCard {
+                delegate: Item {
+                    id: slot
+
+                    required property Notification modelData
+                    required property int index
+
+                    readonly property real baseHeight: card.implicitHeight + 8
+
                     width: col.width
+                    height: baseHeight * (1 - card.closeProgress)
+                    clip: true
+
+                    NotificationCard {
+                        id: card
+
+                        width: parent.width
+                        anchors.top: parent.top
+                        modelData: slot.modelData
+                        index: slot.index
+
+                        onCloseStarted: exitAnim.start()
+                    }
+
+                    // The card fades over Motion.listExit; the height starts a
+                    // little later, when the card is already almost invisible,
+                    // so the clipped collapse never reads as a squash.
+                    SequentialAnimation {
+                        id: exitAnim
+
+                        PauseAnimation {
+                            duration: 100
+                        }
+                        NumberAnimation {
+                            target: card
+                            property: "closeProgress"
+                            to: 1
+                            duration: Motion.move
+                            easing.type: Easing.OutCubic
+                        }
+
+                        onFinished: card.commitClose()
+                    }
                 }
             }
         }

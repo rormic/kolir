@@ -38,9 +38,43 @@ Surface {
 
     // Поява карточки з верхнього правого кута
     property real appear: 0
-    opacity: appear
-    scale: 0.97 + 0.03 * appear
+    // Закриття складається з двох фаз: картка гасне й трохи стискається, а
+    // обгортка в Notification.qml після короткої паузи схлопує її висоту.
+    // Лише після цього commitClose() прибирає рядок із моделі, тому
+    // layer-surface не зникає посеред анімації.
+    property real closeFade: 0
+    property real closeProgress: 0
+    property bool closing: false
+    // 0 = dismiss(), 1 = expire()
+    property int closeMode: 0
+    property real pressScale: tap.pressed ? 0.985 : 1
+
+    opacity: appear * (1 - closeFade)
+    scale: (0.97 + 0.03 * appear) * pressScale * (1 - 0.015 * closeFade)
     transformOrigin: Item.TopRight
+
+    signal closeStarted
+
+    function requestClose(mode) {
+        if (closing)
+            return;
+
+        closeMode = mode;
+        closing = true;
+        closeStarted();
+        closeFadeAnim.start();
+    }
+
+    // Викликає обгортка після завершення схлопування висоти.
+    function commitClose() {
+        if (!closing)
+            return;
+
+        if (closeMode === 1)
+            modelData.expire();
+        else
+            modelData.dismiss();
+    }
 
     SequentialAnimation {
         id: appearAnim
@@ -52,7 +86,25 @@ Surface {
             target: root
             property: "appear"
             to: 1
-            duration: 220
+            duration: Motion.listEnter
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    NumberAnimation {
+        id: closeFadeAnim
+
+        target: root
+        property: "closeFade"
+        from: 0
+        to: 1
+        duration: Motion.listExit
+        easing.type: Easing.OutCubic
+    }
+
+    Behavior on pressScale {
+        NumberAnimation {
+            duration: Motion.press
             easing.type: Easing.OutCubic
         }
     }
@@ -61,18 +113,20 @@ Surface {
 
     // Автозакриття: критичні лишаються, поки не закриєш вручну
     Timer {
-        running: !root.isCritical && !hover.hovered
+        running: !root.isCritical && !hover.hovered && !root.closing
         interval: root.modelData.expireTimeout > 0 ? root.modelData.expireTimeout * 1000 : 5000
-        onTriggered: root.modelData.expire()
+        onTriggered: root.requestClose(1)
     }
 
     HoverHandler {
         id: hover
+        cursorShape: Qt.PointingHandCursor
     }
 
     // Клік по картці закриває її
     TapHandler {
-        onTapped: root.modelData.dismiss()
+        id: tap
+        onTapped: root.requestClose(0)
     }
 
     Column {

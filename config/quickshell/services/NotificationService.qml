@@ -143,6 +143,9 @@ QtObject {
 
     // Close cards that were on screen when DND was enabled. They are already
     // in the history, so nothing is lost, and they will not pop up later.
+    // This suppression stays immediate on purpose: the notification center
+    // draws its sheet over the cards, so fading them would animate above the
+    // sheet. Normal closes (click, timer) go through NotificationCard's exit.
     function suppressTracked() {
         const values = root.server.trackedNotifications.values;
         const pending = [];
