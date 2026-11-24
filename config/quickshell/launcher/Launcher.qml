@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Hyprland
 import "../bar/components"
 import "../services"
 import "../theme"
@@ -14,6 +15,9 @@ Scope {
         target: "launcher"
         function toggle(): void {
             win.visible = !win.visible
+        }
+        function close(): void {
+            win.visible = false
         }
         function openClipboard(): void {
             win.visible = true
@@ -85,6 +89,18 @@ Scope {
 
         function rowHeightFor(item) {
             return (isClipboardMode && item && item.isImage) ? imageRowHeight : appRowHeight
+        }
+
+        // A workspace switch dismisses the launcher. Keeping it open would
+        // leave the new workspace without a focused window while the layer
+        // holds exclusive keyboard focus, so its windows would animate with
+        // inactive opacity.
+        Connections {
+            target: Hyprland
+            function onFocusedWorkspaceChanged() {
+                if (win.visible)
+                    win.visible = false
+            }
         }
 
         // Поверхня завжди повноекранна: картка анімується всередині неї, а
