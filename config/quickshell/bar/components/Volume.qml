@@ -4,14 +4,19 @@ import "../../services"
 
 // Volume chip: neon icon, mute = red, progress accent bar. The sound sheet is
 // owned by Bar (it lives in the bar surface), so the chip only reports left
-// clicks through `activated`.
-Pill {
+// clicks through `activated`. While that sheet is open the chip stretches over
+// its width and becomes its header (see HeaderPill).
+HeaderPill {
     id: root
 
-    signal activated()
+    // The sheet's title block lives here now, so the chip owns its status line.
+    readonly property string soundStatus: {
+        const out = AudioService.activeSink;
+        if (!out || !out.description)
+            return "No output device";
 
-    // Bound by Bar to the embedded popup's modal state.
-    property bool popupActive: false
+        return AudioService.muted ? "Muted · " + out.description : out.description;
+    }
 
     implicitWidth: 64
     icon: AudioService.muted
@@ -25,35 +30,22 @@ Pill {
     textColor: Colors.onSurface
     surfaceColor: Colors.surfaceContainerHigh
     spacing: 4
-    active: root.popupActive
 
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.LeftButton
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.activated()
-        onWheel: wheel => {
-            if (wheel.angleDelta.y > 0) AudioService.volumeUp();
-            else if (wheel.angleDelta.y < 0) AudioService.volumeDown();
-        }
+    progressValue: AudioService.volume
+    progressColor: AudioService.muted
+        ? Colors.withAlpha(Colors.error, 0.85)
+        : Colors.primary
+
+    adjust: step => {
+        if (step > 0) AudioService.volumeUp();
+        else AudioService.volumeDown();
     }
 
-    // Material 3 linear progress indicator along the bottom edge.
-    ProgressIndicator {
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-            leftMargin: 6
-            rightMargin: 6
-            bottomMargin: 2
-        }
-        height: implicitHeight
-        value: AudioService.volume
-        indicatorColor: AudioService.muted
-            ? Colors.withAlpha(Colors.error, 0.85)
-            : Colors.primary
-        trackColor: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
-    }
+    headerIcon: AudioService.muted ? Icons.volumeOff : Icons.volumeUp
+    headerIconColor: AudioService.muted ? Colors.error : Colors.primary
+    headerTitle: "Sound"
+    headerStatus: root.soundStatus
+    headerStatusColor: AudioService.muted
+        ? Colors.error
+        : Colors.onSurfaceVariant
 }

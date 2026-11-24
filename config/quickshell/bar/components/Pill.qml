@@ -26,6 +26,11 @@ Surface {
     // Persistent accent state for a pill whose popup is open.
     property bool active: false
 
+    // Fade for the chip's own face (icon, label, trailing glyph). A chip that
+    // morphs into a sheet header fades its content out over the morph instead
+    // of letting the header cover it in one frame.
+    property real contentOpacity: 1
+
     readonly property bool hovered: _hover.hovered
 
     implicitHeight: Dimensions.control.height
@@ -51,6 +56,7 @@ Surface {
         id: row
         anchors.centerIn: parent
         spacing: root.spacing
+        opacity: root.contentOpacity
 
         Text {
             id: iconLabel

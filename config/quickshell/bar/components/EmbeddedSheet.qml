@@ -52,6 +52,10 @@ Item {
     readonly property int contentTopInset: panelShoulderDrop + 8
     readonly property int contentLeftInset: mirror ? panelFlare : Dimensions.frame.thickness
     readonly property int contentRightInset: mirror ? Dimensions.frame.thickness : panelFlare
+    // Body edge at the physical screen edge: the left one for the settings
+    // sheet, the right one for the mirrored sheets. A chip that turns into a
+    // sheet header stretches to this edge.
+    readonly property real panelLeft: mirror ? width - popupWidth : 0
 
     // The panel grows out of the bar corner: width first, then height, so it
     // does not appear as a full-width blind dropping from the strip.
