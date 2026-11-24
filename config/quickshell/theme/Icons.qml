@@ -110,9 +110,10 @@ QtObject {
     readonly property string batteryCharging30: "battery_charging_30"
     readonly property string batteryCharging20: "battery_charging_20"
 
-    // File picker: generic file types and the save action.
+    // File picker: generic file types, the save action and folder creation.
     readonly property string file: "description"
     readonly property string save: "save"
+    readonly property string createNewFolder: "create_new_folder"
     readonly property string audioFile: "audio_file"
     readonly property string archive: "folder_zip"
     readonly property string pdf: "picture_as_pdf"

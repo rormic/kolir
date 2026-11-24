@@ -11,10 +11,15 @@ import "../theme"
 // Generic file/folder picker used by the XDG Desktop Portal FileChooser
 // backend.  It deliberately mirrors the wallpaper picker's interaction model:
 // a full-screen Overlay surface, a cached directory listing, keyboard and
-// mouse navigation, an inline path field with directory completion, a
-// recursive name search over the current folder, and Escape/outside-click
-// cancellation.
+// mouse navigation, an inline path field with directory completion, an inline
+// new-folder row (header button or Ctrl+Shift+N), a recursive name search over
+// the current folder, and Escape/outside-click cancellation.  Image and video
+// tiles get a lazy 16:9 poster from file-thumbnail.sh: only delegates that the
+// grid actually instantiates ask for one, and folders keep their glyph.
 //
+// The new-folder row sits between the filters and the save-name bar.  It
+// validates the name locally, runs `mkdir` in argv form and then re-reads the
+// folder, entering the created directory in the directory and save modes.
 // Modes:
 //   openFile      choose one file, or several when `multiple` is true
 //   openDirectory choose the current folder
@@ -35,6 +40,7 @@ Scope {
     readonly property int headerHeight: 56
     readonly property int searchHeight: 44
     readonly property int filterHeight: 40
+    readonly property int folderRowHeight: 44
     readonly property int nameHeight: 44
     readonly property int footerHeight: 52
     readonly property int contentPadding: 16
@@ -89,6 +95,22 @@ Scope {
     property int firstFileIndex: -1
     property int hoveredIndex: -1
 
+    // ── Thumbnail previews ───────────────────────────────────────────────
+    // Only a delegate that the grid actually instantiates asks for a preview,
+    // so opening a huge photo folder generates nothing until a tile appears.
+    // The map is replaced on every arrival: mutating a plain JS object in place
+    // would not invalidate the tile bindings.  A failed path stays in
+    // previewFailed so it is never retried, and the queue is capped: when a
+    // fast scroll outruns ffmpeg the oldest pending request is dropped, since
+    // those tiles have already left the viewport while the newest visible ones
+    // are still waiting.
+    property var previewMap: ({})
+    property var previewQueue: []
+    property var previewFailed: ({})
+    property int previewGeneration: 0
+    property int previewsLoaded: 0
+    readonly property int previewQueueLimit: 64
+
     // Recursive search.  The typed text is debounced into search-files.sh and
     // the results replace the folder listing while a query is present; an
     // empty query shows the listing again.  Results stream in, so the model
@@ -121,6 +143,11 @@ Scope {
     property bool restartPending: false
     property bool discardingEntries: false
     property string nameError: ""
+
+    // Inline "New folder" row, opened from the header button or
+    // Ctrl+Shift+N.  folderError is shared by the row and the footer hint.
+    property bool creatingFolder: false
+    property string folderError: ""
 
     readonly property var activeFilter: root.filterIndex > 0
         && root.filterIndex <= root.filters.length
@@ -184,6 +211,7 @@ Scope {
         root.editingPath = false;
         root.clearCompletions();
         root.resetSearch();
+        root.resetNewFolder();
 
         let dir = String(spec.currentFolder || "");
         if (dir === "" && root.currentFile !== "")
@@ -193,6 +221,7 @@ Scope {
 
         root.active = true;
         root.resetEntries();
+        root.resetPreviewQueue();
         root.beginScan();
 
         if (!win.visible) {
@@ -251,6 +280,8 @@ Scope {
         root.active = false;
         root.checkedPaths = ({});
         root.checkedCount = 0;
+        root.resetPreviewQueue();
+        root.resetNewFolder();
         revealIn.stop();
         revealOut.restart();
         // The result process already captured resultPath in its command; drop
@@ -313,15 +344,34 @@ Scope {
         return name === "" ? path : name;
     }
 
-    function fileIconFor(name, folder) {
-        if (folder)
-            return Icons.folder;
+    // The extension lists are shared with file-thumbnail.sh: the helper
+    // generates posters for exactly these two sets and rejects everything else,
+    // so the grid never starts an ffmpeg run for an audio track or an archive.
+    // `name` may be a path; only the last dot matters.
+    function previewKindFor(name) {
         const dot = name.lastIndexOf(".");
         const ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
         if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif", "heic", "tiff"].includes(ext))
-            return Icons.image;
+            return "image";
         if (["mp4", "mkv", "mov", "avi", "webm", "flv", "m4v"].includes(ext))
+            return "video";
+        return "";
+    }
+
+    function previewKindForPath(path) {
+        return root.previewKindFor(root.displayName(path));
+    }
+
+    function fileIconFor(name, folder) {
+        if (folder)
+            return Icons.folder;
+        const preview = root.previewKindFor(name);
+        if (preview === "image")
+            return Icons.image;
+        if (preview === "video")
             return Icons.movie;
+        const dot = name.lastIndexOf(".");
+        const ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
         if (["mp3", "flac", "ogg", "wav", "m4a", "opus", "aac"].includes(ext))
             return Icons.audioFile;
         if (["zip", "tar", "gz", "xz", "zst", "7z", "rar", "bz2"].includes(ext))
@@ -334,6 +384,86 @@ Scope {
         if (["txt", "md", "rst", "conf", "ini", "log"].includes(ext))
             return Icons.file;
         return Icons.file;
+    }
+
+    // ── Preview request queue ────────────────────────────────────────────
+    // FileTile emits previewRequested once, when the grid instantiates it.
+    // Only previewable images and videos enter the queue, and a path is queued
+    // at most once: loaded, failed, in-flight and queued paths are all skipped.
+    // Requests beyond previewQueueLimit drop the oldest pending entry, not the
+    // newest one, so the tiles at the current scroll position still win.
+    function requestPreview(path) {
+        if (!root.active || path === "")
+            return;
+        if (root.previewMap[path] || root.previewFailed[path])
+            return;
+        if (previewProc.running && previewProc.target === path)
+            return;
+        if (root.previewKindForPath(path) === "")
+            return;
+        if (root.previewQueue.indexOf(path) >= 0)
+            return;
+        const queue = root.previewQueue.slice();
+        queue.push(path);
+        while (queue.length > root.previewQueueLimit)
+            queue.shift();
+        root.previewQueue = queue;
+        root.startNextPreview();
+    }
+
+    // Called on a new request, a panel close and every listing change.  The
+    // generation is bumped before the worker is stopped, so a late exit or
+    // output from the previous folder can never be mapped into the new one.
+    function resetPreviewQueue() {
+        root.previewGeneration += 1;
+        root.previewQueue = [];
+        root.previewMap = ({});
+        root.previewFailed = ({});
+        root.previewsLoaded = 0;
+        if (previewProc.running)
+            previewProc.running = false;
+    }
+
+    // A stopped worker keeps Quickshell's `running` true until its process
+    // actually exits, so this never starts a second one over a draining child;
+    // onExited calls back here for the next path.
+    function startNextPreview() {
+        if (!root.active || previewProc.running)
+            return;
+        while (root.previewQueue.length > 0) {
+            const path = root.previewQueue[0];
+            root.previewQueue = root.previewQueue.slice(1);
+            if (root.previewMap[path] || root.previewFailed[path])
+                continue;
+            previewProc.target = path;
+            previewProc.generation = root.previewGeneration;
+            previewProc.output = "";
+            previewProc.command = [
+                "sh", ShellPaths.fileThumbnail, ShellPaths.filePreviewDir, path,
+            ];
+            previewProc.running = true;
+            return;
+        }
+    }
+
+    function finishPreview(generation, path, exitCode, output) {
+        if (generation === root.previewGeneration && root.active) {
+            const parts = output.trim().split("\t");
+            if (exitCode === 0 && parts.length >= 2 && parts[0] !== ""
+                && (parts[1] === "image" || parts[1] === "video")) {
+                const map = Object.assign({}, root.previewMap);
+                map[path] = { source: parts[0], kind: parts[1] };
+                root.previewMap = map;
+                root.previewsLoaded += 1;
+            } else {
+                const failed = Object.assign({}, root.previewFailed);
+                failed[path] = true;
+                root.previewFailed = failed;
+            }
+        }
+        // Always advance: a stale worker that exited while the new folder was
+        // already queued must not block the fresh queue behind it.
+        root.startNextPreview();
     }
 
     function mimeForName(name) {
@@ -523,6 +653,8 @@ Scope {
     }
 
     function navigateTo(path) {
+        if (root.creatingFolder)
+            root.cancelNewFolder();
         if (path === "" || path === root.currentDir)
             return;
 
@@ -531,6 +663,7 @@ Scope {
             root.resetSearch();
         root.currentDir = path;
         root.resetEntries();
+        root.resetPreviewQueue();
 
         if (scanProc.running) {
             // The worker cannot be retargeted: stop it and start the new
@@ -555,8 +688,97 @@ Scope {
         root.navigateTo(ShellPaths.home);
     }
 
+    // Re-reads the current folder after a creation without moving anywhere.
+    // A running listing worker is stopped and restarted from onExited, so its
+    // old records can never mix with the new listing.
+    function refreshCurrentDir() {
+        if (root.searching)
+            root.resetSearch();
+        root.resetEntries();
+        if (scanProc.running) {
+            root.discardingEntries = true;
+            root.restartPending = true;
+            scanProc.running = false;
+        } else {
+            root.beginScan();
+        }
+    }
+
     // ── Search ───────────────────────────────────────────────────────────
+    // Type-to-search from the grid.  A printable key only seeds a query when
+    // no inline row owns input: the new-folder and path rows keep their text,
+    // modified shortcuts belong to the panel, and navigation keys never become
+    // a query even if a keyboard reports text for them.  A lone space must not
+    // open an empty search, while spaces inside an existing query are ordinary
+    // typing.
+    function canTypeToSearch(event) {
+        if (!event || event.text === "")
+            return false;
+        if (root.creatingFolder || root.editingPath)
+            return false;
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+            return false;
+        if (event.text.trim() === "" && !(root.searching && searchInput.text !== ""))
+            return false;
+        switch (event.key) {
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+        case Qt.Key_Escape:
+        case Qt.Key_Backspace:
+        case Qt.Key_Delete:
+        case Qt.Key_Tab:
+        case Qt.Key_Backtab:
+        case Qt.Key_Left:
+        case Qt.Key_Right:
+        case Qt.Key_Up:
+        case Qt.Key_Down:
+        case Qt.Key_Home:
+        case Qt.Key_End:
+        case Qt.Key_PageUp:
+        case Qt.Key_PageDown:
+        case Qt.Key_Insert:
+            return false;
+        }
+        if (event.key >= Qt.Key_F1 && event.key <= Qt.Key_F35)
+            return false;
+        return true;
+    }
+
+    // Seeds the query with the key that opened the field.  beginSearch's focus
+    // timer selects all text after a delay, which would make the next keystroke
+    // replace the seed, so this path takes the focus synchronously and stops
+    // that timer.  Assigning searchInput.text keeps the normal onTextChanged
+    // debounce as the single search path; keys typed while the grid still owns
+    // focus append (or replace the current selection) the same way.
+    function typeToSearch(text) {
+        searchFocusTimer.stop();
+        if (!root.searching) {
+            root.beginSearch();
+            searchFocusTimer.stop();
+            if (searchInput.text !== "")
+                searchInput.text = "";
+            searchInput.forceActiveFocus();
+            searchInput.text = text;
+            searchInput.cursorPosition = searchInput.text.length;
+            return;
+        }
+        searchInput.forceActiveFocus();
+        const current = searchInput.text;
+        const selected = searchInput.selectedText;
+        if (selected !== "") {
+            const start = Math.min(searchInput.selectionStart, searchInput.selectionEnd);
+            searchInput.text = current.substring(0, start) + text
+                + current.substring(start + selected.length);
+            searchInput.cursorPosition = start + text.length;
+            return;
+        }
+        searchInput.text = current + text;
+        searchInput.cursorPosition = searchInput.text.length;
+    }
+
     function beginSearch() {
+        if (root.creatingFolder)
+            root.cancelNewFolder();
         if (root.searching) {
             searchInput.forceActiveFocus();
             searchInput.selectAll();
@@ -592,6 +814,7 @@ Scope {
         if (!root.searching)
             return;
         root.resetSearch();
+        root.resetPreviewQueue();
         root.rebuildModel();
     }
 
@@ -635,6 +858,7 @@ Scope {
         root.searchTruncated = false;
         root.searchError = "";
         root.searchBusy = true;
+        root.resetPreviewQueue();
         root.rebuildModel();
         searchProc.command = [
             "sh", ShellPaths.searchFiles, root.currentDir, query,
@@ -719,6 +943,98 @@ Scope {
         grid.currentIndex = index;
     }
 
+    // ── New folder ───────────────────────────────────────────────────────
+    function resetNewFolder() {
+        folderFocusTimer.stop();
+        root.creatingFolder = false;
+        root.folderError = "";
+        folderInput.text = "";
+    }
+
+    function beginNewFolder() {
+        if (root.creatingFolder) {
+            folderInput.forceActiveFocus();
+            folderInput.selectAll();
+            return;
+        }
+        if (root.editingPath)
+            root.cancelPathEdit();
+        root.folderError = "";
+        root.creatingFolder = true;
+        folderInput.text = "";
+        // Focus synchronously so the very next keystroke reaches the field;
+        // the timer is the same retry the search and path fields use after a
+        // window reveal.
+        folderInput.forceActiveFocus();
+        folderInput.selectAll();
+        folderFocusTimer.restart();
+    }
+
+    function cancelNewFolder() {
+        root.resetNewFolder();
+        if (root.active)
+            focusTimer.restart();
+    }
+
+    function folderNameProblem(name) {
+        if (name === "")
+            return "Enter a folder name";
+        if (name.includes("/"))
+            return "A folder name cannot contain /";
+        if (name === "." || name === "..")
+            return "Choose a different folder name";
+        return "";
+    }
+
+    function submitNewFolder() {
+        root.createFolder(folderInput.text);
+    }
+
+    // Shared by the row and the `newFolder` IPC hook.  The name is validated
+    // here, before anything reaches the filesystem, and mkdir receives the
+    // target as one argv entry so no shell ever parses it.
+    function createFolder(rawName) {
+        const name = String(rawName === undefined || rawName === null ? "" : rawName).trim();
+        root.creatingFolder = true;
+        const problem = root.folderNameProblem(name);
+        if (problem !== "") {
+            root.folderError = problem;
+            if (root.active) {
+                folderInput.forceActiveFocus();
+                folderInput.selectAll();
+            }
+            return;
+        }
+        if (mkdirProc.running)
+            return;
+        const dir = root.currentDir.replace(/\/+$/, "");
+        root.folderError = "";
+        mkdirProc.target = dir + "/" + name;
+        mkdirProc.request = root.requestId;
+        mkdirProc.errorText = "";
+        mkdirProc.command = ["mkdir", "--", mkdirProc.target];
+        mkdirProc.running = true;
+    }
+
+    function folderErrorMessage(message) {
+        const text = String(message || "");
+        if (/file exists/i.test(text))
+            return "An item with that name already exists";
+        if (/permission denied/i.test(text))
+            return "Permission denied";
+        if (/read-only file system/i.test(text))
+            return "The folder is on a read-only filesystem";
+        if (/no such file or directory/i.test(text))
+            return "The current folder no longer exists";
+        if (/file name too long/i.test(text))
+            return "That folder name is too long";
+        if (/not a directory/i.test(text))
+            return "The current folder is no longer available";
+        if (text !== "")
+            return text.replace(/^mkdir:\s*/, "");
+        return "Could not create the folder";
+    }
+
     // ── Path editing / completion ────────────────────────────────────────
     function normalizePath(raw) {
         let path = raw.trim();
@@ -736,6 +1052,8 @@ Scope {
     }
 
     function beginPathEdit() {
+        if (root.creatingFolder)
+            root.cancelNewFolder();
         if (root.searching)
             root.exitSearch();
         root.pathError = "";
@@ -831,6 +1149,13 @@ Scope {
     }
 
     function handleEscape() {
+        // The inline creation row is the innermost mode: Escape closes it
+        // before it clears a search, cancels a path edit or dismisses the
+        // panel.
+        if (root.creatingFolder) {
+            root.cancelNewFolder();
+            return;
+        }
         if (root.editingPath) {
             if (root.completions.length > 0)
                 root.clearCompletions();
@@ -888,8 +1213,19 @@ Scope {
         }
 
         // Automation/debug hook: leaves search mode and shows the folder again.
+        // Restores grid focus like the Escape and header-search exits do, so
+        // type-to-search keeps working after this call.
         function closeSearch(): void {
             root.exitSearch();
+            focusTimer.restart();
+        }
+
+        // Automation/debug hook: runs the new-folder row's creation path.  The
+        // outcome is visible through creatingFolder/folderError in status().
+        function newFolder(name: string): void {
+            root.beginNewFolder();
+            folderInput.text = String(name);
+            root.submitNewFolder();
         }
 
         function status(): string {
@@ -908,6 +1244,10 @@ Scope {
                 matches: root.searchActive ? root.fileCount : 0,
                 searchBusy: root.searchBusy,
                 truncated: root.searchTruncated,
+                creatingFolder: root.creatingFolder,
+                folderError: root.folderError,
+                previews: root.previewsLoaded,
+                previewQueue: root.previewQueue.length,
             });
         }
     }
@@ -1051,6 +1391,83 @@ Scope {
         }
     }
 
+    // One poster at a time: previewProc runs file-thumbnail.sh for the head of
+    // the queue and the next path starts only from onExited, so a fast scroll
+    // cannot spawn parallel ffmpeg runs. The stdout collector always completes
+    // before onExited, which is when the record is mapped into previewMap.
+    Process {
+        id: previewProc
+
+        property string target: ""
+        property int generation: 0
+        property string output: ""
+
+        running: false
+
+        stdout: StdioCollector {
+            onStreamFinished: previewProc.output = text
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim() !== "")
+                    console.warn("FilePicker: thumbnail worker:", text.trim());
+            }
+        }
+
+        onExited: code => root.finishPreview(
+            previewProc.generation, previewProc.target, code, previewProc.output)
+    }
+
+    // mkdir runs in argv form: the folder name is never handed to a shell.
+    Process {
+        id: mkdirProc
+
+        property string target: ""
+        // The request this creation belongs to, so a late result cannot
+        // navigate a panel that has already moved on.
+        property string request: ""
+        property string errorText: ""
+
+        running: false
+
+        stderr: StdioCollector {
+            onStreamFinished: mkdirProc.errorText = text.trim()
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (mkdirProc.request !== root.requestId)
+                return;
+            if (!root.active) {
+                // The panel closed while mkdir ran; drop any pending row state.
+                root.resetNewFolder();
+                return;
+            }
+
+            if (exitCode !== 0) {
+                if (!root.creatingFolder)
+                    return;
+                root.folderError = root.folderErrorMessage(mkdirProc.errorText);
+                console.warn("FilePicker: mkdir failed:", mkdirProc.errorText);
+                folderInput.forceActiveFocus();
+                return;
+            }
+
+            const created = mkdirProc.target;
+            // Escape may have closed the row while mkdir was running: the
+            // folder still exists, but the panel should not jump into it.
+            const shouldEnter = root.creatingFolder;
+            root.creatingFolder = false;
+            root.folderError = "";
+            folderInput.text = "";
+            if (shouldEnter && (root.directoryMode || root.saveMode))
+                root.navigateTo(created);
+            else
+                root.refreshCurrentDir();
+            focusTimer.restart();
+        }
+    }
+
     NumberAnimation {
         id: revealIn
 
@@ -1119,6 +1536,19 @@ Scope {
         interval: root.completionDelay
         repeat: false
         onTriggered: root.requestCompletions()
+    }
+
+    Timer {
+        id: folderFocusTimer
+
+        interval: root.focusDelay
+        repeat: false
+        onTriggered: {
+            if (root.active && root.creatingFolder) {
+                folderInput.forceActiveFocus();
+                folderInput.selectAll();
+            }
+        }
     }
 
     Timer {
@@ -1208,6 +1638,14 @@ Scope {
                 // Clicks inside the panel must not reach the dismissal layer.
                 MouseArea {
                     anchors.fill: parent
+                }
+
+                // Opens the inline new-folder row from any focus state in the
+                // panel (grid, save name, search or path field).
+                Shortcut {
+                    sequence: "Ctrl+Shift+N"
+                    enabled: root.active && !root.creatingFolder
+                    onActivated: root.beginNewFolder()
                 }
 
                 Item {
@@ -1380,6 +1818,15 @@ Scope {
                             onClicked: root.editingPath
                                 ? root.cancelPathEdit()
                                 : root.beginPathEdit()
+                        }
+
+                        IconButton {
+                            icon: Icons.createNewFolder
+                            iconSize: Dimensions.icon.medium
+                            active: root.creatingFolder
+                            onClicked: root.creatingFolder
+                                ? root.cancelNewFolder()
+                                : root.beginNewFolder()
                         }
 
                         IconButton {
@@ -1610,10 +2057,144 @@ Scope {
                 }
 
                 Item {
-                    id: nameBar
+                    id: folderBar
 
                     anchors {
                         top: filterBar.bottom
+                        left: parent.left
+                        right: parent.right
+                    }
+                    height: root.creatingFolder ? root.folderRowHeight : 0
+                    visible: root.creatingFolder
+                    clip: true
+
+                    Item {
+                        anchors {
+                            fill: parent
+                            leftMargin: root.contentPadding
+                            rightMargin: root.contentPadding
+                        }
+
+                        Text {
+                            id: folderGlyph
+
+                            anchors {
+                                left: parent.left
+                                verticalCenter: parent.verticalCenter
+                            }
+                            text: Icons.createNewFolder
+                            color: Colors.primary
+                            font.family: Typography.iconFont
+                            font.pixelSize: Dimensions.icon.medium
+                        }
+
+                        Row {
+                            id: folderActions
+
+                            anchors {
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 8
+
+                            Pill {
+                                icon: Icons.check
+                                text: "Create"
+                                textSize: Typography.size.labelSmall
+                                horizontalPadding: 12
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.submitNewFolder()
+                                }
+                            }
+
+                            Pill {
+                                icon: Icons.close
+                                text: "Cancel"
+                                textSize: Typography.size.labelSmall
+                                horizontalPadding: 12
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.cancelNewFolder()
+                                }
+                            }
+                        }
+
+                        Surface {
+                            anchors {
+                                left: folderGlyph.right
+                                right: folderActions.left
+                                leftMargin: 10
+                                rightMargin: 12
+                                verticalCenter: parent.verticalCenter
+                            }
+                            height: 32
+                            radius: Dimensions.radius.small
+                            surfaceColor: Colors.surfaceContainerHighest
+                            borderWidth: 1
+                            borderColor: root.folderError !== "" ? Colors.error : Colors.primary
+
+                            TextInput {
+                                id: folderInput
+
+                                anchors {
+                                    fill: parent
+                                    leftMargin: 10
+                                    rightMargin: 10
+                                }
+                                verticalAlignment: TextInput.AlignVCenter
+                                color: Colors.onSurface
+                                selectionColor: Colors.withAlpha(Colors.primary, 0.35)
+                                selectedTextColor: Colors.onSurface
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelMedium
+                                clip: true
+                                selectByMouse: true
+
+                                onTextEdited: root.folderError = ""
+
+                                Keys.onPressed: event => {
+                                    if (event.key === Qt.Key_Escape) {
+                                        root.cancelNewFolder();
+                                        event.accepted = true;
+                                    } else if (event.key === Qt.Key_Return
+                                               || event.key === Qt.Key_Enter) {
+                                        root.submitNewFolder();
+                                        event.accepted = true;
+                                    }
+                                }
+                            }
+
+                            Text {
+                                anchors {
+                                    left: parent.left
+                                    leftMargin: 10
+                                    right: parent.right
+                                    rightMargin: 10
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                visible: folderInput.text === ""
+                                text: "Folder name"
+                                color: Colors.withAlpha(Colors.onSurfaceVariant, 0.7)
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelMedium
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    id: nameBar
+
+                    anchors {
+                        top: folderBar.bottom
                         left: parent.left
                         right: parent.right
                     }
@@ -1755,6 +2336,9 @@ Scope {
                                    && (event.modifiers & Qt.ControlModifier)) {
                             root.beginSearch();
                             event.accepted = true;
+                        } else if (root.canTypeToSearch(event)) {
+                            root.typeToSearch(event.text);
+                            event.accepted = true;
                         }
                     }
 
@@ -1773,6 +2357,12 @@ Scope {
                         multiple: root.multiple && kind === "file"
                         checked: root.checkedPaths[path] === true
                         selected: GridView.isCurrentItem
+                        previewSource: root.previewMap[path]
+                            ? root.previewMap[path].source : ""
+                        previewKind: root.previewMap[path]
+                            ? root.previewMap[path].kind : ""
+
+                        onPreviewRequested: root.requestPreview(path)
 
                         onHoveredChanged: {
                             root.hoveredIndex = hovered
@@ -1935,26 +2525,37 @@ Scope {
                             rightMargin: 12
                             verticalCenter: parent.verticalCenter
                         }
-                        text: root.nameError !== ""
-                            ? root.nameError
-                            : root.pathError !== ""
-                                ? root.pathError
-                                : root.editingPath
-                                    ? (root.completions.length > 0
-                                        ? "[Tab] Complete   [Up/Down] Select   [Enter] Go   [Esc] Cancel"
-                                        : "[Enter] Go   [Esc] Cancel")
-                                    : root.searching
-                                        ? (root.searchActive
-                                            ? "[Type] Search   [Up/Down] Select   [Enter] Open   [Esc] Clear"
-                                            : "[Type] Search   [Esc] Close")
-                                        : root.directoryMode
-                                            ? "[Arrows] Move   [Enter] Open folder   [Backspace] Up   [Esc] Close"
-                                            : root.saveNameMode
-                                                ? "[Enter] Save   [Backspace] Up   [Esc] Close   [Ctrl+F] Search"
-                                                : root.multiple
-                                                    ? "[Click] Select   [Enter] Open   [Backspace] Up   [Esc] Close   [Ctrl+F] Search"
-                                                    : "[Arrows] Select   [Enter] Open   [Backspace] Up   [Esc] Close   [Ctrl+F] Search"
-                        color: root.nameError !== "" || root.pathError !== ""
+                        text: root.folderError !== ""
+                            ? root.folderError
+                            : root.nameError !== ""
+                                ? root.nameError
+                                : root.pathError !== ""
+                                    ? root.pathError
+                                    : root.creatingFolder
+                                        ? "[Enter] Create folder   [Esc] Cancel"
+                                        : root.editingPath
+                                            ? (root.completions.length > 0
+                                                ? "[Tab] Complete   [Up/Down] Select   [Enter] Go   [Esc] Cancel"
+                                                : "[Enter] Go   [Esc] Cancel")
+                                            : root.searching
+                                                ? (root.searchActive
+                                                    ? "[Type] Search   [Up/Down] Select   [Enter] Open   [Esc] Clear"
+                                                        + "   [Ctrl+Shift+N] New folder"
+                                                    : "[Type] Search   [Esc] Close"
+                                                        + "   [Ctrl+Shift+N] New folder")
+                                                : root.directoryMode
+                                                    ? "[Arrows] Move   [Enter] Open folder   [Backspace] Up"
+                                                        + "   [Esc] Close   [Type] Search   [Ctrl+Shift+N] New folder"
+                                                    : root.saveNameMode
+                                                        ? "[Enter] Save   [Backspace] Up   [Esc] Close"
+                                                            + "   [Type] Search   [Ctrl+Shift+N] New folder"
+                                                        : root.multiple
+                                                            ? "[Click] Select   [Enter] Open   [Backspace] Up"
+                                                                + "   [Esc] Close   [Type] Search   [Ctrl+Shift+N] New folder"
+                                                            : "[Arrows] Select   [Enter] Open   [Backspace] Up"
+                                                                + "   [Esc] Close   [Type] Search   [Ctrl+Shift+N] New folder"
+                        color: root.folderError !== "" || root.nameError !== ""
+                            || root.pathError !== ""
                             || (root.searchActive && root.searchError !== "")
                             ? Colors.error : Colors.onSurfaceVariant
                         font.family: Typography.barFont
