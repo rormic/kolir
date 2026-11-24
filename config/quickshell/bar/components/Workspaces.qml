@@ -1,7 +1,10 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Shapes
+import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Wayland
 import "../../theme"
 
 // Workspace switcher: one neon highlight travels between the cells, so a
@@ -54,6 +57,30 @@ Surface {
     // on the far side of the bar during the move.
     property int litIndex: 0
 
+    // Special workspace (the SUPER+S scratchpad) is not represented by
+    // `focusedWorkspace`: Hyprland keeps the normal workspace focused and
+    // reports the scratchpad in a separate monitor field. Quickshell only
+    // refreshes `lastIpcObject` on demand, so the startup snapshot seeds the
+    // state and the `activespecial` event keeps it current afterwards. No
+    // polling: the event socket is already open for the rest of the bar.
+    readonly property bool initialSpecialOpen: {
+        const monitors = Hyprland.monitors.values
+        for (let i = 0; i < monitors.length; i++) {
+            const special = monitors[i].lastIpcObject?.specialWorkspace
+            if (special && (special.name ?? "").length > 0)
+                return true
+        }
+        return false
+    }
+    property bool specialEventSeen: false
+    property bool specialEventOpen: false
+    readonly property bool specialOpen: specialEventSeen ? specialEventOpen : initialSpecialOpen
+    // Rainbow drift timing: 20 fps over one full rainbow width in 5.2 s. A
+    // smooth, slow gradient does not need 30/60 Hz, and fewer commits keep the
+    // compositor and GPU almost idle while the scratchpad is open.
+    readonly property int specialWashFrame: 50
+    readonly property int specialWashCycle: 5200
+
     function toRoman(n) {
         const r = ["I","II","III","IV","V","VI","VII","VIII","IX","X"]
         return r[n - 1] ?? String(n)
@@ -63,6 +90,128 @@ Surface {
     implicitWidth: row.implicitWidth + Dimensions.padding.chipHorizontal
     radius: Dimensions.radius.full
     surfaceColor: Colors.surfaceContainerHigh
+
+    // Rainbow wash for the scratchpad. The animated fill is drawn in its own
+    // small Top-layer surface instead of inside the bar: a frame in the bar
+    // repainted the whole 2560x1440 shell layer, while this window only covers
+    // the pill. The window is click-through, has no exclusive zone and covers
+    // the pill's icons/numerals with the opaque wash; the bar underneath keeps
+    // handling clicks. The Shape clips the gradient to the capsule itself.
+    PanelWindow {
+        id: specialWashWindow
+
+        // The wash follows the pill when the bar reflows. mapFromItem() is an
+        // imperative call and does not register item positions as binding
+        // dependencies, so summing the parent chain keeps the binding live.
+        readonly property point origin: {
+            let x = 0
+            let y = 0
+            let item = root
+            while (item) {
+                x += item.x
+                y += item.y
+                item = item.parent
+            }
+            return Qt.point(x, y)
+        }
+
+        anchors {
+            top: true
+            left: true
+        }
+        margins {
+            // A Top-layer surface is laid out below the bar's 30 px exclusive
+            // zone, so subtract it to land on the strip rather than under it.
+            top: Math.round(origin.y) - Dimensions.bar.height
+            left: Math.round(origin.x)
+        }
+
+        implicitWidth: root.width
+        implicitHeight: root.height
+        color: "transparent"
+        // Stay mapped through the fade-out, then unmap the surface.
+        visible: root.specialOpen || washContent.opacity > 0
+
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        WlrLayershell.namespace: "workspace-wash"
+        WlrLayershell.exclusiveZone: 0
+        mask: Region {}
+
+        // The window is fully opaque: the bar-strip colour fills the corners
+        // outside the capsule, so the compositor does not have to blend this
+        // surface over the bar every frame. The Surface and the 1 px ring
+        // around the Shape reproduce the pill that the bar paints underneath.
+        // The whole pill fades as one, revealing the normal pill underneath
+        // instead of flashing an icon-less surface while the wash disappears.
+        Item {
+            id: washContent
+
+            anchors.fill: parent
+            opacity: root.specialOpen ? 1 : 0
+
+            Behavior on opacity {
+                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                color: Colors.surfaceContainerLow
+
+                Behavior on color {
+                    ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                }
+            }
+
+            Surface {
+                anchors.fill: parent
+                radius: root.radius
+                surfaceColor: root.surfaceColor
+                borderColor: root.borderColor
+                borderWidth: root.borderWidth
+            }
+
+            Shape {
+                id: specialWash
+
+                anchors.fill: parent
+                anchors.margins: root.borderWidth
+                preferredRendererType: Shape.CurveRenderer
+
+                // Fraction of the rainbow the gradient has travelled. One full
+                // cycle is one pill width, so the wrap lands on identical colors.
+                property real phase: 0
+
+                ShapePath {
+                    strokeWidth: 0
+
+                    fillGradient: LinearGradient {
+                        x1: -specialWash.width * specialWash.phase
+                        y1: specialWash.height / 2
+                        x2: specialWash.width - specialWash.width * specialWash.phase
+                        y2: specialWash.height / 2
+                        spread: ShapeGradient.RepeatSpread
+
+                        GradientStop { position: 0.000; color: "#ff2d55" }
+                        GradientStop { position: 0.143; color: "#ff7a1a" }
+                        GradientStop { position: 0.286; color: "#ffd60a" }
+                        GradientStop { position: 0.429; color: "#30d158" }
+                        GradientStop { position: 0.571; color: "#2ed3c6" }
+                        GradientStop { position: 0.714; color: "#2d9bff" }
+                        GradientStop { position: 0.857; color: "#b45cff" }
+                        GradientStop { position: 1.000; color: "#ff2d55" }
+                    }
+
+                    PathRectangle {
+                        width: specialWash.width
+                        height: specialWash.height
+                        radius: root.radius
+                    }
+                }
+            }
+        }
+    }
 
     Behavior on trail {
         NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
@@ -120,6 +269,21 @@ Surface {
             lastIndex = focusedIndex
             litIndex = focusedIndex
             thumb.centerX = lastIndex * root.cellWidth + root.cellWidth / 2
+        }
+    }
+
+    Connections {
+        target: Hyprland
+
+        function onRawEvent(event) {
+            if (event.name !== "activespecial")
+                return
+
+            // "activespecial" carries the special workspace name and its
+            // monitor; an empty name is the close event.
+            const data = event.parse(2)
+            root.specialEventSeen = true
+            root.specialEventOpen = (data[0] ?? "").length > 0
         }
     }
 
@@ -273,6 +437,20 @@ Surface {
         onFinished: {
             root.trail = 0
             root.litIndex = root.lastIndex
+        }
+    }
+
+    // One rainbow width per loop. A 20 Hz timer drives the slow drift instead
+    // of a 60 Hz animation, keeping the redraw cost low while the scratchpad is
+    // open; the timer stops with the fill, so an idle bar schedules nothing.
+    Timer {
+        id: specialWashTicker
+
+        interval: root.specialWashFrame
+        repeat: true
+        running: root.specialOpen
+        onTriggered: {
+            specialWash.phase = (specialWash.phase + interval / root.specialWashCycle) % 1
         }
     }
 
