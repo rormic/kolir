@@ -64,6 +64,24 @@ QtObject {
     // shell that a charger started supplying power.
     readonly property bool plugged: root.present && !UPower.onBattery
 
+    // Detail values for the embedded battery sheet. They mirror the aggregate
+    // display device and stay neutral while no usable battery is present, so a
+    // peripheral (a mouse in UPower) can never leak into the popup. The sheet
+    // owns the human-readable formatting; these are the raw UPower units:
+    // seconds for time, watts for power and watt-hours for energy.
+    readonly property int chargeState: root.present
+        ? root.display.state
+        : UPowerDeviceState.Unknown
+    readonly property real timeToEmpty: root.present ? root.display.timeToEmpty : 0
+    readonly property real timeToFull: root.present ? root.display.timeToFull : 0
+    readonly property real powerDraw: root.present ? root.display.changeRate : 0
+    readonly property real energy: root.present ? root.display.energy : 0
+    readonly property real energyCapacity: root.present ? root.display.energyCapacity : 0
+    readonly property bool healthSupported: root.present && root.display.healthSupported
+    readonly property real health: root.healthSupported
+        ? root.display.healthPercentage
+        : 0
+
     // Emitted once when the charger starts supplying power, never for the
     // state already present at shell start. Battery.qml turns it into the
     // one-shot charge bloom.

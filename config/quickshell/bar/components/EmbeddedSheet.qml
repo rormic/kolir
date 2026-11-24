@@ -73,7 +73,12 @@ Item {
         const m = panelMeltHeight;
         const r = panelBottomRadius;
         const sr = panelShoulderRadius;
-        const top = Dimensions.frame.thickness;
+        // The shoulder arc starts at the bar's bottom edge. In the ring style
+        // its first `Dimensions.frame.thickness` pixels sit under the frame
+        // ring (same colour), so the visible fillet still begins at the ring's
+        // inner edge; in the corners style there is no ring, and starting at 0
+        // keeps the sheet from growing a 4px step at the bar.
+        const top = 0;
 
         if (root.mirror) {
             // Right-aligned mirror: `br` is the body edge at the physical

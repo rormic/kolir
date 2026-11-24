@@ -17,6 +17,11 @@ import "../../theme"
 Item {
     id: root
 
+    signal activated()
+
+    // Bound by Bar to the embedded battery sheet's modal state.
+    property bool popupActive: false
+
     visible: BatteryService.expected
     implicitWidth: chip.implicitWidth
     implicitHeight: chip.implicitHeight
@@ -92,6 +97,15 @@ Item {
             textColor: BatteryService.low ? Colors.error : Colors.onSurface
             surfaceColor: Colors.surfaceContainerHigh
             spacing: 4
+            active: root.popupActive
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.activated()
+            }
         }
     }
 

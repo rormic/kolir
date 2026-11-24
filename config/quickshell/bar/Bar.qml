@@ -27,7 +27,7 @@ PanelWindow {
     // OnDemand lets them receive keyboard focus (Escape) after they are
     // clicked without stealing focus while closed.
     WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened
-                                  || volumePopup.opened
+                                  || volumePopup.opened || batteryPopup.opened
                                   || notificationCenter.opened)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
@@ -74,7 +74,7 @@ PanelWindow {
     }
 
     mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal
-           || notificationCenter.modal)
+           || batteryPopup.modal || notificationCenter.modal)
         ? modalMask : barMask
 
     // Bar strip background. Both frame styles paint the same opaque strip:
@@ -140,6 +140,7 @@ PanelWindow {
                 onClicked: {
                     brightnessPopup.close();
                     volumePopup.close();
+                    batteryPopup.close();
                     settingsMenu.toggle();
                 }
 
@@ -191,6 +192,7 @@ PanelWindow {
                     onActivated: {
                         brightnessPopup.close();
                         volumePopup.close();
+                        batteryPopup.close();
                         settingsMenu.open("main");
                     }
                 }
@@ -203,6 +205,15 @@ PanelWindow {
                     // the bar's left edge, so it gets the full distance in
                     // bar-strip coordinates.
                     sweepDistance: rightRow.x + batteryChip.x
+                    popupActive: batteryPopup.modal
+                    onActivated: {
+                        settingsMenu.close();
+                        brightnessPopup.close();
+                        volumePopup.close();
+                        notificationCenter.close();
+                        nowPlaying.closeExpanded();
+                        batteryPopup.toggle();
+                    }
                 }
                 Brightness      {
                     id: brightnessChip
@@ -210,10 +221,11 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     popupActive: brightnessPopup.modal
                     overlayOpen: settingsMenu.modal || volumePopup.modal
-                        || notificationCenter.modal
+                        || batteryPopup.modal || notificationCenter.modal
                     onActivated: {
                         settingsMenu.close();
                         volumePopup.close();
+                        batteryPopup.close();
                         brightnessPopup.toggle();
                     }
                 }
@@ -225,6 +237,7 @@ PanelWindow {
                     onActivated: {
                         settingsMenu.close();
                         brightnessPopup.close();
+                        batteryPopup.close();
                         volumePopup.toggle();
                     }
                 }
@@ -237,6 +250,7 @@ PanelWindow {
                         settingsMenu.close();
                         brightnessPopup.close();
                         volumePopup.close();
+                        batteryPopup.close();
                         notificationCenter.toggle();
                     }
                 }
@@ -287,6 +301,14 @@ PanelWindow {
         z: 1
     }
 
+    // Battery sheet overlay: the level, power, energy and health details of
+    // the aggregate UPower device, again mirrored to the right edge.
+    BatteryPopup {
+        id: batteryPopup
+        anchors.fill: parent
+        z: 1
+    }
+
     // Notification center overlay: the bell's history and DND sheet, again
     // embedded in the bar surface and mirrored to the right edge.
     NotificationCenter {
@@ -304,6 +326,7 @@ PanelWindow {
             if (brightnessPopup.opened) {
                 settingsMenu.close();
                 volumePopup.close();
+                batteryPopup.close();
                 notificationCenter.close();
                 nowPlaying.closeExpanded();
             }
@@ -317,6 +340,21 @@ PanelWindow {
             if (volumePopup.opened) {
                 settingsMenu.close();
                 brightnessPopup.close();
+                batteryPopup.close();
+                notificationCenter.close();
+                nowPlaying.closeExpanded();
+            }
+        }
+    }
+
+    Connections {
+        target: batteryPopup
+
+        function onOpenedChanged() {
+            if (batteryPopup.opened) {
+                settingsMenu.close();
+                brightnessPopup.close();
+                volumePopup.close();
                 notificationCenter.close();
                 nowPlaying.closeExpanded();
             }
@@ -330,6 +368,7 @@ PanelWindow {
             if (settingsMenu.opened) {
                 brightnessPopup.close();
                 volumePopup.close();
+                batteryPopup.close();
                 notificationCenter.close();
                 nowPlaying.closeExpanded();
             }
@@ -344,6 +383,7 @@ PanelWindow {
                 settingsMenu.close();
                 brightnessPopup.close();
                 volumePopup.close();
+                batteryPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -357,6 +397,7 @@ PanelWindow {
                 settingsMenu.close();
                 brightnessPopup.close();
                 volumePopup.close();
+                batteryPopup.close();
                 notificationCenter.close();
             }
         }

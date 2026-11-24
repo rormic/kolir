@@ -109,6 +109,8 @@ QtObject {
     readonly property string batteryCharging50: "battery_charging_50"
     readonly property string batteryCharging30: "battery_charging_30"
     readonly property string batteryCharging20: "battery_charging_20"
+    readonly property string bolt: "bolt"
+    readonly property string monitorHeart: "monitor_heart"
 
     // File picker: generic file types, the save action and folder creation.
     readonly property string file: "description"
