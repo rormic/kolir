@@ -91,6 +91,56 @@ Scope {
             return (isClipboardMode && item && item.isImage) ? imageRowHeight : appRowHeight
         }
 
+        // Rich-text markup is avoided here: the idle hint renders the two
+        // prefix keys as small keycaps, so the characters people have to type
+        // read as keys instead of punctuation in a sentence. The shortcut
+        // sheet's KeyChip is 24px and belongs to another feature, so this
+        // lighter 20px variant stays local to the launcher.
+        component SearchHintKey: Rectangle {
+            id: hintKey
+
+            property string keyLabel: ""
+
+            implicitWidth: 22
+            implicitHeight: 20
+            radius: Dimensions.radius.small
+            color: Colors.withAlpha(Colors.primary, 0.12)
+            border.width: 1
+            border.color: Colors.withAlpha(Colors.primary, 0.38)
+
+            Text {
+                anchors.centerIn: parent
+                text: hintKey.keyLabel
+                color: Colors.primary
+                font.family: Typography.barFont
+                font.pixelSize: 16
+                font.weight: Typography.weight.bold
+            }
+        }
+
+        component SearchHint: Row {
+            id: hint
+
+            property string keyLabel: ""
+            property string hintLabel: ""
+
+            spacing: 5
+
+            SearchHintKey {
+                keyLabel: hint.keyLabel
+            }
+
+            Text {
+                height: 20
+                verticalAlignment: Text.AlignVCenter
+                text: hint.hintLabel
+                color: Colors.onSurfaceVariant
+                opacity: 0.78
+                font.family: Typography.barFont
+                font.pixelSize: Typography.size.labelMedium
+            }
+        }
+
         // A workspace switch dismisses the launcher. Keeping it open would
         // leave the new workspace without a focused window while the layer
         // holds exclusive keyboard focus, so its windows would animate with
@@ -344,19 +394,46 @@ Scope {
                             anchors {
                                 left: searchIcon.right
                                 leftMargin: 10
-                                right: parent.right
-                                rightMargin: 14
+                                right: idleHints.left
+                                rightMargin: 10
                                 verticalCenter: parent.verticalCenter
                             }
                             visible: search.text === ""
                             text: win.isClipboardMode
                                 ? "Search clipboard history…"
-                                : "Search apps or type math (e.g. 2+2), ; for clipboard, > for a note…"
+                                : "Search apps or type math (e.g. 2+2)"
                             color: Colors.onSurfaceVariant
                             opacity: 0.78
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.bodyMedium
                             elide: Text.ElideRight
+                        }
+
+                        // Idle affordance: the two launcher prefixes as keys,
+                        // with the mode name next to each, so it is obvious
+                        // that "." starts a note instead of hiding at the end
+                        // of the placeholder sentence. Hidden as soon as the
+                        // user types, so it never competes with the query.
+                        Row {
+                            id: idleHints
+
+                            anchors {
+                                right: parent.right
+                                rightMargin: 14
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 12
+                            visible: search.text === ""
+
+                            SearchHint {
+                                keyLabel: "."
+                                hintLabel: "note"
+                            }
+
+                            SearchHint {
+                                keyLabel: ";"
+                                hintLabel: "clipboard"
+                            }
                         }
 
                         TextInput {
