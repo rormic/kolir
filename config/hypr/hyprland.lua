@@ -28,6 +28,23 @@ if colorsConfigFile then
 	dofile(colorsConfig)
 end
 
+-- Screen frame style chosen in Settings → Screen frame. The shell owns the
+-- choice in ~/.cache/quickshell/frame.json and applies the matching outer
+-- gaps at runtime; reading the same file here means the first compositor
+-- start and a plain `hyprctl reload` already use the saved style instead of
+-- flashing the other frame for a moment. Keep 4 in sync with
+-- Dimensions.frame.thickness in the shell.
+local frameGapsOut = 4
+local frameState = os.getenv("HOME") .. "/.cache/quickshell/frame.json"
+local frameStateFile = io.open(frameState, "r")
+if frameStateFile then
+	local frameStateContent = frameStateFile:read("*a")
+	frameStateFile:close()
+	if frameStateContent:match('"style"%s*:%s*"corners"') then
+		frameGapsOut = 0
+	end
+end
+
 ------------------
 ---- MONITORS ----
 ------------------
@@ -131,7 +148,11 @@ hl.env("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
 hl.config({
 	general = {
 		gaps_in = 4,
-		gaps_out = 4,
+		-- Saved frame style: 4 for the classic ring, 0 for black corners.
+		-- The shell's FrameService rewrites this at runtime with
+		-- `hyprctl eval` when the toggle changes, and hyprland.lua reads the
+		-- persisted choice above on every reload.
+		gaps_out = frameGapsOut,
 
 		border_size = 2,
 

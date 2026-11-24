@@ -45,6 +45,9 @@ QtObject {
     // Matugen scheme type, contrast and mode owned by AppearanceService.
     readonly property string appearanceState: quickshellCache + "/appearance.json"
 
+    // Screen frame style owned by FrameService.
+    readonly property string frameState: quickshellCache + "/frame.json"
+
     // Night-light persistence owned by HyprsunsetService.
     readonly property string hyprsunsetState: home + "/.cache/quickshell/hyprsunset.json"
 

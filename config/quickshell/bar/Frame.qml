@@ -1,7 +1,9 @@
 pragma ComponentBehavior: Bound
 
+import "../services"
 import "../theme"
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 
@@ -10,10 +12,18 @@ import QtQuick
 // a ring around the rounded desktop, so the wallpaper does not show between
 // the screen edges and the first window row.
 //
+// FrameService selects between two variants:
+//   - "ring": the classic full frame in the bar colour, with the desktop in a
+//     rounded cut-out inset by `gaps_out`;
+//   - "corners": corner spandrels only. The upper two share the bar colour,
+//     the lower two are black, the side/bottom strips disappear, and the
+//     window sides run flush to the screen edge (gaps_out = 0).
+//
 // The Bottom layer is what removes the border clipping: windows are
 // composited above the frame, so their borders can never be covered or cut
 // by the rounded cut-out. `Dimensions.frame.thickness` must match Hyprland's
-// gaps_out and `Dimensions.frame.radius` its rounding + border size.
+// gap in the ring style and `Dimensions.frame.radius` its rounding + border
+// size in both styles.
 PanelWindow {
     id: frame
 
@@ -47,11 +57,81 @@ PanelWindow {
     // where the first window row starts.
     readonly property int holeY: frame.barHeight + frame.thickness
 
+    // Corner-only variant: no strips and no outer gaps, so the spandrels sit
+    // flush in the physical screen corners. The upper two keep the bar colour
+    // (the bar flows straight into them, as in the ring style); the lower two
+    // are black.
+    readonly property bool cornerStyle: FrameService.corners
+    readonly property int cornerInset: frame.cornerStyle ? 0 : frame.thickness
+    readonly property int cornerTopY: frame.cornerStyle
+        ? frame.barHeight
+        : frame.holeY
+    readonly property int cornerBottomY: frame.cornerStyle
+        ? frame.height - frame.radius
+        : frame.height - frame.thickness - frame.radius
+
     // Opaque on purpose: the frame ring is part of the same chrome as the bar
     // and the settings sheet, so it must not tint with the wallpaper. A
     // translucent ring reads as a see-through outline in the dark theme,
-    // where 6% of a bright wallpaper is very visible.
+    // where 6% of a bright wallpaper is very visible. The lower corners of
+    // the corner-only style are black by design, in both themes.
     readonly property color ringColor: Colors.surfaceContainerLow
+    readonly property color bottomCornerColor: frame.cornerStyle
+        ? Colors.frameCorner
+        : Colors.surfaceContainerLow
+
+    // Keep Hyprland's outer gap in sync with the selected style: the ring
+    // needs room for its strips, the corner-only frame fills the screen edge.
+    // `hyprctl eval` is the runtime form of `hl.config` used by the Lua
+    // config. hyprland.lua reads the same frame.json at startup, so a fresh
+    // session and a plain `hyprctl reload` already start in the saved style.
+    property bool gapsQueued: false
+
+    function applyGaps() {
+        if (gapsProcess.running) {
+            frame.gapsQueued = true;
+            return;
+        }
+
+        frame.gapsQueued = false;
+        gapsProcess.command = [
+            "hyprctl", "eval",
+            "hl.config({ general = { gaps_out = "
+                + (frame.cornerStyle ? 0 : frame.thickness) + " } })",
+        ];
+        gapsProcess.running = true;
+    }
+
+    // The saved style is already applied by hyprland.lua before the shell
+    // starts; only a live toggle needs to push new gaps to Hyprland.
+    Connections {
+        target: FrameService
+
+        function onStyleChanged() {
+            frame.applyGaps();
+        }
+    }
+
+    property Process gapsProcess: Process {
+        command: ["hyprctl", "eval", "hl.config({})"]
+        running: false
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const output = text.trim();
+                if (output !== "")
+                    console.warn("Frame: gaps update failed:", output);
+            }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0)
+                console.warn("Frame: hyprctl eval exited with", exitCode);
+
+            if (frame.gapsQueued)
+                frame.applyGaps();
+        }
+    }
 
     // The ring is an outer rectangle minus a rounded cut-out, but only its
     // four corners are curved. Drawing the whole thing as one shape forced a
@@ -120,13 +200,15 @@ PanelWindow {
         }
     }
 
-    // Top strip, from the bar's bottom edge down to the cut-out.
+    // Top strip, from the bar's bottom edge down to the cut-out. The classic
+    // ring only: the corner style runs the windows up to the bar.
     Rectangle {
         x: 0
         y: frame.barHeight
         width: frame.width
         height: frame.thickness
         color: frame.ringColor
+        visible: !frame.cornerStyle
     }
 
     // Bottom strip, up to the last pixel row.
@@ -136,6 +218,7 @@ PanelWindow {
         width: frame.width
         height: frame.thickness
         color: frame.ringColor
+        visible: !frame.cornerStyle
     }
 
     // Left and right strips run the full outer height, so the four corners of
@@ -147,6 +230,7 @@ PanelWindow {
         width: frame.thickness
         height: frame.height - frame.barHeight
         color: frame.ringColor
+        visible: !frame.cornerStyle
     }
 
     Rectangle {
@@ -155,34 +239,37 @@ PanelWindow {
         width: frame.thickness
         height: frame.height - frame.barHeight
         color: frame.ringColor
+        visible: !frame.cornerStyle
     }
 
-    // One ring per rounded corner of the cut-out.
+    // One ring per rounded corner of the cut-out. In the corner style these
+    // are the only painted pieces: the top pair shares the bar colour, the
+    // bottom pair is black.
     CornerRing {
         corner: 0
         fillColor: frame.ringColor
-        x: frame.thickness
-        y: frame.holeY
+        x: frame.cornerInset
+        y: frame.cornerTopY
     }
 
     CornerRing {
         corner: 1
         fillColor: frame.ringColor
-        x: frame.width - frame.thickness - frame.radius
-        y: frame.holeY
+        x: frame.width - frame.cornerInset - frame.radius
+        y: frame.cornerTopY
     }
 
     CornerRing {
         corner: 2
-        fillColor: frame.ringColor
-        x: frame.thickness
-        y: frame.height - frame.thickness - frame.radius
+        fillColor: frame.bottomCornerColor
+        x: frame.cornerInset
+        y: frame.cornerBottomY
     }
 
     CornerRing {
         corner: 3
-        fillColor: frame.ringColor
-        x: frame.width - frame.thickness - frame.radius
-        y: frame.height - frame.thickness - frame.radius
+        fillColor: frame.bottomCornerColor
+        x: frame.width - frame.cornerInset - frame.radius
+        y: frame.cornerBottomY
     }
 }

@@ -28,8 +28,9 @@ QtObject {
 
     // Screen frame drawn around the desktop, caelestia style: the bar surface
     // fills the window gaps so the desktop is a single rounded cut-out.
-    // `thickness` must match Hyprland's gaps_out or the frame will either
-    // leave a seam or slide under the windows.
+    // `thickness` is the ring width and the `gaps_out` value in the ring
+    // style; the corner-only style uses no outer gap and paints just the four
+    // corner spandrels.
     readonly property QtObject frame: QtObject {
         readonly property int thickness: 4
         // Must equal decoration.rounding + border_size: that is the curve the

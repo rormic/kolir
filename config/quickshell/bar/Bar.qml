@@ -77,9 +77,9 @@ PanelWindow {
            || notificationCenter.modal)
         ? modalMask : barMask
 
-    // Bar strip background. The decorative frame below starts at
-    // Dimensions.bar.height (see Frame.qml), so the strip is never painted
-    // twice, and the fill keeps the bar-blur layer rule working.
+    // Bar strip background. Both frame styles paint the same opaque strip:
+    // the top corner spandrels in Frame.qml share this colour, so the bar
+    // flows straight into the top screen corners.
     Rectangle {
         anchors {
             top: parent.top

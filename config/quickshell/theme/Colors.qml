@@ -86,6 +86,10 @@ QtObject {
     property color scrim: "#000000"
     Behavior on scrim { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
 
+    // Black used by the corner-only screen frame. Not a Matugen role: those
+    // corners stay black in both themes, so they do not crossfade.
+    readonly property color frameCorner: "#000000"
+
     function snakeToCamel(str) {
         return str.replace(/_([a-z])/g, function (match, letter) {
             return letter.toUpperCase();

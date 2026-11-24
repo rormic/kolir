@@ -24,7 +24,7 @@ Item {
     implicitWidth: 380
     // Mirrors `appearanceHeight` in SettingsMenu.qml. Tall enough for the
     // resting cards so the page does not open with a sliver of scroll.
-    implicitHeight: 785
+    implicitHeight: 1016
 
     // Local slider position while dragging or after a wheel change, so the
     // handle follows the pointer without waiting for a regeneration.
@@ -674,6 +674,10 @@ Item {
                         }
                     }
                 }
+            }
+
+            FrameCard {
+                Layout.fillWidth: true
             }
         }
     }
