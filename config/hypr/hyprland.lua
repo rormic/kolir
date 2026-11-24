@@ -311,7 +311,14 @@ hl.config({
 
 hl.config({
 	input = {
-		kb_layout = "us, ua",
+		-- Only English is enabled by default. Add your own layouts here or,
+		-- better, override them in ~/.config/hypr/user.lua so a `git pull`
+		-- never fights your machine:
+		--   hl.config({ input = { kb_layout = "us, ua" } })
+		-- `kb_options = "grp:win_space_toggle"` below keeps SUPER+Space
+		-- switching between them, and the bar's clock chip follows the active
+		-- one automatically.
+		kb_layout = "us",
 		kb_variant = "",
 		kb_model = "",
 		kb_options = "grp:win_space_toggle",
