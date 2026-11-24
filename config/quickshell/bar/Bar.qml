@@ -177,6 +177,8 @@ PanelWindow {
 
             // Right edge
             Row {
+                id: rightRow
+
                 anchors.right: parent.right
                 anchors.rightMargin: Dimensions.padding.barContent
                 anchors.verticalCenter: parent.verticalCenter
@@ -193,7 +195,15 @@ PanelWindow {
                     }
                 }
                 DeviceBattery   { anchors.verticalCenter: parent.verticalCenter }
-                Battery         { anchors.verticalCenter: parent.verticalCenter }
+                Battery {
+                    id: batteryChip
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    // The bloom's streak starts at this chip and must reach
+                    // the bar's left edge, so it gets the full distance in
+                    // bar-strip coordinates.
+                    sweepDistance: rightRow.x + batteryChip.x
+                }
                 Brightness      {
                     id: brightnessChip
 

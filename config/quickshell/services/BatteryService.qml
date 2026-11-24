@@ -58,6 +58,66 @@ QtObject {
         && (root.display.state === UPowerDeviceState.Charging
             || root.display.state === UPowerDeviceState.PendingCharge)
 
+    // AC power is connected. This is deliberately separate from `charging`:
+    // a battery that is already full keeps UPower at FullyCharged, so the
+    // charge state alone would miss plugging in at 100%. The AC flag tells the
+    // shell that a charger started supplying power.
+    readonly property bool plugged: root.present && !UPower.onBattery
+
+    // Emitted once when the charger starts supplying power, never for the
+    // state already present at shell start. Battery.qml turns it into the
+    // one-shot charge bloom.
+    signal chargerConnected()
+
+    // Priming: the first state after UPower becomes ready is recorded
+    // silently, so logging in (or restarting the shell) with the charger
+    // already plugged in does not replay the animation. A battery that
+    // disappears resets the record, so reinserting it while the charger is
+    // still connected is not mistaken for a new plug-in.
+    property bool chargerStateKnown: false
+    property bool lastPlugged: false
+    property bool chargerPrimeQueued: false
+
+    function trackChargerState() {
+        if (!root.upowerReady)
+            return;
+
+        if (!root.present) {
+            root.chargerStateKnown = false;
+            root.lastPlugged = false;
+            return;
+        }
+
+        if (!root.chargerStateKnown) {
+            // `present`, `upowerReady` and `plugged` can settle in either
+            // order on startup, so the baseline is recorded one event-loop
+            // turn later, after the bindings have their final values.
+            if (!root.chargerPrimeQueued) {
+                root.chargerPrimeQueued = true;
+                Qt.callLater(root.primeChargerState);
+            }
+            return;
+        }
+
+        if (root.plugged && !root.lastPlugged)
+            root.chargerConnected();
+
+        root.lastPlugged = root.plugged;
+    }
+
+    function primeChargerState() {
+        root.chargerPrimeQueued = false;
+
+        if (root.chargerStateKnown || !root.upowerReady || !root.present)
+            return;
+
+        root.lastPlugged = root.plugged;
+        root.chargerStateKnown = true;
+    }
+
+    onPluggedChanged: root.trackChargerState()
+    onUpowerReadyChanged: root.trackChargerState()
+
     // Low enough that the bar should warn: red icon/text while unplugged.
     readonly property bool low: root.present && !root.charging && root.percentage <= 15
 
@@ -74,7 +134,14 @@ QtObject {
     // does not chime before the user changed anything.
     property bool batterySoundPrimed: false
 
-    onPresentChanged: root.evaluateLowBattery()
+    // One handler for both consumers of `present`: the charger record must
+    // reset when the pack disappears, and the low-battery thresholds must be
+    // cleared as well. QML rejects a second `onPresentChanged` block in the
+    // same object with "Property value set multiple times".
+    onPresentChanged: {
+        root.trackChargerState();
+        root.evaluateLowBattery();
+    }
     onPercentageChanged: root.evaluateLowBattery()
     onChargingChanged: root.evaluateLowBattery()
 
