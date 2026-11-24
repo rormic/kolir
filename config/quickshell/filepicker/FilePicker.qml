@@ -13,9 +13,11 @@ import "../theme"
 // a full-screen Overlay surface, a cached directory listing, keyboard and
 // mouse navigation, an inline path field with directory completion, an inline
 // new-folder row (header button or Ctrl+Shift+N), a recursive name search over
-// the current folder, and Escape/outside-click cancellation.  Image and video
-// tiles get a lazy 16:9 poster from file-thumbnail.sh: only delegates that the
-// grid actually instantiates ask for one, and folders keep their glyph.
+// the current folder, a footer "Show hidden files" checkbox (the dot-entry
+// filter lives in list-files.sh/search-files.sh) and Escape/outside-click
+// cancellation.  Image and video tiles get a lazy 16:9 poster from
+// file-thumbnail.sh: only delegates that the grid actually instantiates ask
+// for one, and folders keep their glyph.
 //
 // The new-folder row sits between the filters and the save-name bar.  It
 // validates the name locally, runs `mkdir` in argv form and then re-reads the
@@ -94,6 +96,11 @@ Scope {
     property int fileCount: 0
     property int firstFileIndex: -1
     property int hoveredIndex: -1
+
+    // Hidden entries are filtered by list-files.sh/search-files.sh, not in
+    // QML, so the folder listing, the recursive search and the file counter all
+    // agree.  The value is passed as the last argv entry of both workers.
+    property bool showHidden: false
 
     // ── Thumbnail previews ───────────────────────────────────────────────
     // Only a delegate that the grid actually instantiates asks for a preview,
@@ -694,6 +701,12 @@ Scope {
     function refreshCurrentDir() {
         if (root.searching)
             root.resetSearch();
+        root.reloadListing();
+    }
+
+    // Shared listing refresh that keeps the search bar state: refreshCurrentDir
+    // resets the search first, while the hidden-files toggle calls it directly.
+    function reloadListing() {
         root.resetEntries();
         if (scanProc.running) {
             root.discardingEntries = true;
@@ -702,6 +715,20 @@ Scope {
         } else {
             root.beginScan();
         }
+    }
+
+    // The workers own the dot-entry filter, so switching the checkbox re-reads
+    // the folder (or restarts the running query) instead of hiding records in
+    // the model and letting the footer count disagree.  The listing is re-read
+    // even during a search, because exitSearch restores that listing.
+    function setShowHidden(value) {
+        const next = value === true;
+        if (root.showHidden === next)
+            return;
+        root.showHidden = next;
+        root.reloadListing();
+        if (root.searchActive)
+            root.startSearch();
     }
 
     // ── Search ───────────────────────────────────────────────────────────
@@ -862,6 +889,7 @@ Scope {
         root.rebuildModel();
         searchProc.command = [
             "sh", ShellPaths.searchFiles, root.currentDir, query,
+            root.showHidden ? "1" : "0",
         ];
         searchProc.running = true;
         searchFlush.restart();
@@ -1228,6 +1256,13 @@ Scope {
             root.submitNewFolder();
         }
 
+        // Automation/debug hook: flips the footer's hidden-files checkbox
+        // exactly like a click.  Accepts true/false (or 1/0).
+        function showHidden(value: string): void {
+            const text = String(value).toLowerCase();
+            root.setShowHidden(text === "true" || text === "1");
+        }
+
         function status(): string {
             return JSON.stringify({
                 active: root.active,
@@ -1239,6 +1274,7 @@ Scope {
                 files: root.fileCount,
                 name: root.currentName,
                 input: nameInput.text,
+                showHidden: root.showHidden,
                 searching: root.searching,
                 query: root.searchQuery,
                 matches: root.searchActive ? root.fileCount : 0,
@@ -1260,7 +1296,10 @@ Scope {
         id: scanProc
 
         running: false
-        command: ["sh", ShellPaths.listFiles, root.currentDir]
+        command: [
+            "sh", ShellPaths.listFiles, root.currentDir,
+            root.showHidden ? "1" : "0",
+        ]
 
         stdout: SplitParser {
             onRead: line => root.consumeLine(line)
@@ -2486,7 +2525,9 @@ Scope {
                                             + "\" in " + root.currentDir
                                     : root.scanning
                                         ? "Loading " + root.currentDir
-                                        : "No files in " + root.currentDir
+                                        : root.showHidden
+                                            ? "No files in " + root.currentDir
+                                            : "No visible files in " + root.currentDir
                         color: root.scanError !== ""
                             || (root.searchActive && root.searchError !== "")
                             ? Colors.error : Colors.onSurfaceVariant
@@ -2572,6 +2613,75 @@ Scope {
                             verticalCenter: parent.verticalCenter
                         }
                         spacing: 10
+
+                        Item {
+                            id: hiddenToggle
+
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: hiddenRow.implicitWidth
+                            height: 24
+
+                            Row {
+                                id: hiddenRow
+
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 7
+
+                                Rectangle {
+                                    id: hiddenBox
+
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 18
+                                    height: 18
+                                    radius: 4
+                                    color: root.showHidden
+                                        ? Colors.primary
+                                        : "transparent"
+                                    border.width: 1
+                                    border.color: root.showHidden
+                                        ? Colors.primary
+                                        : hiddenMouse.containsMouse
+                                            ? Colors.primary
+                                            : Colors.withAlpha(Colors.outline, 0.8)
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: Motion.hover }
+                                    }
+
+                                    Behavior on border.color {
+                                        ColorAnimation { duration: Motion.hover }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: root.showHidden
+                                        text: Icons.check
+                                        color: Colors.onPrimary
+                                        font.family: Typography.iconFont
+                                        font.pixelSize: 14
+                                    }
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Show hidden files"
+                                    color: root.showHidden
+                                        ? Colors.onSurface
+                                        : Colors.onSurfaceVariant
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelSmall
+                                }
+                            }
+
+                            MouseArea {
+                                id: hiddenMouse
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.setShowHidden(!root.showHidden)
+                            }
+                        }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter

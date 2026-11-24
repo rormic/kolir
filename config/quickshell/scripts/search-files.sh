@@ -1,7 +1,7 @@
 #!/bin/sh
 # search-files.sh — recursive name search for the generic file picker.
 #
-# Usage: search-files.sh <directory> <query>
+# Usage: search-files.sh <directory> <query> [show-hidden]
 #
 # Prints the same tab-separated records as list-files.sh, in the order they are
 # found so the picker can show partial results while the worker is still
@@ -11,8 +11,10 @@
 #
 # Every entry below <directory> whose name contains <query> matches, ignoring
 # case; the query is matched literally (`*`, `?` and `[` are not globs here).
-# Hidden entries are included because the normal listing shows them too, and
-# symlinks to directories are reported as dir records but never descended into,
+# `show-hidden` is `1` (the default, kept for older callers) or `0`; with `0`
+# dot entries are pruned and never descended into, so a search cannot leak files
+# out of ~/.config while the picker's "Show hidden files" checkbox is off.
+# Symlinks to directories are reported as dir records but never descended into,
 # so a link cycle cannot hang the worker.
 #
 # At most 400 records are printed. When the tree holds more matches a final
@@ -24,13 +26,22 @@
 
 set -eu
 
-if [ "$#" -ne 2 ]; then
-    echo "usage: $0 <directory> <query>" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo "usage: $0 <directory> <query> [show-hidden]" >&2
     exit 2
 fi
 
 src=$1
 query=$2
+show_hidden=${3:-1}
+
+case $show_hidden in
+0 | 1) ;;
+*)
+    echo "search-files.sh: show-hidden must be 0 or 1: $show_hidden" >&2
+    exit 2
+    ;;
+esac
 
 if [ ! -d "$src" ]; then
     echo "search-files.sh: not a directory: $src" >&2
@@ -57,7 +68,7 @@ for pid in $pids; do
     set -- $args
     IFS=$old_ifs
     set +f
-    [ "$#" -eq 4 ] || continue
+    [ "$#" -eq 4 ] || [ "$#" -eq 5 ] || continue
     [ "${1##*/}" = "sh" ] || continue
     [ "${2##*/}" = "search-files.sh" ] || continue
     [ "$3" = "$src" ] || continue
@@ -67,8 +78,14 @@ done
 # Escape the glob characters so the typed text is matched literally by -iname.
 pattern=$(printf '%s' "$query" | sed 's/[][*?\\]/\\&/g')
 
-find "$src" -mindepth 1 \( -type d -o -type f -o -type l \) \
-    -iname "*$pattern*" -print 2>/dev/null \
+if [ "$show_hidden" = "1" ]; then
+    find "$src" -mindepth 1 \( -type d -o -type f -o -type l \) \
+        -iname "*$pattern*" -print 2>/dev/null
+else
+    # Prune dot entries first so a hidden directory is never descended into.
+    find "$src" -mindepth 1 -name '.*' -prune -o \
+        \( -type d -o -type f -o -type l \) -iname "*$pattern*" -print 2>/dev/null
+fi \
     | {
         count=0
         while IFS= read -r path; do
