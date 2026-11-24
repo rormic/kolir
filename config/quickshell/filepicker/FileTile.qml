@@ -29,7 +29,7 @@ Item {
     readonly property bool hovered: hover.hovered
     // Posters are generated at 480x270. Decoding only as many pixels as the
     // tile needs (scaled by the output's DPR) keeps scrolling cheap while
-    // staying sharp, exactly like WallpaperTile.
+    // staying sharp, even when the wallpaper grid is full of photos.
     readonly property int thumbnailPixelWidth: 480
     readonly property bool hasPreview: !root.folder && root.previewSource !== ""
     readonly property bool video: root.previewKind === "video"

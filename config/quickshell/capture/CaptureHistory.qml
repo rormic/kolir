@@ -12,7 +12,7 @@ import "../theme"
 // the folders written by screenshot-region.sh and screen-record.sh, newest
 // first, with cached 16:9 posters from scripts/capture-history.sh.
 //
-// The panel follows WallpaperPicker's contract: a full-screen Overlay with
+// The panel follows FilePicker's contract: a full-screen Overlay with
 // exclusive keyboard focus, Escape/outside-click dismissal, arrow selection,
 // and a keyboard-friendly action set (Enter opens, C copies, Delete asks once
 // more before removing the file). The service polls while the panel is open,

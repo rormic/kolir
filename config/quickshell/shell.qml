@@ -8,7 +8,6 @@ import "osd"
 import "recording"
 import "screenshot"
 import "shortcuts"
-import "wallpaper"
 
 ShellRoot {
     // Decorative Bottom-layer screen frame; the bar and its popout stay above
@@ -24,6 +23,5 @@ ShellRoot {
     RecordingSetup {}
     ScreenshotOverlay {}
     Shortcuts {}
-    WallpaperPicker {}
 
 }

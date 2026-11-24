@@ -19,7 +19,7 @@ fi
 base=$1
 typed=$2
 
-# Той самий ~, що й у normalizePath() у WallpaperPicker.qml.
+# Той самий ~, що й у normalizePath() у FilePicker.qml.
 case $typed in
     "~")
         typed=$HOME

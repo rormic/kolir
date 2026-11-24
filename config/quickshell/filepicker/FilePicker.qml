@@ -8,16 +8,17 @@ import "../bar/components"
 import "../services"
 import "../theme"
 
-// Generic file/folder picker used by the XDG Desktop Portal FileChooser
-// backend.  It deliberately mirrors the wallpaper picker's interaction model:
-// a full-screen Overlay surface, a cached directory listing, keyboard and
-// mouse navigation, an inline path field with directory completion, an inline
-// new-folder row (header button or Ctrl+Shift+N), a recursive name search over
-// the current folder, a footer "Show hidden files" checkbox (the dot-entry
-// filter lives in list-files.sh/search-files.sh) and Escape/outside-click
-// cancellation.  Image and video tiles get a lazy 16:9 poster from
-// file-thumbnail.sh: only delegates that the grid actually instantiates ask
-// for one, and folders keep their glyph.
+// The shell's only file/folder picker. It serves the XDG Desktop Portal
+// FileChooser backend and, in wallpaper mode, the wallpaper hotkey, so there
+// is no second grid to drift apart: a full-screen Overlay surface, a cached
+// directory listing, keyboard and mouse navigation, an inline path field with
+// directory completion, an inline new-folder row (header button or
+// Ctrl+Shift+N), a recursive name search over the current folder, a footer
+// "Show hidden files" checkbox (the dot-entry filter lives in
+// list-files.sh/search-files.sh) and Escape/outside-click cancellation.
+// Image and video tiles get a lazy 16:9 poster from file-thumbnail.sh: only
+// delegates that the grid actually instantiates ask for one, and folders keep
+// their glyph.
 //
 // The new-folder row sits between the filters and the save-name bar.  It
 // validates the name locally, runs `mkdir` in argv form and then re-reads the
@@ -27,6 +28,8 @@ import "../theme"
 //   openDirectory choose the current folder
 //   saveFile      choose a folder and a file name
 //   saveFiles     choose a folder for a list of names supplied by the portal
+//   wallpaper     list the active engine's files and apply the click/Enter
+//                 through set-wallpaper.sh; no portal result is written
 //
 // The portal backend passes a request JSON string over IPC and waits for the
 // result file this component writes:
@@ -73,6 +76,10 @@ Scope {
     property var filters: []
     property int filterIndex: 0
     property string currentDir: ShellPaths.home
+    // Last folder browsed by a portal request. Kept apart from
+    // `wallpaperDir` so opening the wallpaper grid does not move the next
+    // file dialog into ~/Pictures/wallpaper.
+    property string lastFileDir: ShellPaths.home
     property string currentName: ""
     property string currentFile: ""
     property var filesToSave: []
@@ -88,6 +95,24 @@ Scope {
             items.push({ name: root.filters[i].name || "Filter " + (i + 1) });
         return items;
     }
+
+    // ── Wallpaper mode ───────────────────────────────────────────────────
+    // The wallpaper hotkey drives this same panel instead of a second copy.
+    // The grid lists only the active engine's extensions, a selection is
+    // applied through set-wallpaper.sh (never a portal result), and the
+    // browsed folder survives a close for the shell's lifetime.
+    readonly property bool wallpaperMode: root.mode === "wallpaper"
+    property string wallpaperDir: ShellPaths.wallpaperDir
+    readonly property string wallpaperPlural: WallpaperService.backend === "mpvpaper"
+        ? "videos" : "wallpapers"
+    readonly property string wallpaperTitle: WallpaperService.backend === "mpvpaper"
+        ? "Videos" : "Wallpapers"
+    // Exactly the sets random-wallpaper.sh, lib/wallpaper.sh and the engine
+    // helpers use, so the grid, Random and set-wallpaper.sh cannot disagree.
+    readonly property var wallpaperImageExtensions: ["jpg", "jpeg", "png", "gif"]
+    readonly property var wallpaperVideoExtensions: ["mp4", "webm", "mkv", "mov", "m4v", "avi"]
+    readonly property string homeDir: root.wallpaperMode
+        ? ShellPaths.wallpaperDir : ShellPaths.home
 
     // ── Listing state ────────────────────────────────────────────────────
     property bool scanning: false
@@ -167,6 +192,8 @@ Scope {
     }
 
     readonly property bool canAccept: {
+        if (root.wallpaperMode)
+            return false;
         if (root.mode === "openDirectory" || root.mode === "saveFiles")
             return true;
         if (root.mode === "saveFile")
@@ -176,6 +203,25 @@ Scope {
             return root.checkedCount > 0;
         const entry = root.currentEntry();
         return !!entry && entry.kind === "file";
+    }
+
+    // Footer count, shared by every mode. Wallpaper mode names the active
+    // engine's media instead of "files".
+    readonly property string countLabel: {
+        if (root.multiple)
+            return root.checkedCount + " selected";
+        if (root.searchActive) {
+            if (root.searchBusy)
+                return "Searching…";
+            const count = root.searchTruncated ? root.fileCount + "+" : "" + root.fileCount;
+            return count + (root.fileCount === 1 ? " match" : " matches");
+        }
+        if (root.wallpaperMode) {
+            const plural = root.wallpaperPlural;
+            return root.fileCount + " "
+                + (root.fileCount === 1 ? plural.substring(0, plural.length - 1) : plural);
+        }
+        return root.fileCount + (root.fileCount === 1 ? " file" : " files");
     }
 
     // ── Request handling ─────────────────────────────────────────────────
@@ -223,13 +269,17 @@ Scope {
         let dir = String(spec.currentFolder || "");
         if (dir === "" && root.currentFile !== "")
             dir = root.currentFile.substring(0, root.currentFile.lastIndexOf("/"));
+        if (dir === "")
+            dir = root.lastFileDir;
         if (dir !== "")
             root.currentDir = dir;
+        root.lastFileDir = root.currentDir;
 
         root.active = true;
-        root.resetEntries();
         root.resetPreviewQueue();
-        root.beginScan();
+        // reloadListing stops a worker still scanning the wallpaper grid and
+        // starts this request from onExited, so the two lists never mix.
+        root.reloadListing();
 
         if (!win.visible) {
             root.reveal = 0;
@@ -261,6 +311,10 @@ Scope {
     }
 
     function cancel() {
+        if (root.wallpaperMode) {
+            root.closePanel();
+            return;
+        }
         root.writeResult({ cancelled: true });
         root.closePanel();
     }
@@ -298,6 +352,12 @@ Scope {
     }
 
     function accept() {
+        // In wallpaper mode "accept" means the same as Enter: apply a file or
+        // open the highlighted folder. It is the automation hook for tests.
+        if (root.wallpaperMode) {
+            root.activateCurrent();
+            return;
+        }
         if (!root.canAccept)
             return;
 
@@ -343,6 +403,102 @@ Scope {
         root.filterIndex = index;
         root.rebuildModel();
         focusTimer.restart();
+    }
+
+    // ── Wallpaper mode ───────────────────────────────────────────────────
+    function extensionOf(name) {
+        const dot = name.lastIndexOf(".");
+        return dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
+    }
+
+    function matchesWallpaper(entry) {
+        if (entry.kind === "dir")
+            return true;
+        const ext = root.extensionOf(entry.name);
+        const extensions = WallpaperService.backend === "mpvpaper"
+            ? root.wallpaperVideoExtensions : root.wallpaperImageExtensions;
+        return extensions.indexOf(ext) >= 0;
+    }
+
+    // Opens the panel in wallpaper mode. A portal request that is still open
+    // is cancelled first: its backend would otherwise wait for a result that
+    // can never arrive once the panel switches modes.
+    function openWallpaperPanel(dir) {
+        if (root.active && root.resultPath !== "")
+            root.writeResult({ cancelled: true });
+
+        root.mode = "wallpaper";
+        root.requestId = "";
+        root.resultPath = "";
+        root.filters = [];
+        root.filterIndex = 0;
+        root.multiple = false;
+        root.checkedPaths = ({});
+        root.checkedCount = 0;
+        root.nameError = "";
+        root.pathError = "";
+        root.editingPath = false;
+        root.clearCompletions();
+        root.resetSearch();
+        root.resetNewFolder();
+        // The wallpaper library never defaults to dot entries; the footer
+        // checkbox can still turn them on deliberately.
+        root.showHidden = false;
+
+        const target = dir !== "" ? dir : root.wallpaperDir;
+        root.wallpaperDir = target;
+        root.currentDir = target;
+        root.active = true;
+        root.resetPreviewQueue();
+        root.reloadListing();
+
+        if (!win.visible) {
+            root.reveal = 0;
+            win.visible = true;
+        }
+        revealOut.stop();
+        revealIn.restart();
+        focusTimer.restart();
+    }
+
+    // The same chain select-wallpaper.sh uses after Zenity returns:
+    // set-wallpaper.sh picks awww or mpvpaper from the extension, then the
+    // palette is regenerated from the newly active file.
+    function applyWallpaper(path) {
+        if (path === "")
+            return;
+        root.closePanel();
+        wallpaperProc.command = [
+            "sh", "-c", 'sh "$1" "$3" && sh "$2"',
+            "kolir-wallpaper",
+            ShellPaths.hyprScripts + "/set-wallpaper.sh",
+            ShellPaths.hyprScripts + "/generate-colors.sh",
+            path,
+        ];
+        wallpaperProc.running = true;
+    }
+
+    // In the default library this stays exactly random-wallpaper.sh. In any
+    // other folder, pick one of the grid's files and use the same chain.
+    function applyRandomWallpaper() {
+        if (root.currentDir === ShellPaths.wallpaperDir) {
+            root.closePanel();
+            randomWallpaperProc.command = [
+                "sh", ShellPaths.hyprScripts + "/random-wallpaper.sh",
+            ];
+            randomWallpaperProc.running = true;
+            return;
+        }
+
+        const files = [];
+        for (let i = 0; i < entryModel.count; i++) {
+            const entry = entryModel.get(i);
+            if (entry.kind === "file")
+                files.push(entry.path);
+        }
+        if (files.length === 0)
+            return;
+        root.applyWallpaper(files[Math.floor(Math.random() * files.length)]);
     }
 
     // ── Listing ──────────────────────────────────────────────────────────
@@ -514,6 +670,8 @@ Scope {
     }
 
     function matchesFilter(entry) {
+        if (root.wallpaperMode)
+            return root.matchesWallpaper(entry);
         const filter = root.activeFilter;
         if (!filter)
             return true;
@@ -584,6 +742,10 @@ Scope {
         if (!path)
             return;
         const base = root.displayName(path);
+        // Wallpaper mode only lists the active engine's files; dropping the
+        // others here means the 400-record cap is spent on visible matches.
+        if (root.wallpaperMode && !root.matchesWallpaper({ kind: kind, name: base }))
+            return;
         root.searchResults.push({
             kind: kind,
             path: path,
@@ -668,6 +830,10 @@ Scope {
         // Opening a folder leaves search mode, like the Nautilus search view.
         if (root.searching)
             root.resetSearch();
+        if (root.wallpaperMode)
+            root.wallpaperDir = path;
+        else
+            root.lastFileDir = path;
         root.currentDir = path;
         root.resetEntries();
         root.resetPreviewQueue();
@@ -692,7 +858,7 @@ Scope {
     }
 
     function goHome() {
-        root.navigateTo(ShellPaths.home);
+        root.navigateTo(root.homeDir);
     }
 
     // Re-reads the current folder after a creation without moving anywhere.
@@ -916,6 +1082,14 @@ Scope {
     function activateEntry(kind, path, index) {
         grid.currentIndex = index;
 
+        if (root.wallpaperMode) {
+            if (kind === "dir")
+                root.navigateTo(path);
+            else
+                root.applyWallpaper(path);
+            return;
+        }
+
         if (kind === "dir") {
             root.navigateTo(path);
             return;
@@ -980,6 +1154,9 @@ Scope {
     }
 
     function beginNewFolder() {
+        // Wallpaper mode never writes into the library.
+        if (root.wallpaperMode)
+            return;
         if (root.creatingFolder) {
             folderInput.forceActiveFocus();
             folderInput.selectAll();
@@ -1268,7 +1445,11 @@ Scope {
                 active: root.active,
                 id: root.requestId,
                 mode: root.mode,
+                wallpaperMode: root.wallpaperMode,
                 dir: root.currentDir,
+                scanning: root.scanning,
+                scanError: root.scanError,
+                entries: root.allEntries.length,
                 canAccept: root.canAccept,
                 checked: root.checkedCount,
                 files: root.fileCount,
@@ -1285,6 +1466,106 @@ Scope {
                 previews: root.previewsLoaded,
                 previewQueue: root.previewQueue.length,
             });
+        }
+    }
+
+    // The wallpaper hotkey keeps its own IPC target (open-wallpaper-picker.sh
+    // calls `wallpaper toggle`), but every method now drives this panel's
+    // wallpaper mode instead of a second component.
+    IpcHandler {
+        target: "wallpaper"
+
+        function toggle(): void {
+            if (root.wallpaperMode && win.visible)
+                root.closePanel();
+            else
+                root.openWallpaperPanel("");
+        }
+
+        function open(): void {
+            root.openWallpaperPanel("");
+        }
+
+        function close(): void {
+            if (root.wallpaperMode)
+                root.closePanel();
+        }
+
+        function random(): void {
+            // Before the panel has ever opened, pick from the wallpaper
+            // library instead of the file picker's last folder.
+            if (!root.wallpaperMode)
+                root.currentDir = root.wallpaperDir;
+            root.applyRandomWallpaper();
+        }
+
+        function openDir(path: string): void {
+            root.openWallpaperPanel(String(path));
+        }
+
+        function up(): void {
+            if (!root.wallpaperMode || !win.visible)
+                root.openWallpaperPanel("");
+            root.goUp();
+        }
+
+        function home(): void {
+            root.openWallpaperPanel(ShellPaths.wallpaperDir);
+        }
+
+        function editPath(): void {
+            root.openWallpaperPanel("");
+            root.beginPathEdit();
+        }
+
+        // Switches the engine and persists it through WallpaperService. The
+        // grid re-filters on WallpaperService.backendChanged.
+        function setBackend(value: string): void {
+            WallpaperService.setBackend(value);
+        }
+
+        function backendStatus(): string {
+            return JSON.stringify({
+                backend: WallpaperService.backend,
+                image: WallpaperService.imagePath,
+                video: WallpaperService.videoPath,
+                switching: WallpaperService.switching,
+            });
+        }
+
+        // Automation/debug hook: the wallpaper grid's own state.
+        function status(): string {
+            return JSON.stringify({
+                open: root.wallpaperMode && win.visible,
+                backend: WallpaperService.backend,
+                dir: root.currentDir,
+                files: root.fileCount,
+                scanning: root.scanning,
+                searching: root.searching,
+                query: root.searchQuery,
+                searchBusy: root.searchBusy,
+                truncated: root.searchTruncated,
+                error: root.scanError !== "" ? root.scanError : root.searchError,
+            });
+        }
+    }
+
+    Connections {
+        target: WallpaperService
+
+        // Switching Images/Videos re-filters the grid without a restart.
+        function onBackendChanged() {
+            if (!root.wallpaperMode)
+                return;
+            // A live search contains only the previous engine's files, so it
+            // must run again; the folder listing is filtered in place.
+            if (root.searchActive) {
+                root.startSearch();
+                return;
+            }
+            root.rebuildModel();
+            if (win.visible)
+                focusTimer.restart();
         }
     }
 
@@ -1427,6 +1708,46 @@ Scope {
         onExited: code => {
             if (code !== 0)
                 console.warn("FilePicker: writing the result failed, exit code", code);
+        }
+    }
+
+    // Applies a wallpaper through the same helpers select-wallpaper.sh uses;
+    // the panel has already closed by the time the scripts run.
+    Process {
+        id: wallpaperProc
+
+        running: false
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const message = text.trim();
+                if (message !== "")
+                    console.warn("FilePicker: wallpaper:", message);
+            }
+        }
+
+        onExited: code => {
+            if (code !== 0)
+                console.warn("FilePicker: applying the wallpaper failed, exit code", code);
+        }
+    }
+
+    Process {
+        id: randomWallpaperProc
+
+        running: false
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const message = text.trim();
+                if (message !== "")
+                    console.warn("FilePicker: random wallpaper:", message);
+            }
+        }
+
+        onExited: code => {
+            if (code !== 0)
+                console.warn("FilePicker: random wallpaper failed, exit code", code);
         }
     }
 
@@ -1683,7 +2004,7 @@ Scope {
                 // panel (grid, save name, search or path field).
                 Shortcut {
                     sequence: "Ctrl+Shift+N"
-                    enabled: root.active && !root.creatingFolder
+                    enabled: root.active && !root.creatingFolder && !root.wallpaperMode
                     onActivated: root.beginNewFolder()
                 }
 
@@ -1703,7 +2024,9 @@ Scope {
                             leftMargin: 20
                             verticalCenter: parent.verticalCenter
                         }
-                        text: root.saveMode ? Icons.save : Icons.file
+                        text: root.wallpaperMode
+                            ? Icons.wallpaper
+                            : root.saveMode ? Icons.save : Icons.file
                         color: Colors.primary
                         font.family: Typography.iconFont
                         font.pixelSize: Dimensions.icon.extraLarge
@@ -1722,7 +2045,7 @@ Scope {
                         spacing: 1
 
                         Text {
-                            text: root.dialogTitle
+                            text: root.wallpaperMode ? root.wallpaperTitle : root.dialogTitle
                             color: Colors.onSurface
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.titleSmall
@@ -1836,6 +2159,79 @@ Scope {
                         }
                         spacing: 10
 
+                        // Wallpaper mode keeps the engine chips and Random
+                        // that used to live in the separate wallpaper picker.
+                        Row {
+                            visible: root.wallpaperMode
+                            spacing: 4
+
+                            Pill {
+                                icon: Icons.image
+                                iconSize: Dimensions.icon.small
+                                iconColor: WallpaperService.backend === "awww"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                text: WallpaperService.labelFor("awww")
+                                textSize: Typography.size.labelSmall
+                                textColor: WallpaperService.backend === "awww"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                horizontalPadding: 10
+                                spacing: 4
+                                active: WallpaperService.backend === "awww"
+                                surfaceColor: WallpaperService.backend === "awww"
+                                    ? Colors.primaryContainer
+                                    : Colors.surfaceContainerHigh
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: WallpaperService.setBackend("awww")
+                                }
+                            }
+
+                            Pill {
+                                icon: Icons.movie
+                                iconSize: Dimensions.icon.small
+                                iconColor: WallpaperService.backend === "mpvpaper"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                text: WallpaperService.labelFor("mpvpaper")
+                                textSize: Typography.size.labelSmall
+                                textColor: WallpaperService.backend === "mpvpaper"
+                                    ? Colors.onPrimaryContainer
+                                    : Colors.onSurfaceVariant
+                                horizontalPadding: 10
+                                spacing: 4
+                                active: WallpaperService.backend === "mpvpaper"
+                                surfaceColor: WallpaperService.backend === "mpvpaper"
+                                    ? Colors.primaryContainer
+                                    : Colors.surfaceContainerHigh
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: WallpaperService.setBackend("mpvpaper")
+                                }
+                            }
+                        }
+
+                        Pill {
+                            visible: root.wallpaperMode
+                            icon: Icons.shuffle
+                            text: "Random"
+                            horizontalPadding: 12
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.applyRandomWallpaper()
+                            }
+                        }
+
                         IconButton {
                             icon: root.searching ? Icons.searchOff : Icons.search
                             iconSize: Dimensions.icon.medium
@@ -1863,6 +2259,7 @@ Scope {
                             icon: Icons.createNewFolder
                             iconSize: Dimensions.icon.medium
                             active: root.creatingFolder
+                            visible: !root.wallpaperMode
                             onClicked: root.creatingFolder
                                 ? root.cancelNewFolder()
                                 : root.beginNewFolder()
@@ -1871,7 +2268,7 @@ Scope {
                         IconButton {
                             icon: Icons.home
                             iconSize: Dimensions.icon.medium
-                            iconColor: root.currentDir === ShellPaths.home
+                            iconColor: root.currentDir === root.homeDir
                                 ? Colors.withAlpha(Colors.onSurfaceVariant, 0.45)
                                 : Colors.onSurface
                             onClicked: root.goHome()
@@ -2504,7 +2901,9 @@ Scope {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.scanning || (root.searchActive && root.searchBusy)
-                            ? (root.searchActive ? Icons.search : Icons.folder)
+                            ? (root.searchActive
+                                ? Icons.search
+                                : root.wallpaperMode ? Icons.wallpaper : Icons.folder)
                             : Icons.searchOff
                         color: Colors.withAlpha(Colors.onSurfaceVariant, 0.55)
                         font.family: Typography.iconFont
@@ -2525,9 +2924,12 @@ Scope {
                                             + "\" in " + root.currentDir
                                     : root.scanning
                                         ? "Loading " + root.currentDir
-                                        : root.showHidden
-                                            ? "No files in " + root.currentDir
-                                            : "No visible files in " + root.currentDir
+                                        : root.wallpaperMode
+                                            ? "No " + root.wallpaperPlural
+                                                + " in " + root.currentDir
+                                            : root.showHidden
+                                                ? "No files in " + root.currentDir
+                                                : "No visible files in " + root.currentDir
                         color: root.scanError !== ""
                             || (root.searchActive && root.searchError !== "")
                             ? Colors.error : Colors.onSurfaceVariant
@@ -2580,11 +2982,18 @@ Scope {
                                                 : "[Enter] Go   [Esc] Cancel")
                                             : root.searching
                                                 ? (root.searchActive
-                                                    ? "[Type] Search   [Up/Down] Select   [Enter] Open   [Esc] Clear"
-                                                        + "   [Ctrl+Shift+N] New folder"
+                                                    ? "[Type] Search   [Up/Down] Select   [Enter] "
+                                                        + (root.wallpaperMode ? "Apply" : "Open")
+                                                        + "   [Esc] Clear"
+                                                        + (root.wallpaperMode
+                                                            ? "" : "   [Ctrl+Shift+N] New folder")
                                                     : "[Type] Search   [Esc] Close"
-                                                        + "   [Ctrl+Shift+N] New folder")
-                                                : root.directoryMode
+                                                        + (root.wallpaperMode
+                                                            ? "" : "   [Ctrl+Shift+N] New folder"))
+                                                : root.wallpaperMode
+                                                    ? "[Arrows] Select   [Enter] Apply   [Backspace] Up"
+                                                        + "   [Esc] Close   [Type] Search"
+                                                    : root.directoryMode
                                                     ? "[Arrows] Move   [Enter] Open folder   [Backspace] Up"
                                                         + "   [Esc] Close   [Type] Search   [Ctrl+Shift+N] New folder"
                                                     : root.saveNameMode
@@ -2685,16 +3094,7 @@ Scope {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.multiple
-                                ? root.checkedCount + " selected"
-                                : root.searchActive
-                                    ? root.searchBusy
-                                        ? "Searching…"
-                                        : (root.searchTruncated
-                                            ? root.fileCount + "+"
-                                            : root.fileCount)
-                                            + (root.fileCount === 1 ? " match" : " matches")
-                                    : root.fileCount + (root.fileCount === 1 ? " file" : " files")
+                            text: root.countLabel
                             color: Colors.onSurfaceVariant
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.labelSmall
@@ -2706,6 +3106,7 @@ Scope {
                             icon: Icons.close
                             text: "Cancel"
                             horizontalPadding: 12
+                            visible: !root.wallpaperMode
 
                             MouseArea {
                                 anchors.fill: parent
@@ -2723,6 +3124,7 @@ Scope {
                             horizontalPadding: 14
                             active: root.canAccept
                             opacity: root.canAccept ? 1 : 0.45
+                            visible: !root.wallpaperMode
 
                             MouseArea {
                                 anchors.fill: parent

@@ -14,7 +14,7 @@
 # filter here instead of scanning ~/.cache into the grid.  The picker passes
 # the value explicitly.
 #
-# Like wallpaper-thumbnails.sh, the worker first stops an identical worker left
+# Like search-files.sh, the worker first stops an identical worker left
 # behind by a previous shell.  The picker also SIGTERMs the worker when the
 # user switches folders, so two directories can never mix their records.
 
