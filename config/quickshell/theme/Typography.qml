@@ -3,6 +3,7 @@ import QtQuick
 
 QtObject {
     readonly property string barFont: "Google Sans"
+    readonly property string launcherFont: "Google Sans Flex"
     readonly property string iconFont: "Material Symbols Rounded"
 
     // Material 3 type scale (desktop sizes).
@@ -21,6 +22,7 @@ QtObject {
     readonly property QtObject weight: QtObject {
         readonly property int regular: Font.Normal
         readonly property int medium: Font.Medium
+        readonly property int semibold: Font.DemiBold
         readonly property int bold: Font.Bold
     }
 }

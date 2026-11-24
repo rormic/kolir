@@ -158,9 +158,9 @@ Item {
             width: parent.width
             text: root.item.imageDims || root.item.displayPreview || "Image"
             color: Colors.onSurface
-            font.family: Typography.barFont
+            font.family: Typography.launcherFont
             font.pixelSize: Typography.size.titleSmall
-            font.weight: root.selected ? Typography.weight.bold : Typography.weight.medium
+            font.weight: Typography.weight.semibold
             elide: Text.ElideRight
         }
 
@@ -199,9 +199,9 @@ Item {
             ? (root.item.displayPreview || root.item.preview)
             : root.item.name
         color: Colors.onSurface
-        font.family: Typography.barFont
+        font.family: Typography.launcherFont
         font.pixelSize: Typography.size.bodyMedium
-        font.weight: root.selected ? Typography.weight.bold : Typography.weight.medium
+        font.weight: Typography.weight.semibold
         elide: Text.ElideRight
     }
 

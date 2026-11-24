@@ -450,9 +450,9 @@ Scope {
                             color: Colors.onSurface
                             selectionColor: Colors.withAlpha(Colors.primary, 0.35)
                             selectedTextColor: Colors.onSurface
-                            font.family: Typography.barFont
+                            font.family: Typography.launcherFont
                             font.pixelSize: Typography.size.bodyLarge
-                            font.weight: Typography.weight.regular
+                            font.weight: Typography.weight.semibold
                             clip: true
 
                             Keys.onEscapePressed: win.visible = false
@@ -578,9 +578,9 @@ Scope {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: win.mathResult ? ("= " + win.mathResult.result) : ""
                                 color: Colors.primary
-                                font.family: Typography.barFont
+                                font.family: Typography.launcherFont
                                 font.pixelSize: Typography.size.titleSmall
-                                font.weight: Typography.weight.bold
+                                font.weight: Typography.weight.semibold
                             }
                         }
 
@@ -663,10 +663,10 @@ Scope {
                                 text: win.noteText !== "" ? win.noteText : "Type a task…"
                                 color: win.noteText !== "" ? Colors.onSurface : Colors.onSurfaceVariant
                                 opacity: win.noteText !== "" ? 1 : 0.78
-                                font.family: Typography.barFont
+                                font.family: win.noteText !== "" ? Typography.launcherFont : Typography.barFont
                                 font.pixelSize: Typography.size.bodyMedium
                                 font.weight: win.noteText !== ""
-                                    ? Typography.weight.medium
+                                    ? Typography.weight.semibold
                                     : Typography.weight.regular
                                 elide: Text.ElideRight
                             }
