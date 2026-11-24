@@ -52,11 +52,19 @@ Item {
     // Idle state: no player or no active metadata
     readonly property bool idle: !hasPlayer || trackText === ""
 
-    // A live broadcast. The controller marks a stream live when its duration
-    // stays absent during playback; a track that never reports a length is
-    // treated the same way, so no seek/times are offered where they would be
-    // meaningless.
-    readonly property bool liveTrack: !root.idle && (controller.live || controller.length <= 0)
+    // A live broadcast. The controller confirms one only after a track that
+    // never reported a duration has been playing for a while. An unknown
+    // length alone must not be labelled LIVE: Firefox/Zen drop mpris:length
+    // for a normal video in a background tab, and a paused player can still be
+    // waiting for its metadata.
+    readonly property bool liveTrack: !root.idle && controller.live
+
+    // No duration has been exposed for this track yet. Hide the scrubber and
+    // times instead of drawing a full bar with a "0:00" total; the length
+    // usually arrives within a second, while a real broadcast is confirmed by
+    // liveTrack above.
+    readonly property bool lengthUnknown: !root.idle && !root.liveTrack
+        && controller.length <= 0
 
     // Optimistic ratio while dragging the compact progress line (-1 = idle)
     property real compactDragProgress: -1
@@ -822,7 +830,7 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 2
-                    visible: !root.liveTrack
+                    visible: !root.liveTrack && !root.lengthUnknown
 
                     WaveformProgress {
                         Layout.fillWidth: true

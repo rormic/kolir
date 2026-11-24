@@ -190,10 +190,25 @@ Scope {
     // keeps the island from flipping to "live" mid-gesture.
     property real stickyLength: 0
 
+    // Durations seen for a media URL during this shell session. Firefox/Zen
+    // also drop mpris:length for a normal video in a background tab, and the
+    // player can re-select that track after another tab held the media
+    // session; without this cache the same video would be re-detected as a
+    // broadcast from an absence. A URL that never reports a duration (a real
+    // live stream) never enters the cache.
+    property var knownLengths: ({})
+
+    readonly property string lengthKey: trackUrl !== ""
+        ? trackUrl
+        : (player ? player.dbusName + "/" + (player.trackTitle || "") : "")
+
     // A live broadcast. Firefox/Zen omit mpris:length while the stream is
     // actually playing, then re-add a stale long duration when it is paused;
-    // the absence is confirmed for a couple of seconds (a short seek gap is
-    // not enough) and kept for the rest of the track.
+    // the absence is confirmed for a couple of seconds and kept for the rest
+    // of the track. A track that ever reported a duration is never a
+    // broadcast, even if the player drops the length later: Firefox/Zen also
+    // clear it (and Position) for a normal video in a background tab, which
+    // used to turn a paused YouTube video into a false "LIVE".
     property bool live: false
 
     readonly property string currentTrackKey: player
@@ -205,13 +220,68 @@ Scope {
     onCurrentTrackKeyChanged: {
         root.live = false;
         root.stickyLength = 0;
-        if (root.rawLength > 0)
+        const cached = root.knownLengths[root.lengthKey];
+        if (typeof cached === "number" && cached > 0)
+            root.stickyLength = cached;
+        else if (root.rawLength > 0)
             root.stickyLength = root.rawLength / 1000000;
     }
 
+    // The URL can arrive after the duration. Move a length that was cached
+    // under the fallback key onto the URL key, and restore a cached URL length
+    // when the metadata finally identifies the media.
+    onLengthKeyChanged: {
+        if (root.lengthKey === "")
+            return;
+        const cached = root.knownLengths[root.lengthKey];
+        if (typeof cached === "number" && cached > 0) {
+            if (root.stickyLength <= 0)
+                root.stickyLength = cached;
+        } else if (root.stickyLength > 0) {
+            root.knownLengths[root.lengthKey] = root.stickyLength;
+        }
+    }
+
     onRawLengthChanged: {
-        if (root.rawLength > 0)
+        if (root.rawLength > 0) {
             root.stickyLength = root.rawLength / 1000000;
+            if (root.lengthKey !== "")
+                root.knownLengths[root.lengthKey] = root.stickyLength;
+            checkPausedLength();
+        }
+    }
+
+    // A background Firefox/Zen video can lose mpris:length while it plays,
+    // then report the real duration again when it pauses. If the live probe
+    // already fired on the gap, a paused VOD would keep the LIVE badge
+    // forever. A broadcast's stale duration is its uptime, so it is close to
+    // the last position (or the position is 0); a VOD has real remaining time.
+    // Clear the flag only when the remaining time is meaningful, so a paused
+    // live stream stays live.
+    readonly property real liveRemainingThreshold: 30
+
+    function checkPausedLength() {
+        if (!root.live || root.reallyPlaying || root.rawLength <= 0)
+            return;
+        // Position is not reactive; ask Quickshell for a fresh value before
+        // the timer compares it with the just-restored duration.
+        if (root.player && root.player.positionChanged)
+            root.player.positionChanged();
+        pausedLengthProbe.restart();
+    }
+
+    Timer {
+        id: pausedLengthProbe
+
+        interval: 500
+        repeat: false
+        onTriggered: {
+            if (!root.live || root.reallyPlaying || root.rawLength <= 0)
+                return;
+            if (root.rawPosition > 0
+                    && root.stickyLength - root.rawPosition > root.liveRemainingThreshold)
+                root.live = false;
+        }
     }
 
     readonly property bool progressSupported: player !== null
@@ -224,18 +294,21 @@ Scope {
         ? Math.max(0, Math.min(1, position / length))
         : 0
 
-    // Live probe: a playing track that consistently has no duration is a
-    // broadcast. The delay keeps a transient mpris:length gap during a seek
-    // from turning a normal video into a "live" one.
+    // Live probe: a playing track that has never reported a duration is a
+    // broadcast. A track with a known duration keeps it in stickyLength even
+    // if the player drops mpris:length again (a background Firefox/Zen video),
+    // so an absence alone is not enough evidence. The delay keeps a short seek
+    // or metadata gap from tripping the probe before the values settle.
     Timer {
         id: liveProbe
 
         interval: 2000
         repeat: false
         running: root.pollActive && root.hasPlayer && root.reallyPlaying
-            && !root.live && root.rawLength <= 0
+            && !root.live && root.stickyLength <= 0 && root.rawLength <= 0
         onTriggered: {
-            if (root.pollActive && root.hasPlayer && root.reallyPlaying && root.rawLength <= 0)
+            if (root.pollActive && root.hasPlayer && root.reallyPlaying
+                    && root.stickyLength <= 0 && root.rawLength <= 0)
                 root.live = true;
         }
     }
@@ -381,8 +454,16 @@ Scope {
             player.previous();
     }
 
+    // A pause can arrive before the restored duration, or after it; check in
+    // both orders so a false live flag from a background-tab gap is cleared.
+    onReallyPlayingChanged: checkPausedLength()
+
+    // The track key includes the player's bus name, so a selection change
+    // already resets the length and live flag through
+    // onCurrentTrackKeyChanged. Do not clear stickyLength here: this handler
+    // may run after that one and would wipe a length the new player has
+    // already reported, making the live probe see an unknown duration.
     onPlayerChanged: {
-        root.stickyLength = 0;
         syncAssumedState();
     }
 
