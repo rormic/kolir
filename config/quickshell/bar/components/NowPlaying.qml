@@ -570,17 +570,15 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
 
-                    // Live broadcast dot. It lives inside the transport row so
+                    // Live broadcast pill. It lives inside the transport row so
                     // the title width (which subtracts compactTransport.width)
-                    // keeps the play button at the same right edge.
-                    Rectangle {
+                    // keeps the play button at the same right edge, and it names
+                    // the state instead of relying on a 5px dot.
+                    LiveBadge {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: root.liveTrack
-                        width: 5
-                        height: 5
-                        radius: 2.5
-                        color: Colors.error
-                        opacity: controller.reallyPlaying ? 1.0 : 0.45
+                        playing: controller.reallyPlaying
+                        compact: true
                     }
 
                     IconButton {
@@ -851,9 +849,7 @@ Item {
                         Item { Layout.fillWidth: true }
 
                         Text {
-                            text: controller.length > 0
-                                ? TrackText.formatDuration(controller.length)
-                                : "Трансляція"
+                            text: TrackText.formatDuration(controller.length)
                             font.family: Typography.barFont
                             font.pixelSize: 10
                             color: Colors.withAlpha(Colors.onSurface, 0.6)
@@ -863,32 +859,31 @@ Item {
 
                 // A broadcast has no meaningful position or duration, so it
                 // shows a live badge instead of a scrubber that would look
-                // stuck at the end of the stale duration.
-                Row {
+                // stuck at the end of the stale duration. The badge alone
+                // marks the state; the play glyph already communicates a
+                // local pause, so no extra caption is needed.
+                LiveBadge {
                     anchors {
                         left: parent.left
                         verticalCenter: parent.verticalCenter
                     }
-                    spacing: 6
                     visible: root.liveTrack
+                    playing: controller.reallyPlaying
+                    compact: false
+                }
 
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 7
-                        height: 7
-                        radius: 3.5
-                        color: Colors.error
-                        opacity: controller.reallyPlaying ? 1.0 : 0.45
+                // Audio activity for the broadcast: a small signal that stops
+                // moving when the stream is paused. A paused broadcast has no
+                // signal to show, so it disappears instead of freezing into
+                // five dots that read like an ellipsis.
+                LiveEqualizer {
+                    anchors {
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
                     }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Трансляція"
-                        font.family: Typography.barFont
-                        font.pixelSize: 10
-                        font.weight: Typography.weight.medium
-                        color: Colors.withAlpha(Colors.onSurface, 0.6)
-                    }
+                    visible: root.liveTrack && controller.reallyPlaying
+                    playing: controller.reallyPlaying
+                    active: root.expanded && root.shown
                 }
             }
         }
