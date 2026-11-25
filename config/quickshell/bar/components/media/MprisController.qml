@@ -148,6 +148,8 @@ Scope {
         return typeof url === "string" ? url : "";
     }
 
+    readonly property bool webMedia: /^https?:\/\//i.test(root.trackUrl)
+
     readonly property string trackCoverUrl: trackArtUrl !== ""
         ? trackArtUrl
         : TrackText.youtubeThumbnail(trackUrl)
@@ -183,16 +185,26 @@ Scope {
         if (root.infiniteLength)
             return 0;
         const len = root.rawMetadataLength;
-        // Firefox/Zen briefly report a stale, growing stream uptime as the
-        // duration when a live broadcast is resumed (the winter lofi radio
-        // reported 485 hours). No normal web video exceeds YouTube's 12 hour
-        // upload cap, so anything longer is not a usable length. Treat it as
-        // unknown; this alone must not raise the LIVE badge.
-        const webUrl = /^https?:\/\//i.test(root.trackUrl);
-        if (webUrl && len > 12 * 3600 * 1000000)
+        // Firefox/Zen report a live stream's uptime as the duration (the Lofi
+        // Girl radio reported ~14 hours). No normal web video exceeds
+        // YouTube's 12 hour upload cap, so anything longer is not a usable
+        // length. Treat it as unknown; this alone must not raise the LIVE
+        // badge.
+        if ((root.webMedia || root.trackUrl === "") && len > 12 * 3600 * 1000000)
             return 0;
         return len;
     }
+
+    // A real duration from the player for the current track. This is the
+    // frozen-position marker's off switch: a markerless live stream has no
+    // length at all, while a normal video reports one (or restores it after
+    // a metadata gap). A web duration above 12 h is an uptime, not a usable
+    // length, so it must not veto the frozen-position marker either.
+    readonly property bool hasLength: root.rawLength > 0
+        || (player !== null && player.lengthSupported && !root.infiniteLength
+            && typeof player.length === "number" && isFinite(player.length)
+            && player.length > 0
+            && player.length <= 12 * 3600)
 
     // Position and length in seconds for display
     readonly property real position: rawPosition
@@ -214,12 +226,36 @@ Scope {
         ? trackUrl
         : (player ? player.dbusName + "/" + (player.trackTitle || "") : "")
 
-    // A live broadcast. Confirmed only by an "infinite" mpris:length
-    // (INT64_MAX microseconds, which Twitch reports in Zen/Firefox) and kept
-    // for the rest of the track. A missing duration is unknown, not live:
-    // Zen/YouTube also drop mpris:length (and Position) for ordinary videos,
-    // which used to turn a normal YouTube video into a false "LIVE".
+    // A live broadcast. Two confirmed markers raise it: an "infinite"
+    // mpris:length (INT64_MAX microseconds, which Twitch reports in
+    // Zen/Firefox), or a raw MPRIS Position frozen at the live edge with no
+    // usable duration (a YouTube live in Zen). A missing duration alone is
+    // still not evidence: Zen also drops mpris:length for ordinary videos.
     property bool live: false
+
+    // True when `live` came from the frozen-position marker rather than the
+    // sentinel. Only this path is cleared by a moving position or a restored
+    // duration; a sentinel broadcast keeps its badge.
+    property bool frozenLive: false
+    property bool sawLengthForTrack: false
+    property real frozenSince: -1
+    property real frozenAnchorPosition: -1
+    readonly property real frozenMovementLimit: 1
+    readonly property int frozenConfirmMs: 10000
+
+    // Quickshell extrapolates player.position from the last D-Bus sample
+    // (last position + elapsed * rate), so a markerless live whose Position
+    // stays at the live edge still looks like it advances. The frozen marker
+    // must read the raw MPRIS Position; this is sampled over D-Bus only while
+    // a stream has no usable duration (one query per second).
+    property real rawMprisPosition: -1
+    property int rawPositionGeneration: 0
+    property int rawPositionQueryGeneration: -1
+    readonly property bool frozenProbeWanted: root.pollActive && root.hasPlayer
+        && (root.frozenLive || root.reallyPlaying)
+        && !root.infiniteLength && !root.hasLength
+        && !root.sawLengthForTrack
+        && root.player !== null && root.player.positionSupported
 
     readonly property string currentTrackKey: player
         ? player.dbusName + "/" + String(player.uniqueId) + "/" + (player.trackTitle || "")
@@ -229,36 +265,65 @@ Scope {
 
     onCurrentTrackKeyChanged: {
         root.live = false;
+        root.frozenLive = false;
+        root.resetRawPosition();
         root.stickyLength = 0;
         const cached = root.knownLengths[root.lengthKey];
         if (typeof cached === "number" && cached > 0)
             root.stickyLength = cached;
         else if (root.rawLength > 0)
             root.stickyLength = root.rawLength / 1000000;
+        // Only a duration actually seen for this track may veto the frozen
+        // marker. A cached duration for the same URL can belong to a pre-roll
+        // ad, so it is intentionally not used here.
+        root.sawLengthForTrack = root.hasLength;
     }
 
     // The URL can arrive after the duration. Move a length that was cached
     // under the fallback key onto the URL key, and restore a cached URL length
     // when the metadata finally identifies the media.
     onLengthKeyChanged: {
+        // A new URL is a new media: the 10 s frozen-position window starts
+        // over, and a badge that came from that window must not leak across.
+        root.resetRawPosition();
+        clearFrozenLive();
         if (root.lengthKey === "")
             return;
         const cached = root.knownLengths[root.lengthKey];
         if (typeof cached === "number" && cached > 0) {
             if (root.stickyLength <= 0)
                 root.stickyLength = cached;
-        } else if (root.stickyLength > 0) {
-            root.knownLengths[root.lengthKey] = root.stickyLength;
+        } else if (root.rawLength > 0) {
+            if (root.lengthKey !== "")
+                root.knownLengths[root.lengthKey] = root.rawLength / 1000000;
         }
     }
 
     onRawLengthChanged: {
         if (root.rawLength > 0) {
+            clearFrozenLive();
+            root.sawLengthForTrack = true;
             root.stickyLength = root.rawLength / 1000000;
             if (root.lengthKey !== "")
                 root.knownLengths[root.lengthKey] = root.stickyLength;
             checkPausedLength();
         }
+    }
+
+    // A duration that appears through the normalized player property (without
+    // a metadata length) also ends the frozen-position badge immediately.
+    onHasLengthChanged: {
+        if (root.hasLength) {
+            root.sawLengthForTrack = true;
+            clearFrozenLive();
+        }
+    }
+
+    // A URL change resets the frozen-position timer even when the track key
+    // did not change (some players update the URL without the title).
+    onTrackUrlChanged: {
+        root.resetRawPosition();
+        clearFrozenLive();
     }
 
     // A paused broadcast can re-report a real (uptime) duration after the
@@ -288,8 +353,81 @@ Scope {
             if (!root.live || root.reallyPlaying || root.rawLength <= 0)
                 return;
             if (root.rawPosition > 0
-                    && root.stickyLength - root.rawPosition > root.liveRemainingThreshold)
+                    && root.stickyLength - root.rawPosition > root.liveRemainingThreshold) {
                 root.live = false;
+                root.frozenLive = false;
+                root.frozenSince = -1;
+            }
+        }
+    }
+
+    function clearFrozenLive() {
+        if (!root.frozenLive)
+            return;
+        root.live = false;
+        root.frozenLive = false;
+        root.frozenSince = -1;
+    }
+
+    function resetRawPosition() {
+        root.rawMprisPosition = -1;
+        root.rawPositionGeneration++;
+        root.rawPositionQueryGeneration = -1;
+        root.frozenSince = -1;
+        root.frozenAnchorPosition = -1;
+    }
+
+    // Markerless YouTube live: the player exposes a normal track with no
+    // duration and a raw MPRIS Position that does not advance, because it sits
+    // at the live edge (0 s or a non-zero edge offset). Quickshell's
+    // player.position cannot be used here because it extrapolates from the
+    // last D-Bus sample. A normal video's raw position moves by at least
+    // frozenMovementLimit, which cancels the probe; a duration that appears
+    // cancels it too. This path is deliberately separate from the sentinel so
+    // Twitch's broadcast badge is never cleared here.
+    function sampleFrozenLive() {
+        if (root.rawMprisPosition < 0) {
+            if (!root.frozenLive)
+                root.frozenSince = -1;
+            return;
+        }
+        const moved = root.frozenAnchorPosition >= 0
+            && Math.abs(root.rawMprisPosition - root.frozenAnchorPosition)
+                >= root.frozenMovementLimit;
+        // Keep the anchor while the frozen badge is visible, so a later
+        // position movement can clear it. The raw probe keeps sampling while
+        // frozenLive is true for exactly this reason.
+        if (root.frozenLive) {
+            if (moved || root.hasLength || root.sawLengthForTrack) {
+                clearFrozenLive();
+                root.frozenSince = -1;
+                root.frozenAnchorPosition = -1;
+            }
+            return;
+        }
+        if (!root.pollActive || !root.hasPlayer || !root.reallyPlaying
+                || root.playbackRate <= 0 || root.infiniteLength
+                || root.hasLength || root.sawLengthForTrack || root.live) {
+            root.frozenSince = -1;
+            root.frozenAnchorPosition = -1;
+            return;
+        }
+        if (moved) {
+            // The position is moving; start the 10 s window over instead of
+            // permanently rejecting the track (a live edge can jump once and
+            // then stay put).
+            root.frozenSince = -1;
+            root.frozenAnchorPosition = -1;
+            return;
+        }
+        if (root.frozenSince < 0) {
+            root.frozenSince = Date.now();
+            root.frozenAnchorPosition = root.rawMprisPosition;
+            return;
+        }
+        if (Date.now() - root.frozenSince >= root.frozenConfirmMs) {
+            root.frozenLive = true;
+            root.live = true;
         }
     }
 
@@ -316,8 +454,11 @@ Scope {
             && !root.live && root.infiniteLength
         onTriggered: {
             if (root.pollActive && root.hasPlayer && root.reallyPlaying
-                    && root.infiniteLength)
+                    && root.infiniteLength) {
+                root.frozenLive = false;
+                root.frozenSince = -1;
                 root.live = true;
+            }
         }
     }
 
@@ -332,8 +473,11 @@ Scope {
         repeat: false
         running: root.live && root.reallyPlaying && root.rawLength > 0
         onTriggered: {
-            if (root.reallyPlaying && root.rawLength > 0)
+            if (root.reallyPlaying && root.rawLength > 0) {
                 root.live = false;
+                root.frozenLive = false;
+                root.frozenSince = -1;
+            }
         }
     }
 
@@ -464,7 +608,12 @@ Scope {
 
     // A pause can arrive before the restored duration, or after it; check in
     // both orders so a false live flag from a background-tab gap is cleared.
-    onReallyPlayingChanged: checkPausedLength()
+    // A pause also breaks the continuous 10 s frozen-position window.
+    onReallyPlayingChanged: {
+        checkPausedLength();
+        if (!root.reallyPlaying)
+            root.frozenSince = -1;
+    }
 
     // The track key includes the player's bus name, so a selection change
     // already resets the length and live flag through
@@ -472,6 +621,8 @@ Scope {
     // may run after that one and would wipe a length the new player has
     // already reported, making the live probe see an unknown duration.
     onPlayerChanged: {
+        root.frozenLive = false;
+        root.resetRawPosition();
         syncAssumedState();
     }
 
@@ -514,6 +665,52 @@ Scope {
         onTriggered: {
             if (root.player)
                 root.player.positionChanged();
+            root.sampleFrozenLive();
+        }
+    }
+
+    // Raw MPRIS Position for the frozen-position marker. Quickshell's
+    // player.position is extrapolated, so a live edge pinned at a constant
+    // position would otherwise look like it advances. The probe runs only
+    // while a stream has no usable duration; normal videos with a length never
+    // spawn it.
+    Process {
+        id: rawPositionProbe
+
+        running: false
+
+        command: root.player ? [
+            "busctl", "--user", "get-property",
+            root.player.dbusName,
+            "/org/mpris/MediaPlayer2",
+            "org.mpris.MediaPlayer2.Player",
+            "Position"
+        ] : []
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (root.rawPositionQueryGeneration !== root.rawPositionGeneration)
+                    return;
+                const match = /^\s*x\s+(-?\d+)/.exec(text);
+                if (!match)
+                    return;
+                root.rawMprisPosition = Number(match[1]) / 1000000;
+                root.sampleFrozenLive();
+            }
+        }
+    }
+
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.frozenProbeWanted
+        triggeredOnStart: true
+
+        onTriggered: {
+            if (!rawPositionProbe.running && root.player) {
+                root.rawPositionQueryGeneration = root.rawPositionGeneration;
+                rawPositionProbe.running = true;
+            }
         }
     }
 
