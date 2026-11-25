@@ -20,6 +20,11 @@ Surface {
     property string trailingIcon: ""
     property color trailingIconColor: Colors.onSurfaceVariant
 
+    // Optional muted suffix after the label. It keeps a secondary value (the
+    // Bluetooth battery percentage) readable while a long label elides.
+    property string trailingText: ""
+    property color trailingTextColor: Colors.onSurfaceVariant
+
     property int horizontalPadding: Dimensions.padding.chipHorizontal
     property int spacing: 6
 
@@ -80,6 +85,18 @@ Surface {
             elide: Text.ElideRight
             width: root.textMaxWidth > 0 ? Math.min(implicitWidth, root.textMaxWidth) : implicitWidth
             Behavior on color { ColorAnimation { duration: Motion.color } }
+        }
+
+        Text {
+            id: trailingTextLabel
+            visible: root.trailingText !== ""
+            text: root.trailingText
+            color: root.trailingTextColor
+            font.family: Typography.barFont
+            font.pixelSize: Typography.size.labelSmall
+            font.weight: Typography.weight.medium
+            // Percentages must not shiver while the device list updates.
+            font.features: ({ "tnum": 1 })
         }
 
         Text {

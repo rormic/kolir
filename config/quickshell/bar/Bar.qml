@@ -33,7 +33,7 @@ PanelWindow {
     // row would also hide its children and make that binding self-defeating.
     readonly property bool hasStatus: recordingStatus.active
         || CaffeineService.enabled || caffeineStatus.holdingOff
-        || DeviceBatteryService.available
+        || BluetoothDevicesService.available
     readonly property bool statusFits: (rightRow.x - (clock.x + clock.width)
         - bar.statusGap * 3 - 1) >= statusRow.implicitWidth
     // The embedded sheets live in this surface instead of separate windows.
@@ -325,11 +325,32 @@ PanelWindow {
                     id: caffeineStatus
                 }
 
-                DeviceBattery {
-                    id: deviceBatteryStatus
+                // The connected-devices capsule stays in the read-only zone
+                // next to the other session statuses; it is still a control
+                // (a click opens Settings → Bluetooth) but it belongs with the
+                // device readouts, not with the brightness/volume cluster.
+                BluetoothChip {
+                    id: bluetoothChip
 
-                    leadingTextMaxWidth: Math.min(150, Math.max(70,
-                        Math.round(bar.width * 0.06)))
+                    anchors.verticalCenter: parent.verticalCenter
+                    popupActive: settingsMenu.opened
+                        && (settingsMenu.page === "bluetooth"
+                            || settingsMenu.incomingPage === "bluetooth")
+                    onActivated: {
+                        brightnessPopup.close();
+                        volumePopup.close();
+                        batteryPopup.close();
+                        notificationCenter.close();
+                        calendarPopup.close();
+                        nowPlaying.closeExpanded();
+
+                        // The capsule opens its page; a second click on the
+                        // same page closes the settings sheet again.
+                        if (bluetoothChip.popupActive)
+                            settingsMenu.close();
+                        else
+                            settingsMenu.open("bluetooth");
+                    }
                 }
             }
         }

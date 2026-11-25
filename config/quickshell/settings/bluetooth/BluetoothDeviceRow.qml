@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Bluetooth
 import "../../theme"
 import "../../services"
+import "../../services/bluetooth/Devices.js" as Devices
 import "../../bar/components"
 
 // One device row in the Bluetooth page: state accent, glyph, name, status,
@@ -57,37 +58,6 @@ Item {
         if (minutes < 60)
             return "cached " + minutes + " min ago";
         return "cached " + Math.round(minutes / 60) + " h ago";
-    }
-
-    function deviceGlyph(icon) {
-        switch (icon) {
-            case "audio-headset":
-            case "audio-headphones":
-            case "headset":
-                return Icons.headphones;
-            case "audio-input-microphone":
-            case "microphone":
-                return Icons.mic;
-            case "input-keyboard":
-            case "keyboard":
-                return Icons.keyboard;
-            case "input-mouse":
-            case "mouse":
-                return Icons.mouse;
-            case "phone":
-            case "phone-android":
-            case "smartphone":
-                return Icons.smartphone;
-            case "computer":
-            case "laptop":
-            case "laptop-mac":
-                return Icons.laptop;
-            case "wearable":
-            case "watch":
-                return Icons.watch;
-            default:
-                return Icons.devices;
-        }
     }
 
     function deviceStatus(device) {
@@ -154,7 +124,7 @@ Item {
 
         Text {
             anchors.centerIn: parent
-            text: row.deviceGlyph(row.device.icon)
+            text: Devices.glyph(Icons, row.device.icon)
             color: row.connected
                 ? Colors.onPrimaryContainer
                 : Colors.onSurfaceVariant
