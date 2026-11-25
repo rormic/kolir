@@ -24,6 +24,59 @@ EmbeddedSheet {
 
     panelHeight: Math.min(560, root.maxPanelHeight)
 
+    // Runs the user expanded in the history list, keyed by the run's oldest
+    // entry. The key stays put when a new entry arrives above the run, so a
+    // group stays open while messages keep coming.
+    property var expandedRuns: ({})
+
+    function groupAt(index) {
+        const model = NotificationService.history;
+        const first = model.get(index);
+        if (!first)
+            return [];
+
+        const members = [first];
+        for (let i = index + 1; i < model.count; i++) {
+            const next = model.get(i);
+            if (!next || next.appName !== first.appName)
+                break;
+            members.push(next);
+        }
+
+        return members;
+    }
+
+    function isLeader(index) {
+        if (index <= 0)
+            return true;
+
+        const model = NotificationService.history;
+        const current = model.get(index);
+        const previous = model.get(index - 1);
+        return !current || !previous || current.appName !== previous.appName;
+    }
+
+    function runKey(group) {
+        return group.length > 0 ? String(group[group.length - 1].key) : "";
+    }
+
+    function isRunExpanded(group) {
+        return root.expandedRuns[root.runKey(group)] === true;
+    }
+
+    function toggleRun(group) {
+        const key = root.runKey(group);
+        if (!key)
+            return;
+
+        const next = Object.assign({}, root.expandedRuns);
+        if (next[key])
+            delete next[key];
+        else
+            next[key] = true;
+        root.expandedRuns = next;
+    }
+
     readonly property string statusText: {
         const total = NotificationService.history.count;
         if (total === 0)
@@ -304,7 +357,9 @@ EmbeddedSheet {
                 anchors.margins: 4
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                spacing: root.listSpacing
+                // The gap lives inside each visible row (see listGap), so the
+                // folded-in group members that are not laid out add no holes.
+                spacing: 0
                 // A row is ~58 px, so 120 px keeps two rows of slack above
                 // and below the viewport. A wheel notch or a keyboard scroll
                 // then lands on ready delegates instead of flashing an empty
@@ -313,10 +368,19 @@ EmbeddedSheet {
                 model: NotificationService.history
 
                 delegate: NotificationHistoryCard {
+                    required property int index
+
                     width: ListView.view.width
                     // `modal` stays true through the close animation, so
                     // the marquee does not freeze mid-slide.
                     animationActive: root.modal
+                    listGap: root.listSpacing
+                    leader: root.isLeader(index)
+                    // A run of adjacent entries from one app renders once,
+                    // with the rest folded into the leader until expanded.
+                    group: leader ? root.groupAt(index) : []
+                    expanded: root.isRunExpanded(group)
+                    onToggleGroup: root.toggleRun(group)
                 }
             }
 

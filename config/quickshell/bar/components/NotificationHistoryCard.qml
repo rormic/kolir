@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -19,6 +21,21 @@ Item {
     // scrolling while the sheet is hidden.
     property bool animationActive: true
 
+    // A group is a run of adjacent history entries from one app, newest first:
+    // modelData is the newest entry, `group` holds the whole run. Only the
+    // first entry of a run is laid out; the rest are folded in here and get no
+    // row of their own.
+    property var group: []
+    property bool leader: true
+    property bool expanded: false
+    // Vertical gap owned by the row, because the list spacing is zero so
+    // folded-in entries cannot leave holes behind.
+    property int listGap: 0
+
+    signal toggleGroup()
+
+    readonly property bool grouped: root.group.length > 1
+
     readonly property bool hasAppIcon: !!modelData.appIcon
         && String(modelData.appIcon).length > 0
 
@@ -34,19 +51,47 @@ Item {
             ? Colors.onSurfaceVariant
             : Colors.primary
 
-    readonly property string timeText: {
-        const ms = Number(modelData.time) || 0;
-        if (!ms)
+    function timeTextFor(ms) {
+        const value = Number(ms) || 0;
+        if (!value)
             return "";
 
-        const date = new Date(ms);
+        const date = new Date(value);
         if (date.toDateString() === new Date().toDateString())
             return Qt.formatDateTime(date, "HH:mm:ss");
 
         return Qt.formatDateTime(date, "dd MMM HH:mm:ss");
     }
 
+    readonly property string timeText: root.timeTextFor(modelData.time)
+
+    // The newest entry's trash drops the whole run it leads; older entries
+    // inside an expanded run keep their own trash and remove one entry.
+    function removeGroup() {
+        // Snapshot the keys first: the group is rebuilt from the history model
+        // and the entries behind it can go away after the first removal.
+        const keys = [];
+        for (let i = 0; i < root.group.length; i++)
+            keys.push(root.group[i].key);
+        for (let i = 0; i < keys.length; i++)
+            NotificationService.remove(keys[i]);
+    }
+
     implicitHeight: content.implicitHeight + 12
+
+    visible: root.leader
+    height: root.leader ? root.implicitHeight + root.listGap : 0
+
+    // Expanding a run reveals the older rows instead of popping them in; the
+    // row clips so the list below never sees the new content early.
+    clip: true
+
+    Behavior on implicitHeight {
+        NumberAnimation {
+            duration: Motion.move
+            easing.type: Easing.OutCubic
+        }
+    }
 
     HoverHandler { id: rowHover }
 
@@ -124,6 +169,60 @@ Item {
                 elide: Text.ElideRight
             }
 
+            // The same quiet "N ⌄" control as the live card. It sits beside the
+            // app name so the newest run reads as "Telegram, 3 messages".
+            Item {
+                id: countControl
+
+                Layout.alignment: Qt.AlignVCenter
+                visible: root.grouped
+                implicitWidth: countRow.implicitWidth + 12
+                implicitHeight: 20
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: countHover.hovered
+                        ? Colors.stateLayer(Colors.onSurface, 0.08)
+                        : "transparent"
+
+                    Behavior on color { ColorAnimation { duration: Motion.fade } }
+                }
+
+                Row {
+                    id: countRow
+
+                    anchors.centerIn: parent
+                    spacing: 3
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.group.length
+                        color: Colors.onSurfaceVariant
+                        font.family: Typography.barFont
+                        font.pixelSize: Typography.size.labelSmall
+                        font.weight: Typography.weight.medium
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.expanded ? Icons.chevronUp : Icons.chevronDown
+                        color: Colors.onSurfaceVariant
+                        font.family: Typography.iconFont
+                        font.pixelSize: Dimensions.icon.small
+                    }
+                }
+
+                HoverHandler {
+                    id: countHover
+                    cursorShape: Qt.PointingHandCursor
+                }
+
+                TapHandler {
+                    onTapped: root.toggleGroup()
+                }
+            }
+
             // Long titles scroll like the now-playing track name instead of
             // wrapping or clipping; short ones sit still.
             MarqueeText {
@@ -154,7 +253,12 @@ Item {
                 iconSize: Dimensions.icon.medium
                 iconColor: Colors.onSurfaceVariant
                 containerColor: Colors.withAlpha(Colors.surfaceContainerHighest, 0.6)
-                onClicked: NotificationService.remove(root.modelData.key)
+                onClicked: {
+                    if (root.grouped)
+                        root.removeGroup();
+                    else
+                        NotificationService.remove(root.modelData.key);
+                }
             }
         }
 
@@ -169,6 +273,96 @@ Item {
             textFormat: Text.StyledText
             maximumLineCount: 1
             elide: Text.ElideRight
+        }
+
+        // The rest of the run, newest first. Each row keeps its own time and
+        // trash; the header's trash drops the whole run.
+        Rectangle {
+            width: parent.width
+            height: 1
+            visible: root.grouped && root.expanded
+            color: Colors.withAlpha(Colors.outlineVariant, 0.18)
+        }
+
+        Column {
+            id: olderList
+
+            width: parent.width
+            spacing: 4
+            visible: root.grouped && root.expanded
+
+            Repeater {
+                model: root.grouped && root.expanded ? root.group.slice(1) : []
+
+                delegate: Item {
+                    id: olderRow
+
+                    required property var modelData
+
+                    width: olderList.width
+                    implicitHeight: olderContent.implicitHeight + 6
+
+                    Column {
+                        id: olderContent
+
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            top: parent.top
+                            topMargin: 3
+                        }
+                        spacing: 2
+
+                        RowLayout {
+                            width: parent.width
+                            spacing: 6
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: olderRow.modelData.summary
+                                color: Colors.onSurface
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.titleSmall
+                                font.weight: Typography.weight.bold
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                            }
+
+                            Text {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: root.timeTextFor(olderRow.modelData.time)
+                                color: Colors.withAlpha(Colors.onSurfaceVariant, 0.75)
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                            }
+
+                            IconButton {
+                                Layout.preferredWidth: 26
+                                Layout.preferredHeight: 26
+                                Layout.alignment: Qt.AlignVCenter
+                                icon: Icons.trash
+                                iconSize: Dimensions.icon.small
+                                iconColor: Colors.onSurfaceVariant
+                                containerColor: "transparent"
+                                onClicked: NotificationService.remove(olderRow.modelData.key)
+                            }
+                        }
+
+                        Text {
+                            visible: text !== ""
+                            width: parent.width
+                            text: olderRow.modelData.body
+                            color: Colors.onSurfaceVariant
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.labelSmall
+                            wrapMode: Text.Wrap
+                            textFormat: Text.StyledText
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -10,8 +10,46 @@ import Quickshell.Services.Notifications
 // Live notification card stack. The daemon and its history live in
 // NotificationService; this surface only renders the notifications that are
 // currently tracked and not silenced by do-not-disturb.
+//
+// Notifications that arrive one after another from the same app share a card:
+// the first notification of a run owns the card and folds in every following
+// notification with the same appName. A notification from another app in
+// between starts a new card, so the stack keeps the arrival order.
 Scope {
     id: root
+
+    // trackedNotifications is oldest-first: a new arrival is appended.
+    readonly property var tracked: NotificationService.server.trackedNotifications.values
+
+    // All notifications folded into the card owned by the run at `index`.
+    function groupAt(index) {
+        const members = [];
+        const first = root.tracked[index];
+        if (!first)
+            return members;
+
+        members.push(first);
+        for (let i = index + 1; i < root.tracked.length; i++) {
+            const next = root.tracked[i];
+            if (!next || next.appName !== first.appName)
+                break;
+            members.push(next);
+        }
+
+        return members;
+    }
+
+    // Only the first notification of a same-app run draws a card. The rest
+    // stay tracked but are folded into it, so a hidden member never owns its
+    // own timer or dismissal target.
+    function isLeader(index) {
+        if (index <= 0)
+            return true;
+
+        const current = root.tracked[index];
+        const previous = root.tracked[index - 1];
+        return !current || !previous || current.appName !== previous.appName;
+    }
 
     PanelWindow {
         id: win
@@ -52,21 +90,93 @@ Scope {
                     required property Notification modelData
                     required property int index
 
-                    readonly property real baseHeight: card.implicitHeight + 8
+                    readonly property bool leader: root.isLeader(slot.index)
+                    readonly property var group: slot.leader
+                        ? root.groupAt(slot.index) : []
+                    readonly property var cardItem: cardLoader.item
+                    // A grouped card reserves room for its stack edges and
+                    // keeps a normal gap before the next card starts.
+                    readonly property real baseHeight: slot.cardItem
+                        ? slot.cardItem.implicitHeight
+                            + (slot.cardItem.count > 1 ? 16 : 8)
+                        : 8
+                    // The layer count mirrors the notifications folded behind
+                    // the card; expanding the card takes the stack away.
+                    readonly property int stackPages: slot.cardItem
+                        ? Math.min(slot.cardItem.count - 1, 2) : 0
+                    readonly property bool stacked: slot.leader && slot.cardItem
+                        && slot.cardItem.count > 1 && !slot.cardItem.expanded
 
                     width: col.width
-                    height: baseHeight * (1 - card.closeProgress)
+                    height: slot.leader
+                        ? slot.baseHeight * (1 - (slot.cardItem
+                            ? slot.cardItem.closeProgress : 0))
+                        : 0
+                    visible: slot.leader
                     clip: true
 
-                    NotificationCard {
-                        id: card
+                    // Two quieter sheets peek out under the card, each 4 px
+                    // lower and narrower, so a group reads as a stack without
+                    // a shadow the shell does not use. The slot keeps a normal
+                    // gap after them before the next card starts.
+                    Rectangle {
+                        visible: slot.stacked && slot.stackPages >= 2
+                        x: 16
+                        y: slot.cardItem ? slot.cardItem.height - 4 : 0
+                        width: slot.width - 32
+                        height: 12
+                        radius: Dimensions.radius.large
+                        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.96)
+                        border.width: 1
+                        border.color: Colors.withAlpha(
+                            slot.cardItem ? slot.cardItem.tint : Colors.primary, 0.28)
+                        opacity: slot.cardItem ? slot.cardItem.opacity : 0
+                        z: -2
 
+                        TapHandler {
+                            onTapped: if (slot.cardItem) slot.cardItem.expanded = true
+                        }
+                    }
+
+                    Rectangle {
+                        visible: slot.stacked && slot.stackPages >= 1
+                        x: 8
+                        y: slot.cardItem ? slot.cardItem.height - 4 : 0
+                        width: slot.width - 16
+                        height: 8
+                        radius: Dimensions.radius.large
+                        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.96)
+                        border.width: 1
+                        border.color: Colors.withAlpha(
+                            slot.cardItem ? slot.cardItem.tint : Colors.primary, 0.28)
+                        opacity: slot.cardItem ? slot.cardItem.opacity : 0
+                        z: -1
+
+                        TapHandler {
+                            onTapped: if (slot.cardItem) slot.cardItem.expanded = true
+                        }
+                    }
+
+                    // A folded-in notification contributes no item at all, so
+                    // it cannot run an expiry timer of its own.
+                    Loader {
+                        id: cardLoader
+
+                        active: slot.leader
                         width: parent.width
                         anchors.top: parent.top
-                        modelData: slot.modelData
-                        index: slot.index
+                        sourceComponent: cardComponent
+                    }
 
-                        onCloseStarted: exitAnim.start()
+                    Component {
+                        id: cardComponent
+
+                        NotificationCard {
+                            group: slot.group
+                            index: slot.index
+
+                            onCloseStarted: exitAnim.start()
+                        }
                     }
 
                     // The card fades over Motion.listExit; the height starts a
@@ -79,14 +189,14 @@ Scope {
                             duration: 100
                         }
                         NumberAnimation {
-                            target: card
+                            target: slot.cardItem
                             property: "closeProgress"
                             to: 1
                             duration: Motion.move
                             easing.type: Easing.OutCubic
                         }
 
-                        onFinished: card.commitClose()
+                        onFinished: if (slot.cardItem) slot.cardItem.commitClose()
                     }
                 }
             }
