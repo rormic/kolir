@@ -1,0 +1,22 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install the check dependencies
+        # quickshell comes from extra and supplies the Quickshell QML types, so
+        # qmllint also checks the shell files instead of only their syntax.
+        # Installing git first lets actions/checkout use the normal git path.
+        run: pacman -Syu --noconfirm --needed git python zsh qt6-declarative quickshell
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Run tools/check.sh
+        run: sh tools/check.sh
