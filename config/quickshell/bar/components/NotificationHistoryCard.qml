@@ -77,21 +77,31 @@ Item {
             NotificationService.remove(keys[i]);
     }
 
-    implicitHeight: content.implicitHeight + 12
+    // 0 = folded shut, 1 = fully open. The older rows live in a clipped box
+    // whose height follows this value, so both directions animate: a Behavior
+    // on implicitHeight alone snapped shut, because `expanded` hid the folded
+    // content before the row could shrink.
+    property real fold: root.expanded && root.group.length > 1 ? 1 : 0
 
-    visible: root.leader
-    height: root.leader ? root.implicitHeight + root.listGap : 0
-
-    // Expanding a run reveals the older rows instead of popping them in; the
-    // row clips so the list below never sees the new content early.
-    clip: true
-
-    Behavior on implicitHeight {
+    Behavior on fold {
         NumberAnimation {
             duration: Motion.move
             easing.type: Easing.OutCubic
         }
     }
+
+    // Keep the older rows alive while the box shrinks, so a collapse animates
+    // instead of blinking the content away; a folded row builds nothing.
+    readonly property bool foldContentActive: root.fold > 0.001
+
+    implicitHeight: content.implicitHeight + 12
+
+    visible: root.leader
+    height: root.leader ? root.implicitHeight + root.listGap : 0
+
+    // The box clips the reveal, so the list below never sees the new content
+    // early and the row border stays put.
+    clip: true
 
     HoverHandler { id: rowHover }
 
@@ -276,89 +286,105 @@ Item {
         }
 
         // The rest of the run, newest first. Each row keeps its own time and
-        // trash; the header's trash drops the whole run.
-        Rectangle {
-            width: parent.width
-            height: 1
-            visible: root.grouped && root.expanded
-            color: Colors.withAlpha(Colors.outlineVariant, 0.18)
-        }
-
-        Column {
-            id: olderList
+        // trash; the header's trash drops the whole run. The block keeps its
+        // full height while folding, so the row can animate shut.
+        Item {
+            id: foldArea
 
             width: parent.width
-            spacing: 4
-            visible: root.grouped && root.expanded
+            height: foldContent.implicitHeight * root.fold
+            clip: true
 
-            Repeater {
-                model: root.grouped && root.expanded ? root.group.slice(1) : []
+            Column {
+                id: foldContent
 
-                delegate: Item {
-                    id: olderRow
+                width: parent.width
+                spacing: 2
 
-                    required property var modelData
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: Colors.withAlpha(Colors.outlineVariant, 0.18)
+                }
 
-                    width: olderList.width
-                    implicitHeight: olderContent.implicitHeight + 6
+                Column {
+                    id: olderList
 
-                    Column {
-                        id: olderContent
+                    width: parent.width
+                    spacing: 4
 
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            top: parent.top
-                            topMargin: 3
-                        }
-                        spacing: 2
+                    Repeater {
+                        model: root.group.length > 1 && root.foldContentActive
+                            ? root.group.slice(1)
+                            : []
 
-                        RowLayout {
-                            width: parent.width
-                            spacing: 6
+                        delegate: Item {
+                            id: olderRow
 
-                            Text {
-                                Layout.fillWidth: true
-                                text: olderRow.modelData.summary
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.titleSmall
-                                font.weight: Typography.weight.bold
-                                elide: Text.ElideRight
-                                maximumLineCount: 1
+                            required property var modelData
+
+                            width: olderList.width
+                            implicitHeight: olderContent.implicitHeight + 6
+
+                            Column {
+                                id: olderContent
+
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    top: parent.top
+                                    topMargin: 3
+                                }
+                                spacing: 2
+
+                                RowLayout {
+                                    width: parent.width
+                                    spacing: 6
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: olderRow.modelData.summary
+                                        color: Colors.onSurface
+                                        font.family: Typography.barFont
+                                        font.pixelSize: Typography.size.titleSmall
+                                        font.weight: Typography.weight.bold
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                    }
+
+                                    Text {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        text: root.timeTextFor(olderRow.modelData.time)
+                                        color: Colors.withAlpha(Colors.onSurfaceVariant, 0.75)
+                                        font.family: Typography.barFont
+                                        font.pixelSize: Typography.size.labelSmall
+                                    }
+
+                                    IconButton {
+                                        Layout.preferredWidth: 26
+                                        Layout.preferredHeight: 26
+                                        Layout.alignment: Qt.AlignVCenter
+                                        icon: Icons.trash
+                                        iconSize: Dimensions.icon.small
+                                        iconColor: Colors.onSurfaceVariant
+                                        containerColor: "transparent"
+                                        onClicked: NotificationService.remove(olderRow.modelData.key)
+                                    }
+                                }
+
+                                Text {
+                                    visible: text !== ""
+                                    width: parent.width
+                                    text: olderRow.modelData.body
+                                    color: Colors.onSurfaceVariant
+                                    font.family: Typography.barFont
+                                    font.pixelSize: Typography.size.labelSmall
+                                    wrapMode: Text.Wrap
+                                    textFormat: Text.StyledText
+                                    maximumLineCount: 1
+                                    elide: Text.ElideRight
+                                }
                             }
-
-                            Text {
-                                Layout.alignment: Qt.AlignVCenter
-                                text: root.timeTextFor(olderRow.modelData.time)
-                                color: Colors.withAlpha(Colors.onSurfaceVariant, 0.75)
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                            }
-
-                            IconButton {
-                                Layout.preferredWidth: 26
-                                Layout.preferredHeight: 26
-                                Layout.alignment: Qt.AlignVCenter
-                                icon: Icons.trash
-                                iconSize: Dimensions.icon.small
-                                iconColor: Colors.onSurfaceVariant
-                                containerColor: "transparent"
-                                onClicked: NotificationService.remove(olderRow.modelData.key)
-                            }
-                        }
-
-                        Text {
-                            visible: text !== ""
-                            width: parent.width
-                            text: olderRow.modelData.body
-                            color: Colors.onSurfaceVariant
-                            font.family: Typography.barFont
-                            font.pixelSize: Typography.size.labelSmall
-                            wrapMode: Text.Wrap
-                            textFormat: Text.StyledText
-                            maximumLineCount: 1
-                            elide: Text.ElideRight
                         }
                     }
                 }

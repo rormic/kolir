@@ -67,8 +67,26 @@ Scope {
             right: 12
         }
 
+        // Keep the layer surface one fixed size while the cards fold. Hyprland
+        // stretches the previous buffer to every intermediate surface size
+        // when a layer shell is resized continuously, which makes the card
+        // text look like it is changing font during the collapse. The cards
+        // animate entirely inside this surface instead.
+        readonly property int surfaceHeight: Math.max(126,
+            (win.screen ? win.screen.height : 1440)
+                - Dimensions.bar.height - Dimensions.bar.margin - 8)
+
         implicitWidth: 380
-        implicitHeight: col.implicitHeight
+        implicitHeight: win.surfaceHeight
+
+        // Only the cards are interactive; the transparent tail below the
+        // stack stays click-through, like the bar's own mask.
+        mask: Region {
+            x: 0
+            y: 0
+            width: win.width
+            height: Math.max(0, Math.min(col.implicitHeight, win.height))
+        }
 
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: WlrLayer.Overlay
@@ -105,7 +123,7 @@ Scope {
                     readonly property int stackPages: slot.cardItem
                         ? Math.min(slot.cardItem.count - 1, 2) : 0
                     readonly property bool stacked: slot.leader && slot.cardItem
-                        && slot.cardItem.count > 1 && !slot.cardItem.expanded
+                        && slot.cardItem.count > 1
 
                     width: col.width
                     height: slot.leader
@@ -130,7 +148,10 @@ Scope {
                         border.width: 1
                         border.color: Colors.withAlpha(
                             slot.cardItem ? slot.cardItem.tint : Colors.primary, 0.28)
-                        opacity: slot.cardItem ? slot.cardItem.opacity : 0
+                        // The edges hug the card bottom and fade as the stack
+                        // opens, so expanding never blinks them away.
+                        opacity: slot.cardItem
+                            ? slot.cardItem.opacity * (1 - slot.cardItem.fold) : 0
                         z: -2
 
                         TapHandler {
@@ -149,7 +170,8 @@ Scope {
                         border.width: 1
                         border.color: Colors.withAlpha(
                             slot.cardItem ? slot.cardItem.tint : Colors.primary, 0.28)
-                        opacity: slot.cardItem ? slot.cardItem.opacity : 0
+                        opacity: slot.cardItem
+                            ? slot.cardItem.opacity * (1 - slot.cardItem.fold) : 0
                         z: -1
 
                         TapHandler {

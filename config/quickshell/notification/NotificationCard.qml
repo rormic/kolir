@@ -57,16 +57,87 @@ Surface {
     // and let Image downscale a 32 px asset.
     readonly property int appIconPixels: Math.max(2, Math.round(16 * Screen.devicePixelRatio * 2))
 
-    implicitHeight: content.implicitHeight + 24
+    // 0 = folded, 1 = fully open. The older blocks live in a clipped box whose
+    // height follows this value, so expanding and collapsing both animate.
+    // Hiding the list and animating implicitHeight alone left an empty card
+    // shrinking under the newest message.
+    readonly property bool foldOpen: root.expanded && root.others.length > 0
+    property real fold: 0
 
-    // Expanding and collapsing the group grows the card instead of popping it,
-    // and the slot in Notification.qml follows this height.
-    Behavior on implicitHeight {
+    // Keep the older blocks alive while the card closes, so the collapse
+    // animates; a folded card builds nothing.
+    readonly property bool foldActive: root.fold > 0.001
+
+    // A clip edge sweeping over visible glyphs at 180 ms cuts several text
+    // lines per frame, which reads as the text jumping. Collapsing therefore
+    // fades the older blocks out first and only then shrinks the empty space;
+    // the edge never crosses a readable line. The two halves still add up to
+    // the original Motion.move, so the speed stays the same.
+    property real foldFade: 0
+    readonly property int foldFadeOutTime: 60
+    readonly property int foldCloseTime: Motion.move - root.foldFadeOutTime
+
+    onFoldOpenChanged: {
+        if (root.foldOpen) {
+            foldCloseAnim.stop();
+            foldFadeInAnim.restart();
+            foldOpenAnim.restart();
+        } else {
+            foldOpenAnim.stop();
+            if (root.others.length === 0) {
+                foldCloseAnim.stop();
+                root.fold = 0;
+                root.foldFade = 0;
+            } else if (root.fold > 0.001) {
+                foldCloseAnim.restart();
+            } else {
+                root.foldFade = 0;
+            }
+        }
+    }
+
+    NumberAnimation {
+        id: foldOpenAnim
+
+        target: root
+        property: "fold"
+        to: 1
+        duration: Motion.move
+        easing.type: Easing.OutCubic
+    }
+
+    NumberAnimation {
+        id: foldFadeInAnim
+
+        target: root
+        property: "foldFade"
+        to: 1
+        duration: Motion.fade
+        easing.type: Easing.OutCubic
+    }
+
+    SequentialAnimation {
+        id: foldCloseAnim
+
+        // The older text dims while the card still has its full height...
         NumberAnimation {
-            duration: Motion.move
+            target: root
+            property: "foldFade"
+            to: 0
+            duration: root.foldFadeOutTime
+            easing.type: Easing.OutCubic
+        }
+        // ...and only the now empty space closes.
+        NumberAnimation {
+            target: root
+            property: "fold"
+            to: 0
+            duration: root.foldCloseTime
             easing.type: Easing.OutCubic
         }
     }
+
+    implicitHeight: content.implicitHeight + 24 + foldArea.height
 
     radius: Dimensions.radius.large
     surfaceColor: hover.hovered
@@ -96,11 +167,11 @@ Surface {
     // Група, яку закриває ця картка. Знімок робиться на старті закриття, щоб
     // повідомлення, яке прийшло під час анімації, не зникло разом з нею.
     property var closingGroup: []
-    property real pressScale: tap.pressed ? 0.985 : 1
 
+    // The card only fades in and out. A scale animation would re-rasterise the
+    // text at a different size on every frame, which reads as the font jumping
+    // during the show/hide and stack animations.
     opacity: appear * (1 - closeFade)
-    scale: (0.97 + 0.03 * appear) * pressScale * (1 - 0.015 * closeFade)
-    transformOrigin: Item.TopRight
 
     signal closeStarted
 
@@ -153,13 +224,6 @@ Surface {
         to: 1
         duration: Motion.listExit
         easing.type: Easing.OutCubic
-    }
-
-    Behavior on pressScale {
-        NumberAnimation {
-            duration: Motion.press
-            easing.type: Easing.OutCubic
-        }
     }
 
     Component.onCompleted: appearAnim.start()
@@ -364,23 +428,49 @@ Surface {
         }
 
         // Решта повідомлень групи: повні блоки в тому ж ритмі, що й картка.
-        // Вони з'являються лише після розгортання стосу.
-        Column {
-            id: expandedList
+        // Вони живуть поза цим стовпцем, у clip-боксі під ним (див. foldArea),
+        // щоб згортання не лишало порожньої картки.
+    }
 
+    // The folded stack: clipped so the card reveals it top-down, and driven by
+    // `fold` so closing runs the same motion backwards. The 6 px gap above the
+    // first block lives inside the clip (foldContent.y), not in an animated
+    // margin, so the blocks keep one y for the whole motion.
+    Item {
+        id: foldArea
+
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: content.bottom
+            leftMargin: 12
+            rightMargin: 12
+        }
+        // The 6 px gap above the first older block is part of the clipped box,
+        // not an animated margin: the blocks then keep one fixed y for the
+        // whole motion and only the edge moves, so the text cannot drift.
+        height: (foldContent.implicitHeight + 6) * root.fold
+        opacity: root.foldFade
+        clip: true
+
+        Column {
+            id: foldContent
+
+            y: 6
             width: parent.width
             spacing: 6
-            visible: root.expanded && root.others.length > 0
 
             Repeater {
-                model: root.expanded ? root.expandedOthers : []
+                model: root.others.length > 0 && root.foldActive
+                    ? root.expandedOthers
+                    : []
 
                 delegate: Column {
                     id: olderBlock
 
                     required property var modelData
 
-                    width: expandedList.width
+                    width: foldContent.width
                     spacing: 6
 
                     Rectangle {
@@ -416,7 +506,7 @@ Surface {
             }
 
             Text {
-                width: expandedList.width
+                width: foldContent.width
                 visible: root.hiddenExpanded > 0
                 text: "+" + root.hiddenExpanded + " more"
                 color: Colors.onSurfaceVariant
