@@ -36,11 +36,11 @@ PanelWindow {
     readonly property bool statusFits: (rightRow.x - (clock.x + clock.width)
         - bar.statusGap * 3 - 1) >= statusRow.implicitWidth
     // The embedded sheets live in this surface instead of separate windows.
-    // OnDemand lets them receive keyboard focus (Escape) after they are
-    // clicked without stealing focus while closed.
+    // OnDemand lets the bar receive keyboard focus (Escape) while a sheet is
+    // open, without stealing focus while they are closed.
     WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened
                                   || volumePopup.opened || batteryPopup.opened
-                                  || notificationCenter.opened)
+                                  || notificationCenter.opened || calendarPopup.opened)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
 
@@ -86,7 +86,7 @@ PanelWindow {
     }
 
     mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal
-           || batteryPopup.modal || notificationCenter.modal)
+           || batteryPopup.modal || notificationCenter.modal || calendarPopup.modal)
         ? modalMask : barMask
 
     // Bar strip background. Both frame styles paint the same opaque strip:
@@ -153,6 +153,7 @@ PanelWindow {
                     brightnessPopup.close();
                     volumePopup.close();
                     batteryPopup.close();
+                    calendarPopup.close();
                     settingsMenu.toggle();
                 }
 
@@ -186,6 +187,7 @@ PanelWindow {
                 anchors.left: workspaces.right
                 anchors.leftMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
+                onDateClicked: calendarPopup.toggle()
             }
 
             // Right edge: controls only. Every item here opens a sheet or
@@ -218,6 +220,7 @@ PanelWindow {
                         brightnessPopup.close();
                         volumePopup.close();
                         notificationCenter.close();
+                        calendarPopup.close();
                         nowPlaying.closeExpanded();
                         batteryPopup.toggle();
                     }
@@ -229,6 +232,7 @@ PanelWindow {
                     popupActive: brightnessPopup.modal
                     overlayOpen: settingsMenu.modal || volumePopup.modal
                         || batteryPopup.modal || notificationCenter.modal
+                        || calendarPopup.modal
                     // The chip stretches into the night-light sheet's header:
                     // its own slot and the sheet body's edges, both in bar
                     // coordinates (the sheet fills this surface).
@@ -245,6 +249,7 @@ PanelWindow {
                         settingsMenu.close();
                         volumePopup.close();
                         batteryPopup.close();
+                        calendarPopup.close();
                         brightnessPopup.toggle();
                     }
                 }
@@ -265,6 +270,7 @@ PanelWindow {
                         settingsMenu.close();
                         brightnessPopup.close();
                         batteryPopup.close();
+                        calendarPopup.close();
                         volumePopup.toggle();
                     }
                 }
@@ -278,6 +284,7 @@ PanelWindow {
                         brightnessPopup.close();
                         volumePopup.close();
                         batteryPopup.close();
+                        calendarPopup.close();
                         notificationCenter.toggle();
                     }
                 }
@@ -386,6 +393,16 @@ PanelWindow {
         z: 1
     }
 
+    // Calendar sheet for the clock's date: same embedded surface as the other
+    // sheets, but as a floating panel centered under the date instead of an
+    // edge-anchored one.
+    CalendarPopup {
+        id: calendarPopup
+        anchors.fill: parent
+        z: 1
+        anchorCenterX: clock.x + clock.dateCenterX
+    }
+
     // The embedded sheets are mutually exclusive, whichever way one was opened
     // (chip click or IPC): opening one closes the others.
     Connections {
@@ -397,6 +414,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 notificationCenter.close();
+                calendarPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -411,6 +429,7 @@ PanelWindow {
                 brightnessPopup.close();
                 batteryPopup.close();
                 notificationCenter.close();
+                calendarPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -425,6 +444,7 @@ PanelWindow {
                 brightnessPopup.close();
                 volumePopup.close();
                 notificationCenter.close();
+                calendarPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -439,6 +459,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 notificationCenter.close();
+                calendarPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -453,6 +474,22 @@ PanelWindow {
                 brightnessPopup.close();
                 volumePopup.close();
                 batteryPopup.close();
+                calendarPopup.close();
+                nowPlaying.closeExpanded();
+            }
+        }
+    }
+
+    Connections {
+        target: calendarPopup
+
+        function onOpenedChanged() {
+            if (calendarPopup.opened) {
+                settingsMenu.close();
+                brightnessPopup.close();
+                volumePopup.close();
+                batteryPopup.close();
+                notificationCenter.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -468,6 +505,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 notificationCenter.close();
+                calendarPopup.close();
             }
         }
     }

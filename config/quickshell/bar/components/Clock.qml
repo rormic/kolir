@@ -4,12 +4,22 @@ import "../../theme"
 
 // Clock: date, time and keyboard layout drawn directly on the bar strip.
 //
-// This is information, not a menu. It used to sit in a filled pill like the
-// brightness/volume chips, which made it look clickable while it did nothing;
-// the flat layout keeps the pill reserved for controls. The reserved width
-// still mirrors the now-playing island so the workspaces pill stays centered.
+// The clock is information, not a menu. It used to sit in a filled pill like
+// the brightness/volume chips, which made it look clickable while it did
+// nothing; the flat layout keeps the pill reserved for controls. The date is
+// the one exception: it carries a hover state layer and opens the calendar
+// sheet, while the time and layout labels stay inert. The reserved width still
+// mirrors the now-playing island so the workspaces pill stays centered.
 Item {
     id: root
+
+    // Left click on the date opens the calendar sheet.
+    signal dateClicked()
+
+    // Horizontal center of the date label in the Clock's coordinates, so the
+    // floating calendar panel is centered on the date and not on the whole
+    // clock.
+    readonly property real dateCenterX: row.x + dateLabel.x + dateLabel.width / 2
 
     implicitHeight: Dimensions.control.height
     // Match the now-playing island's reserved slot so the workspaces pill
@@ -42,10 +52,44 @@ Item {
             id: dateLabel
             anchors.verticalCenter: parent.verticalCenter
             text: root.dateText
-            color: Colors.onSurfaceVariant
+            color: dateMouse.containsMouse ? Colors.onSurface : Colors.onSurfaceVariant
             font.family: Typography.barFont
             font.pixelSize: Typography.size.labelSmall
             font.weight: Typography.weight.medium
+
+            Behavior on color {
+                ColorAnimation { duration: Motion.hover; easing.type: Easing.OutCubic }
+            }
+
+            // Hover target: a pill larger than the label so the date reads as
+            // a control without widening the clock row. The child is not
+            // clipped (Text does not clip) and the separator is a later
+            // sibling, so the pill can never cover the other labels.
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: -6
+                z: -1
+                radius: height / 2
+                color: Colors.stateLayer(Colors.onSurface, 0.08)
+                opacity: dateMouse.containsMouse ? 1 : 0
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Motion.hover
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
+
+            MouseArea {
+                id: dateMouse
+
+                anchors.fill: parent
+                anchors.margins: -6
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.dateClicked()
+            }
         }
 
         // Separator

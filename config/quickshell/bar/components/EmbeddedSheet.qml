@@ -3,12 +3,13 @@ import QtQuick.Shapes
 import "../../theme"
 
 // Shared surface for the sheets embedded in the bar: the settings menu, the
-// night-light sheet and the sound sheet all grow out of the bar strip as one
-// connected surface instead of a separate popup window.
+// night-light sheet, the sound sheet and the calendar all grow out of the bar
+// strip as one connected surface instead of a separate popup window.
 //
 // This component owns the parts that must look and behave identically:
 //   - the modal scrim over the desktop (the bar strip stays crisp),
 //   - the pour-shaped panel, mirrored for the sheets anchored to the right,
+//     and the floating dropdown used under a bar widget (the calendar),
 //   - the corner reveal (width first, then height, content last) on the
 //     Material 3 emphasized curves,
 //   - the full-window dismissal layer, and
@@ -24,6 +25,12 @@ Item {
     // body on the left (settings), true mirrors it to the right (night light,
     // sound). The shoulder and the pour follow the mirror.
     property bool mirror: false
+    // Horizontal center in bar coordinates for a sheet that hangs under a
+    // widget instead of a screen edge (the calendar under the clock's date).
+    // -1 keeps the edge behaviour; a value switches to a symmetric, floating
+    // panel with a square top edge and rounded bottom corners.
+    property real anchorCenterX: -1
+    readonly property bool floating: anchorCenterX >= 0
 
     property bool opened: false
     // 0 = hidden, 1 = fully visible. Only this surface is animated; the bar
@@ -49,13 +56,27 @@ Item {
     readonly property int panelMelt: Dimensions.radius.extraExtraLarge
     readonly property int panelShoulderRadius: panelBottomRadius
     readonly property int panelShoulderDrop: Dimensions.frame.thickness + panelShoulderRadius
+    // A floating panel is a symmetric tab: the same shoulder fillet as the
+    // edge sheets, mirrored on both sides. The content insets match those
+    // shoulders.
     readonly property int contentTopInset: panelShoulderDrop + 8
-    readonly property int contentLeftInset: mirror ? panelFlare : Dimensions.frame.thickness
-    readonly property int contentRightInset: mirror ? Dimensions.frame.thickness : panelFlare
+    readonly property int contentLeftInset: floating
+        ? panelFlare
+        : (mirror ? panelFlare : Dimensions.frame.thickness)
+    readonly property int contentRightInset: floating
+        ? panelFlare
+        : (mirror ? Dimensions.frame.thickness : panelFlare)
     // Body edge at the physical screen edge: the left one for the settings
     // sheet, the right one for the mirrored sheets. A chip that turns into a
-    // sheet header stretches to this edge.
-    readonly property real panelLeft: mirror ? width - popupWidth : 0
+    // sheet header stretches to this edge. A floating sheet is centered on
+    // `anchorCenterX` and clamped so it never leaves the screen.
+    readonly property real panelCenter: floating
+        ? Math.max(popupWidth / 2,
+            Math.min(width - popupWidth / 2, anchorCenterX))
+        : 0
+    readonly property real panelLeft: floating
+        ? panelCenter - popupWidth / 2
+        : (mirror ? width - popupWidth : 0)
 
     // The panel grows out of the bar corner: width first, then height, so it
     // does not appear as a full-width blind dropping from the strip.
@@ -68,8 +89,8 @@ Item {
     readonly property real panelBodyHeight: Math.max(
         panelShoulderDrop + panelBottomRadius + 16, panelHeight * reveal)
     // The pour grows in once the sheet has dropped, so it never stretches the
-    // opening animation into a long tail.
-    readonly property real panelMeltHeight: panelMelt * contentReveal
+    // opening animation into a long tail. A floating dropdown has no pour.
+    readonly property real panelMeltHeight: floating ? 0 : panelMelt * contentReveal
     readonly property real panelShapeHeight: panelBodyHeight + panelMeltHeight
 
     readonly property string panelFillPath: {
@@ -83,6 +104,25 @@ Item {
         // inner edge; in the corners style there is no ring, and starting at 0
         // keeps the sheet from growing a 4px step at the bar.
         const top = 0;
+
+        if (root.floating) {
+            // Symmetric tab centered under a bar widget: the edge sheets'
+            // shoulder fillet on both sides, with the top edge touching the
+            // bar, and rounded bottom corners. There is no pour because the
+            // panel does not end at the physical screen edge.
+            const bl = panelFlare;
+            const br = panelShapeWidth - panelFlare;
+            const topLeft = bl - sr;
+            const topRight = br + sr;
+            return `M ${topLeft} 0 H ${topRight}`
+                + ` A ${sr} ${sr} 0 0 0 ${br} ${sr}`
+                + ` V ${h - r}`
+                + ` Q ${br} ${h} ${br - r} ${h}`
+                + ` H ${bl + r}`
+                + ` Q ${bl} ${h} ${bl} ${h - r}`
+                + ` V ${sr}`
+                + ` A ${sr} ${sr} 0 0 0 ${topLeft} 0 Z`;
+        }
 
         if (root.mirror) {
             // Right-aligned mirror: `br` is the body edge at the physical
@@ -214,7 +254,9 @@ Item {
     Item {
         id: popout
 
-        x: root.mirror ? root.width - root.panelShapeWidth : 0
+        x: root.floating
+            ? root.panelCenter - root.panelShapeWidth / 2
+            : (root.mirror ? root.width - root.panelShapeWidth : 0)
         y: Dimensions.bar.height
         width: root.panelShapeWidth
         // Ends exactly at the bottom of the pour so the sheet still collapses
@@ -227,11 +269,15 @@ Item {
         Item {
             id: panelBody
 
+            // A floating panel grows around its center; the negative x keeps
+            // the content centered in the visible slice while the shape widens.
+            x: root.floating ? (root.panelShapeWidth - root.popupWidth) / 2 : 0
             width: root.popupWidth
             height: root.panelHeight
 
             Shape {
-                width: parent.width
+                x: root.floating ? (root.popupWidth - root.panelShapeWidth) / 2 : 0
+                width: root.floating ? root.panelShapeWidth : parent.width
                 height: root.panelShapeHeight
                 preferredRendererType: Shape.CurveRenderer
 
