@@ -16,15 +16,15 @@ directory.
   checkout (version reporting and updates); a package ships `.version`.
 - The desktop stack: Hyprland, Quickshell, Matugen, awww, Foot, Hyprlock,
   Hypridle, Hyprsunset, brightnessctl, ddcutil, wl-clipboard, grim, slurp,
-  libnotify, and wf-recorder for recording.
+  libnotify, and either wf-recorder or wl-screenrec for recording.
 - Optional: `ffmpeg` (lock background, capture previews and video frames),
   `mpvpaper` (AUR; video wallpapers), `cliphist`
   (clipboard history),
   `libcanberra` (`canberra-gtk-play`) or `pw-play`/`paplay` (event sounds),
   NetworkManager (`nmcli`), BlueZ (`bluetoothctl`), `upower` (battery
   indicator on laptops), `python-dbus` + `python-gobject` (exact Bluetooth
-  headset battery and the portal file picker), `hyprpicker`, `wl-screenrec`,
-  `zenity`, `nautilus`,
+  headset battery and the portal file picker), `hyprpicker`, `zenity`,
+  `nautilus`,
   `playerctl` (media keys), the `mocu-xcursor` theme, and KDE Connect.
 - Fonts/icons used by the bar: Google Sans Code Nerd, DejaVu, Material Symbols,
   and Papirus.

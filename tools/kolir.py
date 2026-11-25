@@ -49,7 +49,12 @@ OBSIDIAN_FILENAME = "matugen.css"
 # Dependency knowledge carried over from the previous installer. `doctor` only
 # reports; `setup` offers to install the optional packages, never the required
 # ones. Required tools are needed for the desktop to work; optional ones
-# disable one feature when missing.
+# disable one feature when missing. A required entry is either one command name
+# or a tuple of alternatives where any single one satisfies the requirement;
+# screen recording mirrors the resolution in config/hypr/scripts/screen-record.sh
+# (wf-recorder first, wl-screenrec otherwise).
+SCREEN_RECORDERS = ("wf-recorder", "wl-screenrec")
+
 REQUIRED_COMMANDS = (
     ("hyprctl", "Hyprland IPC", "hyprland"),
     ("qs", "Quickshell", "quickshell"),
@@ -63,7 +68,7 @@ REQUIRED_COMMANDS = (
     ("wl-copy", "clipboard", "wl-clipboard"),
     ("wl-paste", "clipboard history", "wl-clipboard"),
     ("notify-send", "desktop notifications", "libnotify"),
-    ("wf-recorder", "screen recording", "wf-recorder"),
+    (SCREEN_RECORDERS, "screen recording", "wf-recorder or wl-screenrec"),
     ("hyprlock", "lock screen", "hyprlock"),
     ("hypridle", "idle daemon", "hypridle"),
     ("hyprsunset", "night light daemon", "hyprsunset"),
@@ -1408,13 +1413,28 @@ def offer_optional_packages(deploy: Deployer, args: argparse.Namespace) -> None:
 
 def check_commands(report: Report) -> None:
     step("Commands")
-    for command, purpose, package in REQUIRED_COMMANDS:
-        if shutil.which(command):
-            report.ok(f"{command} ({purpose})")
+    for candidates, purpose, package in REQUIRED_COMMANDS:
+        group = (candidates,) if isinstance(candidates, str) else candidates
+        found = next((name for name in group if shutil.which(name)), None)
+        if len(group) == 1:
+            if found:
+                report.ok(f"{group[0]} ({purpose})")
+            else:
+                report.error(
+                    f"{group[0]} is missing ({package}); {purpose} will not work"
+                )
+        elif found:
+            report.ok(f"{purpose} ({found})")
         else:
-            report.error(f"{command} is missing ({package}); {purpose} will not work")
+            report.error(
+                f"{'/'.join(group)} is missing ({package}); {purpose} will not work"
+            )
 
     for candidates, purpose, package in OPTIONAL_CHECKS:
+        if candidates == ("wl-screenrec",) and not shutil.which("wf-recorder"):
+            # wl-screenrec alone fills the required recording slot above, so it
+            # is already reported there and is not missing.
+            continue
         found = command_available(candidates)
         label = "/".join(candidates)
         if found:
