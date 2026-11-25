@@ -7,8 +7,8 @@ import "../../theme"
 // menu or performs an action, while a StatusItem is information drawn flat on
 // the strip. It has no container and no hover scale, so a pass over the bar
 // cannot mistake a headset percentage for a broken button. A status may still
-// carry a direct action that matches its value (refresh the headset reading,
-// stop a recording); that action is signalled by the alert itself or a trailing
+// carry a direct action that matches its value (stop a recording, switch
+// keep-awake off); that action is signalled by the alert itself or a trailing
 // glyph, never by a pill and never by opening a sheet.
 Item {
     id: root
@@ -16,6 +16,10 @@ Item {
     property string icon: ""
     property int iconSize: Dimensions.icon.medium
     property color iconColor: Colors.onSurfaceVariant
+    // Diagonal strike over the glyph, for a status that reports the thing it
+    // represents as switched off (keep-awake). The line carries the status
+    // colour over a bar-coloured casing, which keeps it readable at icon size.
+    property bool iconStruck: false
 
     // Optional context before the main value. The headset status uses it for
     // the device name; it elides first so the percentage stays readable.
@@ -101,6 +105,36 @@ Item {
             font.family: Typography.iconFont
             font.pixelSize: root.trailingIconSize
             font.weight: Font.Normal
+        }
+    }
+
+    // The strike sits over the glyph only, sized to the icon box so a wider
+    // label never moves it. Rotation is around its own centre.
+    Item {
+        id: iconStrike
+
+        visible: root.iconStruck && root.icon !== ""
+        width: Math.min(iconLabel.width, iconLabel.height)
+        height: width
+        // Match the diagonal Material's own "off" glyphs use (notifications_off).
+        rotation: 45
+        x: row.x + iconLabel.x + (iconLabel.width - width) / 2
+        y: row.y + iconLabel.y + (iconLabel.height - height) / 2
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width
+            height: 3
+            radius: height / 2
+            color: Colors.surfaceContainerLow
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width
+            height: 1.5
+            radius: height / 2
+            color: root.iconColor
         }
     }
 }

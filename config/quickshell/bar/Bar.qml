@@ -32,7 +32,8 @@ PanelWindow {
     // Use the services/state rather than the children's `visible`: hiding the
     // row would also hide its children and make that binding self-defeating.
     readonly property bool hasStatus: recordingStatus.active
-        || CaffeineService.enabled || DeviceBatteryService.available
+        || CaffeineService.enabled || caffeineStatus.holdingOff
+        || DeviceBatteryService.available
     readonly property bool statusFits: (rightRow.x - (clock.x + clock.width)
         - bar.statusGap * 3 - 1) >= statusRow.implicitWidth
     // The embedded sheets live in this surface instead of separate windows.
@@ -291,9 +292,9 @@ PanelWindow {
             }
 
             // Status zone: flat status items separated from the control row.
-            // A status may refresh itself or stop a recording, but it never
-            // opens a sheet; the hairline makes that boundary visible before
-            // the pointer reaches anything.
+            // A status may act on itself — stop a recording, switch keep-awake
+            // off — but it never opens a sheet; the hairline makes that
+            // boundary visible before the pointer reaches anything.
             Rectangle {
                 id: statusDivider
 
