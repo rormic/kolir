@@ -1472,6 +1472,13 @@ Scope {
     // The wallpaper hotkey keeps its own IPC target (open-wallpaper-picker.sh
     // calls `wallpaper toggle`), but every method now drives this panel's
     // wallpaper mode instead of a second component.
+    //
+    // This is the only handler for the `wallpaper` target. Quickshell keeps the
+    // first registration and logs "Handler was registered but will not be used
+    // because another handler is registered for target wallpaper" for the
+    // second, so a second picker type must never own this target again. The old
+    // WallpaperPicker component did, which is what warned on every reload until
+    // it was folded into this file.
     IpcHandler {
         target: "wallpaper"
 
