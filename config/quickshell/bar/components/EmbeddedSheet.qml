@@ -50,7 +50,10 @@ Item {
     // the body edge; the body runs to the physical screen edge on the mirrored
     // side, so while a sheet is open it covers the decorative frame ring and
     // the compositor's active-window border.
-    readonly property int popupWidth: 424
+    // Body width. The edge sheets keep the shared 424 px card; a floating
+    // sheet whose content grows sideways (the tray menu's submenu columns)
+    // overrides it.
+    property int popupWidth: 424
     readonly property int panelFlare: 32
     readonly property int panelBottomRadius: Dimensions.radius.extraLarge
     readonly property int panelMelt: Dimensions.radius.extraExtraLarge

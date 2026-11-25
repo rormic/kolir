@@ -1,16 +1,28 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import Quickshell.Services.SystemTray
 import "../../theme"
 
 // System tray icons. Kept as a separate row so an empty tray takes no space.
+// The menu is the shared floating TrayMenu sheet, instantiated by Bar.qml as an
+// overlay on the bar surface instead of a separate popup window.
 Item {
     id: root
 
-    property var activeItem: null
+    // Assigned by Bar.qml: the TrayMenu sheet that owns the open menu.
+    property TrayMenu menu: null
 
     implicitWidth: row.implicitWidth
     implicitHeight: Dimensions.bar.height
     visible: repeater.count > 0
+
+    function toggleMenu(item, anchor) {
+        if (!root.menu)
+            return;
+
+        root.menu.toggleFor(item, anchor);
+    }
 
     Row {
         id: row
@@ -26,30 +38,11 @@ Item {
                 required property var modelData
 
                 trayItem: modelData
-                menuOpen: root.activeItem === modelData && trayMenu.visible
+                menuOpen: root.menu !== null && root.menu.modal
+                    && root.menu.trayItem === modelData
 
-                onMenuRequested: (item, anchor) => {
-                    if (trayMenu.visible && root.activeItem === item) {
-                        trayMenu.closeMenu();
-                        return;
-                    }
-
-                    root.activeItem = item;
-                    trayMenu.openFor(item, anchor);
-                }
+                onMenuRequested: (item, anchor) => root.toggleMenu(item, anchor)
             }
         }
-    }
-
-    TrayMenu {
-        id: trayMenu
-        onVisibleChanged: if (!visible) root.activeItem = null
-    }
-
-    // The focus grab may hand keyboard focus to the bar instead of the popup.
-    Shortcut {
-        sequence: "Escape"
-        enabled: trayMenu.visible
-        onActivated: trayMenu.closeMenu()
     }
 }

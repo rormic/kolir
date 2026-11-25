@@ -42,7 +42,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened
                                   || volumePopup.opened || batteryPopup.opened
                                   || notificationCenter.opened || calendarPopup.opened
-                                  || powerPopup.opened)
+                                  || trayMenu.opened || powerPopup.opened)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
 
@@ -89,7 +89,7 @@ PanelWindow {
 
     mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal
            || batteryPopup.modal || notificationCenter.modal || calendarPopup.modal
-           || powerPopup.modal)
+           || trayMenu.modal || powerPopup.modal)
         ? modalMask : barMask
 
     // Bar strip background. Both frame styles paint the same opaque strip:
@@ -208,7 +208,11 @@ PanelWindow {
                 // after this row; raising the row lifts the whole header.
                 z: (brightnessPopup.modal || volumePopup.modal) ? 1 : 0
 
-                Tray            { anchors.verticalCenter: parent.verticalCenter }
+                Tray {
+                    id: tray
+                    anchors.verticalCenter: parent.verticalCenter
+                    menu: trayMenu
+                }
                 Battery {
                     id: batteryChip
 
@@ -309,6 +313,7 @@ PanelWindow {
                         batteryPopup.close();
                         notificationCenter.close();
                         calendarPopup.close();
+                        trayMenu.close();
                         nowPlaying.closeExpanded();
                         powerPopup.toggle();
                     }
@@ -398,10 +403,21 @@ PanelWindow {
         window: bar
     }
 
+    // System tray menu sheet: the DBusMenu tree of the clicked tray icon, as a
+    // floating panel under that icon instead of a separate xdg_popup window.
+    // While open it paints above a sheet that is still collapsing; as soon as
+    // it starts closing it drops below the sheets declared after it, so the
+    // next surface always wins.
+    TrayMenu {
+        id: trayMenu
+        anchors.fill: parent
+        z: opened ? 1.5 : 1
+    }
+
     // Power sheet overlay: lock, suspend, log out, restart and shut down,
     // mirrored to the right edge like the battery and notification sheets.
-    // The dynamic z keeps a sheet that is opening above one that is still
-    // collapsing.
+    // The same dynamic z as the tray menu keeps a sheet that is opening above
+    // one that is still collapsing.
     PowerPopup {
         id: powerPopup
         anchors.fill: parent
@@ -471,6 +487,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                trayMenu.close();
                 powerPopup.close();
                 nowPlaying.closeExpanded();
             }
@@ -487,6 +504,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                trayMenu.close();
                 powerPopup.close();
                 nowPlaying.closeExpanded();
             }
@@ -503,6 +521,7 @@ PanelWindow {
                 volumePopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                trayMenu.close();
                 powerPopup.close();
                 nowPlaying.closeExpanded();
             }
@@ -519,6 +538,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                trayMenu.close();
                 powerPopup.close();
                 nowPlaying.closeExpanded();
             }
@@ -535,6 +555,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 calendarPopup.close();
+                trayMenu.close();
                 powerPopup.close();
                 nowPlaying.closeExpanded();
             }
@@ -551,6 +572,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 notificationCenter.close();
+                trayMenu.close();
                 powerPopup.close();
                 nowPlaying.closeExpanded();
             }
@@ -568,7 +590,25 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                trayMenu.close();
                 powerPopup.close();
+            }
+        }
+    }
+
+    Connections {
+        target: trayMenu
+
+        function onOpenedChanged() {
+            if (trayMenu.opened) {
+                settingsMenu.close();
+                brightnessPopup.close();
+                volumePopup.close();
+                batteryPopup.close();
+                notificationCenter.close();
+                calendarPopup.close();
+                powerPopup.close();
+                nowPlaying.closeExpanded();
             }
         }
     }
@@ -584,6 +624,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                trayMenu.close();
                 nowPlaying.closeExpanded();
             }
         }
