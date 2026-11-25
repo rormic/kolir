@@ -41,7 +41,8 @@ PanelWindow {
     // open, without stealing focus while they are closed.
     WlrLayershell.keyboardFocus: (settingsMenu.opened || brightnessPopup.opened
                                   || volumePopup.opened || batteryPopup.opened
-                                  || notificationCenter.opened || calendarPopup.opened)
+                                  || notificationCenter.opened || calendarPopup.opened
+                                  || powerPopup.opened)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
 
@@ -87,7 +88,8 @@ PanelWindow {
     }
 
     mask: (settingsMenu.modal || brightnessPopup.modal || volumePopup.modal
-           || batteryPopup.modal || notificationCenter.modal || calendarPopup.modal)
+           || batteryPopup.modal || notificationCenter.modal || calendarPopup.modal
+           || powerPopup.modal)
         ? modalMask : barMask
 
     // Bar strip background. Both frame styles paint the same opaque strip:
@@ -233,7 +235,7 @@ PanelWindow {
                     popupActive: brightnessPopup.modal
                     overlayOpen: settingsMenu.modal || volumePopup.modal
                         || batteryPopup.modal || notificationCenter.modal
-                        || calendarPopup.modal
+                        || calendarPopup.modal || powerPopup.modal
                     // The chip stretches into the night-light sheet's header:
                     // its own slot and the sheet body's edges, both in bar
                     // coordinates (the sheet fills this surface).
@@ -287,6 +289,28 @@ PanelWindow {
                         batteryPopup.close();
                         calendarPopup.close();
                         notificationCenter.toggle();
+                    }
+                }
+                IconButton {
+                    id: powerButton
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    icon: Icons.power
+                    iconSize: Dimensions.icon.large
+                    // Material's power glyph ink sits half a pixel right of
+                    // its line box; nudge it back so the active circle reads
+                    // centered.
+                    iconOffsetX: -0.5
+                    active: powerPopup.opened
+                    onClicked: {
+                        settingsMenu.close();
+                        brightnessPopup.close();
+                        volumePopup.close();
+                        batteryPopup.close();
+                        notificationCenter.close();
+                        calendarPopup.close();
+                        nowPlaying.closeExpanded();
+                        powerPopup.toggle();
                     }
                 }
             }
@@ -374,6 +398,16 @@ PanelWindow {
         window: bar
     }
 
+    // Power sheet overlay: lock, suspend, log out, restart and shut down,
+    // mirrored to the right edge like the battery and notification sheets.
+    // The dynamic z keeps a sheet that is opening above one that is still
+    // collapsing.
+    PowerPopup {
+        id: powerPopup
+        anchors.fill: parent
+        z: powerPopup.opened ? 1.5 : 1
+    }
+
     // Settings panel overlay. It fills the bar window, sits above the strip
     // background but below the bar content, and paints the popout below the
     // bar as a single connected surface.
@@ -437,6 +471,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                powerPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -452,6 +487,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                powerPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -467,6 +503,7 @@ PanelWindow {
                 volumePopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                powerPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -482,6 +519,7 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                powerPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -497,6 +535,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 calendarPopup.close();
+                powerPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -512,6 +551,7 @@ PanelWindow {
                 volumePopup.close();
                 batteryPopup.close();
                 notificationCenter.close();
+                powerPopup.close();
                 nowPlaying.closeExpanded();
             }
         }
@@ -528,6 +568,23 @@ PanelWindow {
                 batteryPopup.close();
                 notificationCenter.close();
                 calendarPopup.close();
+                powerPopup.close();
+            }
+        }
+    }
+
+    Connections {
+        target: powerPopup
+
+        function onOpenedChanged() {
+            if (powerPopup.opened) {
+                settingsMenu.close();
+                brightnessPopup.close();
+                volumePopup.close();
+                batteryPopup.close();
+                notificationCenter.close();
+                calendarPopup.close();
+                nowPlaying.closeExpanded();
             }
         }
     }

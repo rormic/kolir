@@ -410,10 +410,16 @@ hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Pi
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal), { description = "Open the terminal" })
 local closeWindowBind = hl.bind(mainMod .. " + C", hl.dsp.window.close(), { description = "Close the window" })
 -- closeWindowBind:set_enabled(false)
+-- power menu: lock, suspend, log out, restart or shut down --
+hl.bind(
+	mainMod .. " + Escape",
+	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/qs-ipc.sh power toggle"),
+	{ description = "Power menu" }
+)
 hl.bind(
 	mainMod .. " + M",
-	hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"),
-	{ description = "Exit the session" }
+	hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/qs-ipc.sh power toggle"),
+	{ description = "Power menu" }
 )
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager), { description = "Open the file manager" })
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }), { description = "Toggle floating" })

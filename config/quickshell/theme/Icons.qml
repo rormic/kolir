@@ -112,6 +112,12 @@ QtObject {
     readonly property string bolt: "bolt"
     readonly property string monitorHeart: "monitor_heart"
 
+    // Session power menu.
+    readonly property string power: "power_settings_new"
+    readonly property string restart: "restart_alt"
+    readonly property string logout: "logout"
+    readonly property string suspend: "bedtime"
+
     // File picker: generic file types, the save action and folder creation.
     readonly property string file: "description"
     readonly property string save: "save"
