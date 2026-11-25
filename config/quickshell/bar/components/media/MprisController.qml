@@ -159,23 +159,35 @@ Scope {
         ? player.position
         : 0
 
-    readonly property real rawLength: {
+    // Raw mpris:length in microseconds, exactly as the player reported it
+    // (0 when absent or malformed). Kept separate from rawLength so the
+    // "infinite" sentinel can still be recognised.
+    readonly property real rawMetadataLength: {
         if (!player || !player.metadata)
             return 0;
         const len = player.metadata["mpris:length"];
-        if (typeof len !== "number" || !isFinite(len) || len <= 0)
+        return (typeof len === "number" && isFinite(len) && len > 0) ? len : 0;
+    }
+
+    // A broadcast is confirmed only by the "infinite" duration some players
+    // report as INT64_MAX microseconds (Twitch in Zen/Firefox). A missing
+    // length is not evidence: Zen also drops mpris:length for ordinary
+    // YouTube videos, and Quickshell's player.length mirrors position when
+    // lengthSupported is false, so that branch is guarded separately.
+    readonly property bool infiniteLength: root.rawMetadataLength >= 9.0e15
+        || (player !== null && player.lengthSupported
+            && typeof player.length === "number" && isFinite(player.length)
+            && player.length >= 9.0e12)
+
+    readonly property real rawLength: {
+        if (root.infiniteLength)
             return 0;
-        // Some players report an "infinite" live duration as a sentinel near
-        // INT64_MAX microseconds; treat it as unknown instead of formatting
-        // hundreds of thousands of years of runtime.
-        if (len >= 9.0e15)
-            return 0;
+        const len = root.rawMetadataLength;
         // Firefox/Zen briefly report a stale, growing stream uptime as the
         // duration when a live broadcast is resumed (the winter lofi radio
         // reported 485 hours). No normal web video exceeds YouTube's 12 hour
-        // upload cap, so anything longer is a live stream: treat it as an
-        // unknown length so the live UI appears immediately instead of a
-        // "485:03:25" total. Local files keep their real duration.
+        // upload cap, so anything longer is not a usable length. Treat it as
+        // unknown; this alone must not raise the LIVE badge.
         const webUrl = /^https?:\/\//i.test(root.trackUrl);
         if (webUrl && len > 12 * 3600 * 1000000)
             return 0;
@@ -202,20 +214,18 @@ Scope {
         ? trackUrl
         : (player ? player.dbusName + "/" + (player.trackTitle || "") : "")
 
-    // A live broadcast. Firefox/Zen omit mpris:length while the stream is
-    // actually playing, then re-add a stale long duration when it is paused;
-    // the absence is confirmed for a couple of seconds and kept for the rest
-    // of the track. A track that ever reported a duration is never a
-    // broadcast, even if the player drops the length later: Firefox/Zen also
-    // clear it (and Position) for a normal video in a background tab, which
-    // used to turn a paused YouTube video into a false "LIVE".
+    // A live broadcast. Confirmed only by an "infinite" mpris:length
+    // (INT64_MAX microseconds, which Twitch reports in Zen/Firefox) and kept
+    // for the rest of the track. A missing duration is unknown, not live:
+    // Zen/YouTube also drop mpris:length (and Position) for ordinary videos,
+    // which used to turn a normal YouTube video into a false "LIVE".
     property bool live: false
 
     readonly property string currentTrackKey: player
         ? player.dbusName + "/" + String(player.uniqueId) + "/" + (player.trackTitle || "")
         : ""
 
-    readonly property real length: root.live ? 0 : root.stickyLength
+    readonly property real length: (root.live || root.infiniteLength) ? 0 : root.stickyLength
 
     onCurrentTrackKeyChanged: {
         root.live = false;
@@ -251,13 +261,12 @@ Scope {
         }
     }
 
-    // A background Firefox/Zen video can lose mpris:length while it plays,
-    // then report the real duration again when it pauses. If the live probe
-    // already fired on the gap, a paused VOD would keep the LIVE badge
-    // forever. A broadcast's stale duration is its uptime, so it is close to
-    // the last position (or the position is 0); a VOD has real remaining time.
-    // Clear the flag only when the remaining time is meaningful, so a paused
-    // live stream stays live.
+    // A paused broadcast can re-report a real (uptime) duration after the
+    // sentinel disappears. If that duration has meaningful remaining time,
+    // the track is a VOD and the badge is wrong. A broadcast's stale duration
+    // is its uptime, so it is close to the last position (or the position is
+    // 0); a VOD has real remaining time. Clear the flag only when the
+    // remaining time is meaningful, so a paused live stream stays live.
     readonly property real liveRemainingThreshold: 30
 
     function checkPausedLength() {
@@ -294,21 +303,20 @@ Scope {
         ? Math.max(0, Math.min(1, position / length))
         : 0
 
-    // Live probe: a playing track that has never reported a duration is a
-    // broadcast. A track with a known duration keeps it in stickyLength even
-    // if the player drops mpris:length again (a background Firefox/Zen video),
-    // so an absence alone is not enough evidence. The delay keeps a short seek
-    // or metadata gap from tripping the probe before the values settle.
+    // Live probe: only the explicit "infinite" duration may raise the badge.
+    // An unknown or temporarily missing length must not: Zen/YouTube drop
+    // mpris:length for ordinary videos, and a fresh shell may not have seen
+    // the real duration yet. The 2 s delay only debounces metadata blips.
     Timer {
         id: liveProbe
 
         interval: 2000
         repeat: false
         running: root.pollActive && root.hasPlayer && root.reallyPlaying
-            && !root.live && root.stickyLength <= 0 && root.rawLength <= 0
+            && !root.live && root.infiniteLength
         onTriggered: {
             if (root.pollActive && root.hasPlayer && root.reallyPlaying
-                    && root.stickyLength <= 0 && root.rawLength <= 0)
+                    && root.infiniteLength)
                 root.live = true;
         }
     }

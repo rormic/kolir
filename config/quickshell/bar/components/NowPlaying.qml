@@ -58,11 +58,9 @@ Item {
     // Idle state: no player or no active metadata
     readonly property bool idle: !hasPlayer || trackText === ""
 
-    // A live broadcast. The controller confirms one only after a track that
-    // never reported a duration has been playing for a while. An unknown
-    // length alone must not be labelled LIVE: Firefox/Zen drop mpris:length
-    // for a normal video in a background tab, and a paused player can still be
-    // waiting for its metadata.
+    // A live broadcast. The controller sets this only for an "infinite"
+    // mpris:length sentinel; an unknown length alone is never LIVE, because
+    // Firefox/Zen drop mpris:length for ordinary YouTube videos as well.
     readonly property bool liveTrack: !root.idle && controller.live
 
     // No duration has been exposed for this track yet. Hide the scrubber and
