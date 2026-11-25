@@ -144,7 +144,7 @@ Scope {
                         width: slot.width - 32
                         height: 12
                         radius: Dimensions.radius.large
-                        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.96)
+                        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.80)
                         border.width: 1
                         border.color: Colors.withAlpha(
                             slot.cardItem ? slot.cardItem.tint : Colors.primary, 0.28)
@@ -166,7 +166,7 @@ Scope {
                         width: slot.width - 16
                         height: 8
                         radius: Dimensions.radius.large
-                        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.96)
+                        color: Colors.withAlpha(Colors.surfaceContainerLow, 0.80)
                         border.width: 1
                         border.color: Colors.withAlpha(
                             slot.cardItem ? slot.cardItem.tint : Colors.primary, 0.28)

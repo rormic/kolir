@@ -599,11 +599,15 @@ hl.layer_rule({
 -- Notifications animate the card exit and the layer height themselves. A
 -- compositor resize/fade stretches the previous card buffer into a ghost band
 -- under the remaining cards, and layersOut would double-fade the last card
--- after QML already faded it out.
+-- after QML already faded it out. The same rule frosts the translucent cards;
+-- both properties live here so the layer's animation and blur stay one
+-- decision instead of two overlapping rules.
 hl.layer_rule({
 	name = "notifications-no-anim",
 	match = { namespace = "notifications" },
 	no_anim = true,
+	blur = true,
+	ignore_alpha = 0,
 })
 
 -- The frozen screenshot frame must appear and disappear instantly: a layer

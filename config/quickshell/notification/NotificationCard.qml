@@ -140,9 +140,12 @@ Surface {
     implicitHeight: content.implicitHeight + 24 + foldArea.height
 
     radius: Dimensions.radius.large
+    // Frosted like the file picker: the `notifications-no-anim` layer rule
+    // blurs what is behind the card, so the fill has to stay translucent
+    // enough to show it. A 0.96 fill would hide the effect completely.
     surfaceColor: hover.hovered
-        ? Colors.withAlpha(Colors.surfaceContainerHigh, 0.96)
-        : Colors.withAlpha(Colors.surfaceContainerLow, 0.96)
+        ? Colors.withAlpha(Colors.surfaceContainerHigh, 0.88)
+        : Colors.withAlpha(Colors.surfaceContainerLow, 0.80)
     borderWidth: 1
     borderColor: root.isCritical
         ? Colors.withAlpha(root.critical, 0.55)
