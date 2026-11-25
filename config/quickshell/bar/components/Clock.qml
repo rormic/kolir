@@ -79,9 +79,13 @@ Item {
             implicitWidth: 1
             height: 12
             radius: 0.5
+            visible: keyboardLayout.layoutCount > 1
             color: Colors.withAlpha(Colors.outlineVariant, 0.5)
         }
 
-        KeyboardLayout { anchors.verticalCenter: parent.verticalCenter }
+        KeyboardLayout {
+            id: keyboardLayout
+            anchors.verticalCenter: parent.verticalCenter
+        }
     }
 }
