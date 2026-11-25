@@ -30,6 +30,9 @@ QtObject {
     // Notification center history and DND state owned by NotificationService.
     readonly property string notificationState: quickshellCache + "/notifications.json"
 
+    // Calendar events owned by CalendarService (local backend for now).
+    readonly property string calendarState: quickshellCache + "/calendar.json"
+
     // Event sound helper bundled with the shell. EventSoundService runs it for
     // notification, USB and low-battery chimes; the event name selects the
     // freedesktop sound and the optional second argument overrides the file.

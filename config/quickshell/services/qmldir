@@ -4,6 +4,7 @@ singleton BatteryService 1.0 BatteryService.qml
 singleton BluetoothDevicesService 1.0 BluetoothDevicesService.qml
 singleton BrightnessService 1.0 BrightnessService.qml
 singleton CaffeineService 1.0 CaffeineService.qml
+singleton CalendarService 1.0 CalendarService.qml
 singleton CaptureHistoryService 1.0 CaptureHistoryService.qml
 singleton DeviceBatteryService 1.0 DeviceBatteryService.qml
 singleton EventSoundService 1.0 EventSoundService.qml
