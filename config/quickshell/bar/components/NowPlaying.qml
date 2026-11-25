@@ -17,6 +17,12 @@ import "media/TrackText.js" as TrackText
 // Stage 1 — Idle:   muted "No media" pill, no notch.
 // Stage 2 — Playing: compact pill in the bar, track text + play button.
 // Stage 3 — Hover:   the pill morphs into the expanded card below the bar.
+//
+// A left click on the capsule pauses or resumes playback instead of opening
+// the island; the card opens on hover (and through the `media` IPC target), so
+// the click is free for the transport. The capsule hit area also covers the
+// bar-strip part of the expanded card, because the pointer is already there
+// when hovering opens it.
 Item {
     id: root
 
@@ -440,6 +446,30 @@ Item {
             visible: root.artReady && opacity > 0.001
         }
 
+        // Capsule hit area for the expanded card. Hover opens the island while
+        // the pointer is still over the compact pill, which then fades out, so
+        // this invisible strip keeps the capsule clickable there: a click
+        // toggles playback and the wheel skips tracks, exactly like the pill.
+        MouseArea {
+            id: capsuleArea
+
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+            }
+            height: Dimensions.bar.height - root.cardY
+            enabled: root.interactive
+            cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: controller.togglePlaying()
+            onWheel: wheel => {
+                if (wheel.angleDelta.y > 0)
+                    controller.nextTrack();
+                else if (wheel.angleDelta.y < 0)
+                    controller.prevTrack();
+            }
+        }
+
         // ==========================================
         // COMPACT CONTENT (top 24px, fades out early)
         // ==========================================
@@ -455,11 +485,13 @@ Item {
             opacity: Math.max(0, 1.0 - root.expandProgress * 2.5)
             visible: opacity > 0.001
 
+            // Click the pill to pause/resume. Expansion is hover-driven (or
+            // the `media` IPC), so a click never opens the card.
             MouseArea {
                 anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                enabled: !root.expanded
-                onClicked: root.openExpanded()
+                cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+                enabled: root.interactive
+                onClicked: controller.togglePlaying()
                 onWheel: wheel => {
                     if (wheel.angleDelta.y > 0)
                         controller.nextTrack();
