@@ -368,13 +368,14 @@ hl.device({
 
 local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 
--- TODO: set also for print screen button
 -- my binds --
 -- Every bind carries a `description`: the Quickshell shortcut sheet reads it
 -- from `hyprctl binds -j` and shows it next to the key. Keep the wording short
 -- and imperative, and mirror it for binds added in user.lua.
 -- screenshot --
 hl.bind(mainMod .. " + X", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screenshot-region.sh"), { description = "Screenshot a region" })
+-- The Print key is the hardware twin of SUPER + X.
+hl.bind("Print", hl.dsp.exec_cmd("sh ~/.config/hypr/scripts/screenshot-region.sh"), { description = "Screenshot a region" })
 hl.bind(mainMod .. " + SHIFT + X", hl.dsp.exec_cmd("grim - | wl-copy"), { description = "Screenshot the screen" })
 
 -- capture history: screenshots and recordings, newest first --
