@@ -2,9 +2,10 @@ import QtQuick
 import Quickshell.Services.SystemTray
 import "../../theme"
 
-// Compact status notifier icon. Left click activates, right click opens the
-// item's menu, middle click calls secondaryActivate and the wheel is forwarded
-// to the application (volume mixers, etc.).
+// Compact status notifier icon. Left click opens the item's menu when it has
+// one and otherwise activates it, middle click calls secondaryActivate and the
+// wheel is forwarded to the application (volume mixers, etc.). Right click is
+// deliberately unhandled.
 Item {
     id: root
 
@@ -91,20 +92,15 @@ Item {
 
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
         cursorShape: Qt.PointingHandCursor
 
         onClicked: event => {
             if (event.button === Qt.LeftButton) {
-                if (root.trayItem.onlyMenu && root.trayItem.hasMenu)
-                    root.menuRequested(root.trayItem, root);
-                else
-                    root.trayItem.activate();
-            } else if (event.button === Qt.RightButton) {
                 if (root.trayItem.hasMenu)
                     root.menuRequested(root.trayItem, root);
                 else
-                    root.trayItem.secondaryActivate();
+                    root.trayItem.activate();
             } else if (event.button === Qt.MiddleButton) {
                 root.trayItem.secondaryActivate();
             }
