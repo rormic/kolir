@@ -11,6 +11,17 @@ import "SearchLogic.js" as SearchLogic
 Scope {
     id: root
 
+    // Keyboard layouts the launcher translates queries between. The helper
+    // reads every configured layout from libxkbcommon (see
+    // scripts/layout-map.py), so search works for any language instead of a
+    // table per layout. Until the helper answers the list is empty and search
+    // stays literal.
+    property var layoutMap: []
+
+    function reloadLayoutMap() {
+        layoutMapProc.running = true
+    }
+
     IpcHandler {
         target: "launcher"
         function toggle(): void {
@@ -28,7 +39,8 @@ Scope {
             search.text = query
         }
         function testSearch(query: string): void {
-            const res = SearchLogic.filterApplications(DesktopEntries.applications.values, query)
+            const res = SearchLogic.filterApplications(
+                DesktopEntries.applications.values, query, root.layoutMap)
             console.log("TEST_SEARCH for " + query + ":")
             for (let i = 0; i < Math.min(res.length, 5); i++) {
                 console.log("  " + (i + 1) + ". " + res[i].name + " (id: " + res[i].id + ")")
@@ -38,6 +50,41 @@ Scope {
 
     ClipboardController {
         id: clipboard
+    }
+
+    // Layout pairs handed to SearchLogic. One short-lived process per shell
+    // start (and per Hyprland config reload) builds them; a failing helper only
+    // leaves `layoutMap` empty, so search keeps working literally.
+    Process {
+        id: layoutMapProc
+        command: ["python3", ShellPaths.layoutMapScript]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const raw = text.trim()
+                if (!raw) return
+                try {
+                    const parsed = JSON.parse(raw)
+                    root.layoutMap = parsed && parsed.layouts ? parsed.layouts : []
+                } catch (e) {
+                    console.warn("launcher: unexpected layout-map output")
+                }
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0)
+                console.warn("launcher: layout-map helper exited with " + exitCode)
+        }
+    }
+
+    // Switching keyboard layouts is a compositor config change, so re-read the
+    // map on reload instead of waiting for the next shell restart.
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event && event.name === "configreloaded")
+                root.reloadLayoutMap()
+        }
     }
 
     // Процес для швидкого копіювання довільного тексту (наприклад, результату калькулятора)
@@ -746,11 +793,12 @@ Scope {
                                         return clipboard.items
                                     }
                                     return clipboard.items.filter(item =>
-                                        item.preview.toLowerCase().includes(win.clipQuery)
+                                        SearchLogic.matchesText(item.preview, win.clipQuery, root.layoutMap)
                                     )
                                 } else {
                                     if (search.text.trim() === "") return []
-                                    return SearchLogic.filterApplications(DesktopEntries.applications.values, search.text)
+                                    return SearchLogic.filterApplications(
+                                        DesktopEntries.applications.values, search.text, root.layoutMap)
                                 }
                             }
 

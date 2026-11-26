@@ -156,6 +156,11 @@ QtObject {
     // subscriber alive across shell restarts.
     readonly property string pactlSubscribe: Quickshell.shellPath("scripts/pactl-subscribe.sh")
 
+    // Keyboard layouts the launcher translates queries between. The helper
+    // reads the pairs from libxkbcommon for the layouts Hyprland has, so search
+    // does not need a table per language.
+    readonly property string layoutMapScript: Quickshell.shellPath("scripts/layout-map.py")
+
     // Obsidian quick-note helper bundled inside the shell config: resolves the
     // vault/daily note and appends the typed text (see launcher note mode).
     readonly property string quickNoteScript: Quickshell.shellPath("scripts/quick-note.py")
