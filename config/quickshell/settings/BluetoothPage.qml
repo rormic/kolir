@@ -27,9 +27,22 @@ Item {
     // an exact protocol value replaces BlueZ's coarse one without waiting for
     // the next 60 s poll. This one is forced: a detail page should show the
     // live level when the headset answers, not the four-minute cache.
+    // Leaving the page stops a discovery it started, so no scan keeps running
+    // behind the settings sheet.
     onVisibleChanged: {
-        if (root.visible)
+        if (root.visible) {
             DeviceBatteryService.refresh(true);
+        } else if (root.adapter) {
+            root.adapter.discovering = false;
+        }
+    }
+
+    // A discovery left running forever keeps the radio busy and drains the
+    // battery, so it is bounded like the adapter's discoverable timeout.
+    Timer {
+        interval: 60000
+        running: root.scanning
+        onTriggered: if (root.adapter) root.adapter.discovering = false
     }
 
     // ── Header ─────────────────────────────────────────────────────────────
@@ -218,20 +231,24 @@ Item {
 
             property bool hovered: false
 
+            readonly property bool canScan: !!root.adapter && root.adapter.enabled
+
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             radius: Dimensions.radius.full
             color: Colors.surfaceContainerHigh
+            opacity: addDevice.canScan ? 1 : 0.45
             border.width: 1
-            border.color: addDevice.hovered
+            border.color: addDevice.hovered && addDevice.canScan
                 ? Colors.withAlpha(Colors.primary, 0.6)
                 : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
             Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
 
             StateLayer {
-                shown: addDevice.hovered
+                shown: addDevice.hovered && addDevice.canScan
                 strength: 0.16
             }
 
@@ -243,7 +260,7 @@ Item {
                     id: scanIcon
 
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Icons.refresh
+                    text: root.scanning ? Icons.refresh : Icons.add
                     color: Colors.primary
                     font.family: Typography.iconFont
                     font.pixelSize: Dimensions.icon.medium
@@ -255,12 +272,14 @@ Item {
                         duration: 1000
                         loops: Animation.Infinite
                         running: root.scanning
+
+                        onRunningChanged: if (!running) scanIcon.rotation = 0
                     }
                 }
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.scanning ? "Scanning for devices…" : "Add device"
+                    text: root.scanning ? "Stop scanning" : "Add device"
                     color: addDevice.hovered ? Colors.primary : Colors.onSurface
                     font.family: Typography.barFont
                     font.pixelSize: Typography.size.labelMedium
@@ -273,15 +292,19 @@ Item {
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                cursorShape: addDevice.canScan ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onContainsMouseChanged: addDevice.hovered = containsMouse
                 onClicked: {
-                    if (!root.adapter)
+                    if (!addDevice.canScan)
                         return;
 
+                    if (root.scanning) {
+                        root.adapter.discovering = false;
+                        return;
+                    }
+
                     root.adapter.pairable = true;
-                    root.adapter.discoverable = true;
-                    root.adapter.discoverableTimeout = 120;
+                    root.adapter.discovering = true;
                 }
             }
         }
