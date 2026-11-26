@@ -12,6 +12,11 @@ QtObject {
     // Hyprland helper scripts installed under ~/.config/hypr/scripts.
     readonly property string hyprScripts: home + "/.config/hypr/scripts"
 
+    // Shell config root, i.e. the directory `qs -p` expects. A service that
+    // calls the shell's own IPC (the VPN importer opens the shared FilePicker)
+    // must not rebuild it from HOME.
+    readonly property string shellDir: Quickshell.shellPath(".")
+
     // SMBIOS chassis type, used by BatteryService to tell a laptop (where a
     // missing battery is a problem) from a desktop (where it is normal).
     readonly property string chassisType: "/sys/class/dmi/id/chassis_type"
@@ -76,6 +81,14 @@ QtObject {
 
     // Keep-awake state owned by CaffeineService.
     readonly property string caffeineState: runtimeStateDir + "/caffeine.json"
+
+    // Base of the FilePicker result files VpnService watches for a profile
+    // import. The picker is shared with the portal and the wallpaper grid, so
+    // every request gets its own timestamped sibling (`vpn-import-<ms>.json`):
+    // a late answer to a cancelled request can then never be read as the
+    // current one. This stable path documents the location inside the runtime
+    // dir.
+    readonly property string vpnImportResult: runtimeStateDir + "/vpn-import.json"
 
     // Image previews generated for clipboard entries.
     readonly property string clipboardPreviewDir: "/tmp/qs-clip-previews"

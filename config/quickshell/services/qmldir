@@ -13,4 +13,6 @@ singleton HyprsunsetService 1.0 HyprsunsetService.qml
 singleton NotificationService 1.0 NotificationService.qml
 singleton PowerService 1.0 PowerService.qml
 singleton ShellPaths 1.0 ShellPaths.qml
+singleton TailscaleService 1.0 TailscaleService.qml
+singleton VpnService 1.0 VpnService.qml
 singleton WallpaperService 1.0 WallpaperService.qml

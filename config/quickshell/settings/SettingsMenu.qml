@@ -29,9 +29,10 @@ EmbeddedSheet {
 
     readonly property int mainHeight: 460
     readonly property int bluetoothHeight: 520
-    // Tall enough for the Internet page's resting content, so it does not open
+    // Tall enough for the Internet page's resting content (Ethernet + Wi-Fi +
+    // actions + network list + the collapsed VPN card), so it does not open
     // with a sliver of scroll (mirrors InternetPage.implicitHeight).
-    readonly property int internetHeight: 546
+    readonly property int internetHeight: 616
     // Mirrors AppearancePage.implicitHeight.
     readonly property int appearanceHeight: 1016
     // Mirrors CalendarPage.implicitHeight (629). Constant for both account

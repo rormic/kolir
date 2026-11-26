@@ -81,6 +81,8 @@ OPTIONAL_CHECKS = (
     (("ffmpeg",), "lock-screen background, glow, capture previews and video frames", "ffmpeg"),
     (("cliphist",), "launcher clipboard history", "cliphist"),
     (("nmcli",), "Internet settings page", "NetworkManager"),
+    (("tailscale",), "Tailscale VPN card", "tailscale"),
+    (("wg",), "WireGuard handshake and traffic details", "wireguard-tools"),
     (("bluetoothctl",), "Bluetooth settings page", "bluez"),
     (("upower",), "battery indicator (UPower daemon)", "upower"),
     (("hyprpicker",), "colour picker bind (SUPER+I)", "hyprpicker"),
@@ -102,6 +104,13 @@ AUR_ONLY_OPTIONAL = {"wl-screenrec", "mocu-xcursor", "mpvpaper"}
 PYTHON_OPTIONAL_CHECKS = (
     ("dbus", "portal file picker and headset battery", "python-dbus"),
     ("gi", "portal file picker and headset battery", "python-gobject"),
+)
+
+# NetworkManager VPN plugins are files, not commands: the OpenVPN plugin is
+# what makes importing an .ovpn profile possible, so `doctor` reports it like
+# an optional package.
+OPENVPN_PLUGIN = Path(
+    "/usr/lib/NetworkManager/VPN/org.freedesktop.NetworkManager.openvpn"
 )
 
 WALLPAPER_DIR = Path("Pictures/wallpaper")
@@ -1324,6 +1333,13 @@ def mocu_cursor_installed() -> bool:
     return icon_root.is_dir() and any(icon_root.glob("Mocu*"))
 
 
+def openvpn_plugin_installed() -> bool:
+    try:
+        return OPENVPN_PLUGIN.is_file()
+    except OSError:
+        return False
+
+
 def missing_optional_packages() -> list[tuple[str, str]]:
     """Packages behind the optional tools that are not installed right now."""
     missing: list[tuple[str, str]] = []
@@ -1340,6 +1356,8 @@ def missing_optional_packages() -> list[tuple[str, str]]:
         missing.append((package, purpose))
     if "mocu-xcursor" not in seen and not mocu_cursor_installed():
         missing.append(("mocu-xcursor", "cursor theme named in user.lua"))
+    if "networkmanager-openvpn" not in seen and not openvpn_plugin_installed():
+        missing.append(("networkmanager-openvpn", "import OpenVPN .ovpn profiles"))
     return missing
 
 
@@ -1411,6 +1429,43 @@ def offer_optional_packages(deploy: Deployer, args: argparse.Namespace) -> None:
     install_optional_packages(packages)
 
 
+def check_tailscaled(report: Report) -> None:
+    """Report the daemon the Tailscale VPN card needs; a warning, never an error."""
+    if not shutil.which("systemctl"):
+        report.warn(
+            "tailscaled: systemctl is missing; cannot report the Tailscale daemon"
+        )
+        return
+    try:
+        enabled = subprocess.run(
+            ["systemctl", "is-enabled", "tailscaled"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        active = subprocess.run(
+            ["systemctl", "is-active", "tailscaled"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        report.warn(
+            "could not query tailscaled; the Tailscale VPN card stays offline "
+            "(run 'sudo systemctl enable --now tailscaled')"
+        )
+        return
+    enabled_state = (enabled.stdout or "").strip() or "unknown"
+    active_state = (active.stdout or "").strip() or "unknown"
+    if enabled.returncode == 0 and active.returncode == 0:
+        report.ok(f"tailscaled ({active_state})")
+    else:
+        report.warn(
+            f"tailscaled is {active_state} and {enabled_state}; the Tailscale VPN "
+            "card needs the daemon (run 'sudo systemctl enable --now tailscaled')"
+        )
+
+
 def check_commands(report: Report) -> None:
     step("Commands")
     for candidates, purpose, package in REQUIRED_COMMANDS:
@@ -1460,6 +1515,9 @@ def check_commands(report: Report) -> None:
             "Mocu cursor theme is missing (optional, mocu-xcursor); "
             "the user.lua cursor setting falls back to the default theme"
         )
+
+    if command_available(("tailscale",)):
+        check_tailscaled(report)
 
     missing = missing_optional_packages()
     if missing:

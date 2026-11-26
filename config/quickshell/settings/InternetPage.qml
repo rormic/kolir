@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 import "../bar/components"
+import "../services"
 import "internet"
 
 // Internet management page shown inside the settings popup. Uses nmcli
@@ -14,13 +15,19 @@ Item {
     signal back()
 
     property int topInset: 0
+    // VPN card expanded state, owned here so the card stays a pure renderer.
+    property bool vpnExpanded: false
 
     implicitWidth: 380
     // Tall enough for the resting page (Ethernet + Wi-Fi + actions + network
-    // list ≈ 424 px of body) so it does not start with a few pixels of scroll;
-    // the expanded Ethernet/Wi-Fi details and the connection form still scroll.
+    // list ≈ 424 px of body plus the 60 px collapsed VPN card) so it does not
+    // start with a few pixels of scroll; the expanded Ethernet/Wi-Fi details,
+    // the connection form and the expanded VPN card still scroll.
     // Mirrored by `internetHeight` in SettingsMenu.qml.
-    implicitHeight: 546
+    implicitHeight: 616
+
+    Component.onCompleted: VpnService.setWatching(root.visible)
+    onVisibleChanged: VpnService.setWatching(root.visible)
 
     NetworkController {
         id: net
@@ -300,6 +307,15 @@ Item {
                         font.pixelSize: Typography.size.labelMedium
                     }
                 }
+            }
+
+            // VPN profiles and Tailscale, below the network list
+            VpnCard {
+                Layout.fillWidth: true
+                expanded: root.vpnExpanded
+                wifiProfile: net.activeWifi
+                wifiConnected: net.wifiConnected
+                onToggleExpanded: root.vpnExpanded = !root.vpnExpanded
             }
         }
     }

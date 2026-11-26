@@ -34,6 +34,7 @@ PanelWindow {
     readonly property bool hasStatus: recordingStatus.active
         || CaffeineService.enabled || caffeineStatus.holdingOff
         || BluetoothDevicesService.available
+        || VpnService.connected || TailscaleService.connected
     readonly property bool statusFits: (rightRow.x - (clock.x + clock.width)
         - bar.statusGap * 3 - 1) >= statusRow.implicitWidth
     // The embedded sheets live in this surface instead of separate windows.
@@ -323,7 +324,10 @@ PanelWindow {
             // Status zone: flat status items separated from the control row.
             // A status may act on itself — stop a recording, switch keep-awake
             // off — but it never opens a sheet; the hairline makes that
-            // boundary visible before the pointer reaches anything.
+            // boundary visible before the pointer reaches anything. The
+            // Bluetooth and VPN capsules are the documented exception: they
+            // are controls in this zone because a device readout belongs with
+            // the session statuses, not with the brightness/volume cluster.
             Rectangle {
                 id: statusDivider
 
@@ -379,6 +383,31 @@ PanelWindow {
                             settingsMenu.close();
                         else
                             settingsMenu.open("bluetooth");
+                    }
+                }
+
+                // The tunnel capsule follows the same contract: it names the
+                // connected VPN profile (or Tailscale) and opens the page that
+                // owns both.
+                VpnChip {
+                    id: vpnChip
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    popupActive: settingsMenu.opened
+                        && (settingsMenu.page === "internet"
+                            || settingsMenu.incomingPage === "internet")
+                    onActivated: {
+                        brightnessPopup.close();
+                        volumePopup.close();
+                        batteryPopup.close();
+                        notificationCenter.close();
+                        calendarPopup.close();
+                        nowPlaying.closeExpanded();
+
+                        if (vpnChip.popupActive)
+                            settingsMenu.close();
+                        else
+                            settingsMenu.open("internet");
                     }
                 }
             }

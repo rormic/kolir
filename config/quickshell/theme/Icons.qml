@@ -90,6 +90,14 @@ QtObject {
     readonly property string watch: "watch"
     readonly property string devices: "devices"
 
+    // VPN and mesh networking: an active tunnel, its lock/key states and the
+    // Tailscale exit-node switch.
+    readonly property string shield: "shield"
+    readonly property string vpnLock: "vpn_lock"
+    readonly property string vpnKey: "vpn_key"
+    readonly property string hub: "hub"
+    readonly property string swap: "swap_horiz"
+
     readonly property string arrowBack: "arrow_back"
     readonly property string refresh: "refresh"
     readonly property string trash: "delete"
