@@ -235,7 +235,11 @@ Scope {
         // Картка трохи вужча за поверхню на малих екранах.
         readonly property int cardWidth: Math.min(620, width - 16)
 
-        readonly property bool isClipboardMode: search.text.startsWith(";")
+        // The `;` prefix is the US spelling of that key; on the Ukrainian
+        // layout the same physical key types `ж`, and either one opens
+        // clipboard mode (see SearchLogic.leadingKey).
+        readonly property string clipboardPrefix: SearchLogic.leadingKey(search.text, ";", root.layoutMap)
+        readonly property bool isClipboardMode: clipboardPrefix !== ""
         readonly property bool isNoteMode: search.text.startsWith(".")
         readonly property string noteText: isNoteMode ? search.text.substring(1).trim() : ""
         readonly property string clipQuery: isClipboardMode ? search.text.substring(1).trim().toLowerCase() : ""
@@ -564,14 +568,14 @@ Scope {
                                 list.currentIndex = 0
                                 if (win.noteError !== "")
                                     win.noteError = ""
-                                // Check the text directly: win.isNoteMode is a
-                                // binding that may still be stale inside this
-                                // signal handler.
+                                // Check the text directly: win.isNoteMode and
+                                // win.isClipboardMode are bindings that may
+                                // still be stale inside this signal handler.
                                 const typed = search.text
                                 if (typed.startsWith(".")) {
                                     if (win.noteTarget === null && !noteTargetProc.running)
                                         win.refreshNoteTarget()
-                                } else if (typed.startsWith(";")) {
+                                } else if (SearchLogic.leadingKey(typed, ";", root.layoutMap) !== "") {
                                     clipboard.refresh()
                                 }
                             }

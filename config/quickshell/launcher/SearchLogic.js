@@ -149,6 +149,27 @@ function filterApplications(apps, queryText, layouts) {
     return scored.map(item => item.app)
 }
 
+// The leading character of `text` when it spells the US key `usChar` on any
+// configured layout. A mode prefix has to survive the wrong layout too: the
+// US `;` sits where the Ukrainian layout has `ж`, so typing `ж` must open
+// clipboard mode exactly like `;`. Only one-character prefixes are supported,
+// which is what the launcher's prefixes are. Returns "" when the first
+// character stands for something else.
+function leadingKey(text, usChar, layouts) {
+    if (!text) return ""
+    const first = text.charAt(0)
+    if (first === usChar) return first
+    // Only a non-US character can be the other spelling of a US key.
+    if (first.charCodeAt(0) <= 127) return ""
+    const list = layouts || []
+    for (let i = 0; i < list.length; i++) {
+        const pairs = list[i] ? list[i].pairs : null
+        if (!pairs || pairs.length === 0) continue
+        if (toUsLayout(first, pairs) === usChar) return first
+    }
+    return ""
+}
+
 // True when the text contains the query in any layout spelling. The clipboard
 // filter uses it so a wrong-layout query still finds the copied text.
 function matchesText(text, queryText, layouts) {
