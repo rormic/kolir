@@ -54,8 +54,20 @@ Item {
                 ? Colors.withAlpha(Colors.primary, 0.5)
                 : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-        Behavior on color { ColorAnimation { duration: Motion.hover } }
-        Behavior on border.color { ColorAnimation { duration: Motion.hover } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     Item {

@@ -76,7 +76,11 @@ HeaderPill {
     borderWidth: nightLightOn ? 1.5 : 1
 
     Behavior on borderWidth {
-        NumberAnimation { duration: Motion.hover }
+        NumberAnimation {
+            duration: Motion.hover
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
     }
 
     // Active-outline hint. The swatch repeats the pill's tertiary stroke, so

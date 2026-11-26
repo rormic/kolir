@@ -243,9 +243,27 @@ Item {
                 ? Colors.withAlpha(Colors.primary, 0.6)
                 : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Motion.fade
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
+            Behavior on border.color {
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
 
             StateLayer {
                 shown: addDevice.hovered && addDevice.canScan
@@ -269,7 +287,7 @@ Item {
                         target: scanIcon
                         from: 0
                         to: 360
-                        duration: 1000
+                        duration: Motion.spin
                         loops: Animation.Infinite
                         running: root.scanning
 
@@ -285,7 +303,13 @@ Item {
                     font.pixelSize: Typography.size.labelMedium
                     font.weight: Typography.weight.medium
 
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
             }
 
@@ -356,8 +380,9 @@ Item {
                         property: "opacity"
                         from: 0
                         to: 1
-                        duration: 180
-                        easing.type: Easing.OutCubic
+                        duration: Motion.listEnter
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.emphasizedDecelerateCurve
                     }
                 }
 
@@ -365,16 +390,18 @@ Item {
                     NumberAnimation {
                         property: "opacity"
                         to: 0
-                        duration: 140
-                        easing.type: Easing.InCubic
+                        duration: Motion.listExit
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.emphasizedAccelerateCurve
                     }
                 }
 
                 displaced: Transition {
                     NumberAnimation {
                         properties: "x,y"
-                        duration: 180
-                        easing.type: Easing.OutCubic
+                        duration: Motion.move
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.emphasizedCurve
                     }
                 }
 

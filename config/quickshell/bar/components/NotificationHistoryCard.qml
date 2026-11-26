@@ -85,8 +85,11 @@ Item {
 
     Behavior on fold {
         NumberAnimation {
-            duration: Motion.move
-            easing.type: Easing.OutCubic
+            duration: root.expanded ? Motion.listEnter : Motion.listExit
+            easing.type: Easing.Bezier
+            easing.bezierCurve: root.expanded
+                ? Motion.emphasizedDecelerateCurve
+                : Motion.emphasizedAccelerateCurve
         }
     }
 
@@ -114,7 +117,13 @@ Item {
             ? Colors.stateLayer(Colors.onSurface, 0.06)
             : "transparent"
 
-        Behavior on color { ColorAnimation { duration: Motion.fade } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.fade
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     Column {
@@ -196,7 +205,13 @@ Item {
                         ? Colors.stateLayer(Colors.onSurface, 0.08)
                         : "transparent"
 
-                    Behavior on color { ColorAnimation { duration: Motion.fade } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.fade
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
 
                 Row {

@@ -216,7 +216,11 @@ EmbeddedSheet {
                     elide: Text.ElideRight
 
                     Behavior on color {
-                        ColorAnimation { duration: Motion.color }
+                        ColorAnimation {
+                            duration: Motion.color
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
                     }
                 }
             }
@@ -256,7 +260,13 @@ EmbeddedSheet {
                 ? Colors.withAlpha(Colors.primary, 0.35)
                 : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-            Behavior on border.color { ColorAnimation { duration: Motion.hover } }
+            Behavior on border.color {
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
 
             RowLayout {
                 id: dndRow
@@ -276,7 +286,13 @@ EmbeddedSheet {
                         ? Colors.primaryContainer
                         : Colors.surfaceContainerHighest
 
-                    Behavior on color { ColorAnimation { duration: Motion.color } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.color
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
 
                     Text {
                         anchors.centerIn: parent
@@ -289,7 +305,13 @@ EmbeddedSheet {
                         font.family: Typography.iconFont
                         font.pixelSize: Dimensions.icon.large
 
-                        Behavior on color { ColorAnimation { duration: Motion.color } }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
+                        }
                     }
                 }
 
@@ -321,7 +343,11 @@ EmbeddedSheet {
                         elide: Text.ElideRight
 
                         Behavior on color {
-                            ColorAnimation { duration: Motion.color }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                     }
                 }

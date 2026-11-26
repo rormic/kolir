@@ -208,14 +208,15 @@ Scope {
                         id: exitAnim
 
                         PauseAnimation {
-                            duration: 100
+                            duration: Motion.durationShort2
                         }
                         NumberAnimation {
                             target: slot.cardItem
                             property: "closeProgress"
                             to: 1
                             duration: Motion.move
-                            easing.type: Easing.OutCubic
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.emphasizedAccelerateCurve
                         }
 
                         onFinished: if (slot.cardItem) slot.cardItem.commitClose()

@@ -139,8 +139,20 @@ Rectangle {
                         : Colors.withAlpha(Colors.outlineVariant, 0.35)
                 opacity: root.device ? 1.0 : 0.45
 
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on border.color { ColorAnimation { duration: 150 } }
+                Behavior on color {
+                    ColorAnimation {
+                        duration: Motion.color
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.standardDecelerateCurve
+                    }
+                }
+                Behavior on border.color {
+                    ColorAnimation {
+                        duration: Motion.color
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.standardDecelerateCurve
+                    }
+                }
 
                 StateLayer {
                     shown: muteButton.hovered

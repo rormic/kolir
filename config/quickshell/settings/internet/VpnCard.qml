@@ -113,7 +113,13 @@ Rectangle {
                     color: Colors.onSurfaceVariant
                     font.family: Typography.iconFont
                     font.pixelSize: Dimensions.icon.medium
-                    Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                    Behavior on rotation {
+                        NumberAnimation {
+                            duration: Motion.rotate
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.emphasizedCurve
+                        }
+                    }
                 }
 
                 Toggle {
@@ -175,7 +181,13 @@ Rectangle {
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
                     opacity: VpnService.importing ? 0.6 : 1.0
-                    Behavior on color { ColorAnimation { duration: Motion.hover } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
 
                     StateLayer {
                         shown: importBtn.hovered && !VpnService.importing

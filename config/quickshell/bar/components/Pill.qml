@@ -49,12 +49,22 @@ Surface {
         : Colors.withAlpha(Colors.outlineVariant, 0.18)
 
     Behavior on borderColor {
-        ColorAnimation { duration: Motion.hover }
+        ColorAnimation {
+            duration: Motion.hover
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
     }
 
     scale: hovered ? 1.04 : 1.0
+    // Timed rather than sprung: HeaderPill stretches this chip into a sheet
+    // header, and a spring would keep scaling the band through that reveal.
     Behavior on scale {
-        NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: Motion.scale
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
     }
 
     Row {
@@ -71,7 +81,13 @@ Surface {
             font.family: Typography.iconFont
             font.pixelSize: root.iconSize
             font.weight: Font.Normal
-            Behavior on color { ColorAnimation { duration: Motion.hover } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
         }
 
         Text {
@@ -84,7 +100,13 @@ Surface {
             font.weight: root.textWeight
             elide: Text.ElideRight
             width: root.textMaxWidth > 0 ? Math.min(implicitWidth, root.textMaxWidth) : implicitWidth
-            Behavior on color { ColorAnimation { duration: Motion.color } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Motion.color
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
         }
 
         Text {
@@ -107,7 +129,13 @@ Surface {
             font.family: Typography.iconFont
             font.pixelSize: Dimensions.icon.small
             font.weight: Font.Normal
-            Behavior on color { ColorAnimation { duration: Motion.hover } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
         }
     }
 

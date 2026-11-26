@@ -66,7 +66,8 @@ Text {
         Behavior on opacity {
             NumberAnimation {
                 duration: Motion.hover
-                easing.type: Easing.OutCubic
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
             }
         }
     }

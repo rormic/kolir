@@ -62,8 +62,11 @@ PanelWindow {
 
         Behavior on opacity {
             NumberAnimation {
-                duration: 160
-                easing.type: Easing.OutCubic
+                duration: Motion.osd
+                easing.type: Easing.Bezier
+                easing.bezierCurve: root.shown
+                    ? Motion.emphasizedDecelerateCurve
+                    : Motion.emphasizedAccelerateCurve
                 onRunningChanged: {
                     if (!running && !root.shown) {
                         root.visible = false;
@@ -73,8 +76,11 @@ PanelWindow {
         }
         Behavior on scale {
             NumberAnimation {
-                duration: 160
-                easing.type: Easing.OutCubic
+                duration: Motion.osd
+                easing.type: Easing.Bezier
+                easing.bezierCurve: root.shown
+                    ? Motion.emphasizedDecelerateCurve
+                    : Motion.emphasizedAccelerateCurve
             }
         }
 
@@ -88,7 +94,11 @@ PanelWindow {
             border.color: root.borderColor
 
             Behavior on border.color {
-                ColorAnimation { duration: 140 }
+                ColorAnimation {
+                    duration: Motion.color
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             // Subtle neon bottom highlight
@@ -123,7 +133,13 @@ PanelWindow {
                     font.family: Typography.iconFont
                     font.pixelSize: 18
                     color: root.iconColor
-                    Behavior on color { ColorAnimation { duration: 140 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.color
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
 
                 // Material 3 linear progress indicator: wavy while the OSD
@@ -149,7 +165,13 @@ PanelWindow {
                     font.pixelSize: Typography.size.labelMedium
                     font.weight: Typography.weight.bold
                     color: root.textColor
-                    Behavior on color { ColorAnimation { duration: 140 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.color
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
             }
         }

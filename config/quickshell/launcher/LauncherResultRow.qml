@@ -41,10 +41,18 @@ Item {
         border.color: Colors.withAlpha(Colors.primary, 0.35)
 
         Behavior on color {
-            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+            ColorAnimation {
+                duration: Motion.color
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
         Behavior on border.color {
-            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+            ColorAnimation {
+                duration: Motion.color
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
     }
 

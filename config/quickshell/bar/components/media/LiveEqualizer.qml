@@ -59,7 +59,11 @@ Item {
             // heights arrive every frame and must not lag behind the phase.
             Behavior on height {
                 enabled: !root.playing
-                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: Motion.fade
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.emphasizedAccelerateCurve
+                }
             }
         }
     }

@@ -125,7 +125,13 @@ Item {
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
                     opacity: net.wifiEnabled ? 1.0 : 0.5
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
 
                     StateLayer {
                         shown: scanBtn.hovered
@@ -143,7 +149,7 @@ Item {
                             font.family: Typography.iconFont
                             font.pixelSize: Dimensions.icon.medium
                             RotationAnimation on rotation {
-                                from: 0; to: 360; duration: 1000
+                                from: 0; to: 360; duration: Motion.spin
                                 loops: Animation.Infinite
                                 running: net.scanning
                             }
@@ -179,7 +185,13 @@ Item {
                         ? Colors.withAlpha(Colors.primary, 0.6)
                         : Colors.withAlpha(Colors.outlineVariant, 0.22)
                     opacity: net.wifiEnabled ? 1.0 : 0.5
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
 
                     StateLayer {
                         shown: hiddenBtn.hovered

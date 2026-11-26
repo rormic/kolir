@@ -123,6 +123,20 @@ EmbeddedSheet {
             root.open("main");
     }
 
+    // M3 shared-axis motion: forward enters with emphasized decelerate,
+    // back leaves with emphasized accelerate. The page slide and the empty
+    // panel's height morph share the curve.
+    function setPageMotion(entering) {
+        const curve = entering
+            ? Motion.emphasizedDecelerateCurve
+            : Motion.emphasizedAccelerateCurve;
+
+        pageProgressAnim.duration = entering ? Motion.pageForward : Motion.pageBack;
+        pageProgressAnim.easing.bezierCurve = curve;
+        panelHeightAnim.duration = pageProgressAnim.duration;
+        panelHeightAnim.easing.bezierCurve = curve;
+    }
+
     // Page-to-page navigation: a shared-axis slide. The outgoing page slides
     // out and fades while the incoming one slides in from the opposite side,
     // and the empty panel background morphs to the new height at the same
@@ -146,10 +160,11 @@ EmbeddedSheet {
                 const toAnchor = page === root.page;
                 const height = root.heightForPage(page);
 
+                root.setPageMotion(!toAnchor);
+
                 if (Math.abs(root.panelHeight - height) > 0.5) {
                     panelHeightAnim.stop();
                     panelHeightAnim.to = height;
-                    panelHeightAnim.duration = Motion.pageBack;
                     panelHeightAnim.start();
                 } else {
                     root.panelHeight = height;
@@ -157,7 +172,6 @@ EmbeddedSheet {
 
                 pageProgressAnim.stop();
                 pageProgressAnim.to = toAnchor ? 0 : 1;
-                pageProgressAnim.duration = toAnchor ? Motion.pageBack : Motion.pageForward;
                 pageProgressAnim.start();
                 return;
             }
@@ -173,17 +187,17 @@ EmbeddedSheet {
             return;
 
         const forward = root.page === "main";
-        const duration = forward ? Motion.pageForward : Motion.pageBack;
 
         root.pageDirection = forward ? 1 : -1;
         root.incomingPage = page;
         root.pageProgress = 0;
 
+        root.setPageMotion(forward);
+
         const targetHeight = root.heightForPage(page);
         if (Math.abs(root.panelHeight - targetHeight) > 0.5) {
             panelHeightAnim.stop();
             panelHeightAnim.to = targetHeight;
-            panelHeightAnim.duration = duration;
             panelHeightAnim.start();
         } else {
             root.panelHeight = targetHeight;
@@ -191,7 +205,6 @@ EmbeddedSheet {
 
         pageProgressAnim.stop();
         pageProgressAnim.to = 1;
-        pageProgressAnim.duration = duration;
         pageProgressAnim.start();
     }
 
@@ -228,7 +241,7 @@ EmbeddedSheet {
         to: 1
         duration: Motion.pageForward
         easing.type: Easing.Bezier
-        easing.bezierCurve: [0.2, 0, 0, 1]
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
 
         onFinished: {
             if (root.incomingPage === "")
@@ -255,7 +268,7 @@ EmbeddedSheet {
         property: "panelHeight"
         duration: Motion.pageForward
         easing.type: Easing.Bezier
-        easing.bezierCurve: [0.2, 0, 0, 1]
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
     }
 
     IpcHandler {

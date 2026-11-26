@@ -25,8 +25,20 @@ Rectangle {
         ? Colors.withAlpha(Colors.primary, 0.7)
         : Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-    Behavior on color { ColorAnimation { duration: 120 } }
-    Behavior on border.color { ColorAnimation { duration: 120 } }
+    Behavior on color {
+        ColorAnimation {
+            duration: Motion.hover
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
+    }
+    Behavior on border.color {
+        ColorAnimation {
+            duration: Motion.hover
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
+    }
 
     HoverHandler { id: chipHover }
 

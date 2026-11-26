@@ -30,16 +30,16 @@ Scope {
 
     // Palette changes crossfade like the rest of the shell instead of cutting.
     Behavior on containerColor {
-        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
     }
     Behavior on containerTextColor {
-        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
     }
     Behavior on accentColor {
-        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
     }
     Behavior on accentTextColor {
-        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing }
+        ColorAnimation { duration: Motion.theme; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
     }
 
     // URL the running helper was started for. A late answer from a previous

@@ -24,7 +24,11 @@ Item {
             : "transparent"
 
         Behavior on color {
-            ColorAnimation { duration: Motion.fade }
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
     }
 

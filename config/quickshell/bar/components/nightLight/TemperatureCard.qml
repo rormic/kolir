@@ -47,12 +47,33 @@ Rectangle {
         temperatureSettleTimer.stop();
     }
 
+    // VolumeSlider writes its own `value` while dragging, which tears down a
+    // plain `value:` binding on the first interaction. Push the service value
+    // explicitly instead, or presets and IPC changes would stop moving the
+    // handle after the first drag.
+    function syncSlider() {
+        temperatureSlider.value = root.temperatureToPercent(root.temperature);
+    }
+
+    onTemperatureChanged: {
+        if (root.dragging)
+            return;
+        root.syncSlider();
+    }
+
+    Component.onCompleted: root.syncSlider()
+
     Timer {
         id: temperatureSettleTimer
 
         interval: 350
         repeat: false
-        onTriggered: root.dragging = false
+        onTriggered: {
+            root.dragging = false;
+            // Settle on the rounded service step with the spring instead of
+            // leaving the handle on the raw wheel percentage.
+            root.syncSlider();
+        }
     }
 
     Layout.fillWidth: true
@@ -85,19 +106,51 @@ Rectangle {
             }
 
             Text {
+                id: temperatureValue
+
                 text: root.displayTemperature + " K"
                 color: Colors.primary
                 font.family: Typography.barFont
                 font.pixelSize: Typography.size.labelMedium
                 font.weight: Typography.weight.bold
+
+                // Material 3 timing for a small value change: the label leaves
+                // on duration-short1 with the emphasized accelerate curve and
+                // returns on duration-short2 with emphasized decelerate. The
+                // 0.95 dip is an optical amplitude; M3 defines the motion, not
+                // a text pulse.
+                onTextChanged: if (!root.dragging)
+                    temperaturePulse.restart()
+
+                SequentialAnimation {
+                    id: temperaturePulse
+
+                    NumberAnimation {
+                        target: temperatureValue
+                        property: "scale"
+                        to: 0.95
+                        duration: Motion.durationShort1
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.emphasizedAccelerateCurve
+                    }
+
+                    NumberAnimation {
+                        target: temperatureValue
+                        property: "scale"
+                        to: 1.0
+                        duration: Motion.durationShort2
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.emphasizedDecelerateCurve
+                    }
+                }
             }
         }
 
         VolumeSlider {
+            id: temperatureSlider
+
             Layout.fillWidth: true
-            value: root.dragging
-                ? root.dragPercent
-                : root.temperatureToPercent(root.temperature)
+            springValue: true
             interactive: root.interactive
             onDragStarted: value => {
                 temperatureSettleTimer.stop();
@@ -149,8 +202,32 @@ Rectangle {
                         ? Colors.withAlpha(Colors.primary, 0.7)
                         : Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-                    Behavior on color { ColorAnimation { duration: 120 } }
-                    Behavior on border.color { ColorAnimation { duration: 120 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
+
+                    // Material 3 Expressive spatial spring for the selected
+                    // preset. The 1.02 lift is an optical cue, the overshoot
+                    // and settle come from the M3 spring (damping ratio 0.8).
+                    scale: presetChip.active ? 1.02 : 1.0
+                    Behavior on scale {
+                        SpringAnimation {
+                            spring: Motion.spatialSpring
+                            damping: Motion.spatialSpringDamping
+                            epsilon: Motion.springScaleEpsilon
+                        }
+                    }
 
                     StateLayer {
                         shown: presetChip.hovered && !presetChip.active
@@ -178,7 +255,13 @@ Rectangle {
                         hoverEnabled: true
                         enabled: root.interactive
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.temperatureRequested(presetChip.modelData)
+                        onClicked: {
+                            // A preset replaces the wheel preview: release
+                            // it first so the service answer can settle the
+                            // handle on the selected step.
+                            root.cancelDrag();
+                            root.temperatureRequested(presetChip.modelData);
+                        }
                     }
                 }
             }

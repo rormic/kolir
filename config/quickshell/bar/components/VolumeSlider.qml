@@ -10,6 +10,33 @@ Item {
     property bool muted: false
     property bool interactive: true
 
+    // Opt-in spring for the displayed value. The night-light temperature card
+    // turns it on so presets, wheel steps and service updates settle with a
+    // spring while a pointer drag still tracks one-to-one. Off by default: the
+    // volume sheet keeps the direct track.
+    //
+    // The motion is Material 3 Expressive's default spatial spring (stiffness
+    // 380, damping ratio 0.8), converted for Qt's 16 ms spring step in
+    // Motion.qml. It is a spatial change (the handle moves), so the position
+    // epsilon applies.
+    property bool springValue: false
+
+    readonly property real springForce: Motion.spatialSpring
+    readonly property real springDamping: Motion.spatialSpringDamping
+    readonly property real springEpsilon: Motion.springPositionEpsilon
+
+    // What the track and the handle follow. `value` stays the input, so a
+    // spring overshoot never feeds back into the owner or the service.
+    property real shownValue: slider.value
+    Behavior on shownValue {
+        enabled: slider.springValue && !slider.dragging
+        SpringAnimation {
+            spring: slider.springForce
+            damping: slider.springDamping
+            epsilon: slider.springEpsilon
+        }
+    }
+
     signal moved(real value)
     signal dragStarted(real value)
     signal dragUpdated(real value)
@@ -30,7 +57,11 @@ Item {
     readonly property int dotSize: 4
     readonly property int dotInset: 6
 
-    readonly property real clampedValue: Math.max(0, Math.min(100, slider.value))
+    readonly property real clampedValue: Math.max(0, Math.min(100, slider.shownValue))
+
+    // The pointer owns the handle while it is held, so the spring stays off
+    // for that one gesture (wheel steps keep it).
+    readonly property bool dragging: area.pressed
 
     // The handle travels between the two ends of the track, keeping half a
     // handle width of inset on each side.
@@ -64,7 +95,11 @@ Item {
         bottomRightRadius: 0
 
         Behavior on color {
-            ColorAnimation { duration: 120 }
+            ColorAnimation {
+                duration: Motion.fade
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
     }
 

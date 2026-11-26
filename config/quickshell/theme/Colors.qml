@@ -24,67 +24,67 @@ QtObject {
     property bool paletteReady: false
 
     property color primary: "#86d6be"
-    Behavior on primary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on primary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     // Text colors start with "on", and `Behavior on onPrimary` is parsed as a
     // signal handler ("Cannot assign a value to a signal"), so their animated
     // value lives in a private twin and the public writable name is an alias.
     property color _onPrimary: "#00382c"
-    Behavior on _onPrimary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on _onPrimary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
     property alias onPrimary: root._onPrimary
 
     property color primaryContainer: "#005141"
-    Behavior on primaryContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on primaryContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color _onPrimaryContainer: "#a2f2d9"
-    Behavior on _onPrimaryContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on _onPrimaryContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
     property alias onPrimaryContainer: root._onPrimaryContainer
 
     property color secondary: "#a2cfc1"
-    Behavior on secondary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on secondary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color tertiary: "#a9cbe3"
-    Behavior on tertiary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on tertiary { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color error: "#ffb4ab"
-    Behavior on error { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on error { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color errorContainer: "#93000a"
-    Behavior on errorContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on errorContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color _onErrorContainer: "#ffdad6"
-    Behavior on _onErrorContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on _onErrorContainer { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
     property alias onErrorContainer: root._onErrorContainer
 
     property color surfaceContainerLowest: "#090f0d"
-    Behavior on surfaceContainerLowest { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on surfaceContainerLowest { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color surfaceContainerLow: "#171d1b"
-    Behavior on surfaceContainerLow { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on surfaceContainerLow { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color surfaceContainerHigh: "#252b29"
-    Behavior on surfaceContainerHigh { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on surfaceContainerHigh { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color surfaceContainerHighest: "#303634"
-    Behavior on surfaceContainerHighest { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on surfaceContainerHighest { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color _onSurface: "#dee4e0"
-    Behavior on _onSurface { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on _onSurface { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
     property alias onSurface: root._onSurface
 
     property color _onSurfaceVariant: "#bfc9c4"
-    Behavior on _onSurfaceVariant { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on _onSurfaceVariant { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
     property alias onSurfaceVariant: root._onSurfaceVariant
 
     property color outline: "#89938e"
-    Behavior on outline { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on outline { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     property color outlineVariant: "#3f4945"
-    Behavior on outlineVariant { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on outlineVariant { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     // Material 3 modal scrim, used by the embedded sheets.
     property color scrim: "#000000"
-    Behavior on scrim { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing } }
+    Behavior on scrim { ColorAnimation { duration: root.paletteFade; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve } }
 
     // Black used by the corner-only screen frame. Not a Matugen role: those
     // corners stay black in both themes, so they do not crossfade.

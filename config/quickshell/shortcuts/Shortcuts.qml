@@ -173,7 +173,8 @@ Scope {
         property: "reveal"
         to: 1
         duration: Motion.popupEnter
-        easing.type: Easing.OutCubic
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
     }
 
     NumberAnimation {
@@ -183,7 +184,8 @@ Scope {
         property: "reveal"
         to: 0
         duration: Motion.popupExit
-        easing.type: Easing.InCubic
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedAccelerateCurve
 
         onFinished: {
             if (root.reveal <= 0.01) {
@@ -240,6 +242,8 @@ Scope {
         Item {
             anchors.fill: parent
             opacity: root.reveal
+            scale: 0.97 + 0.03 * root.reveal
+            transformOrigin: Item.Center
             transform: Translate { y: -(1.0 - root.reveal) * 10 }
 
             Surface {
@@ -349,7 +353,11 @@ Scope {
                         : Colors.withAlpha(Colors.outlineVariant, 0.25)
 
                     Behavior on border.color {
-                        ColorAnimation { duration: Motion.color; easing.type: Easing.OutCubic }
+                        ColorAnimation {
+                            duration: Motion.color
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
                     }
 
                     Text {
@@ -366,7 +374,11 @@ Scope {
                         font.pixelSize: 18
 
                         Behavior on color {
-                            ColorAnimation { duration: Motion.color }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                     }
 

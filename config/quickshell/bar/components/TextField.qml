@@ -29,7 +29,11 @@ Rectangle {
             : Colors.withAlpha(Colors.outlineVariant, 0.4)
 
     Behavior on border.color {
-        ColorAnimation { duration: Motion.hover }
+        ColorAnimation {
+            duration: Motion.hover
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
     }
 
     function forceFocus() {

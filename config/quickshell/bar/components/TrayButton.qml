@@ -23,8 +23,13 @@ Item {
     implicitHeight: Dimensions.bar.height
 
     scale: mouse.pressed ? 0.9 : root.hovered ? 1.06 : 1.0
+    // Small interactive control scale: the M3 fast spatial spring.
     Behavior on scale {
-        NumberAnimation { duration: 130; easing.type: Easing.OutCubic }
+        SpringAnimation {
+            spring: Motion.spatialSpringFast
+            damping: Motion.spatialSpringFastDamping
+            epsilon: Motion.springScaleEpsilon
+        }
     }
 
     Rectangle {
@@ -44,7 +49,13 @@ Item {
         border.width: root.hovered || root.menuOpen ? 1 : 0
         border.color: Colors.withAlpha(Colors.primary, 0.6)
 
-        Behavior on color { ColorAnimation { duration: 130; easing.type: Easing.OutCubic } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     Image {
@@ -69,7 +80,13 @@ Item {
         color: root.hovered ? Colors.primary : Colors.onSurfaceVariant
         font.family: Typography.iconFont
         font.pixelSize: Dimensions.icon.large
-        Behavior on color { ColorAnimation { duration: 130 } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     // "Needs attention" dot, used by chat and mail clients.

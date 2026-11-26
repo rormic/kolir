@@ -39,7 +39,8 @@ EmbeddedSheet {
 
         NumberAnimation {
             duration: Motion.move
-            easing.type: Easing.OutCubic
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.emphasizedCurve
         }
     }
 

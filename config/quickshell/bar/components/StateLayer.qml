@@ -27,7 +27,8 @@ Rectangle {
     Behavior on opacity {
         NumberAnimation {
             duration: root.duration
-            easing.type: Easing.OutCubic
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
         }
     }
 }

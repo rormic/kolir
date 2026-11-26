@@ -72,9 +72,9 @@ Surface {
     // lines per frame, which reads as the text jumping. Collapsing therefore
     // fades the older blocks out first and only then shrinks the empty space;
     // the edge never crosses a readable line. The two halves still add up to
-    // the original Motion.move, so the speed stays the same.
+    // Motion.move, so the speed stays the same.
     property real foldFade: 0
-    readonly property int foldFadeOutTime: 60
+    readonly property int foldFadeOutTime: Motion.durationShort1
     readonly property int foldCloseTime: Motion.move - root.foldFadeOutTime
 
     onFoldOpenChanged: {
@@ -103,7 +103,8 @@ Surface {
         property: "fold"
         to: 1
         duration: Motion.move
-        easing.type: Easing.OutCubic
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
     }
 
     NumberAnimation {
@@ -113,7 +114,8 @@ Surface {
         property: "foldFade"
         to: 1
         duration: Motion.fade
-        easing.type: Easing.OutCubic
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.standardDecelerateCurve
     }
 
     SequentialAnimation {
@@ -125,7 +127,8 @@ Surface {
             property: "foldFade"
             to: 0
             duration: root.foldFadeOutTime
-            easing.type: Easing.OutCubic
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.emphasizedAccelerateCurve
         }
         // ...and only the now empty space closes.
         NumberAnimation {
@@ -133,7 +136,8 @@ Surface {
             property: "fold"
             to: 0
             duration: root.foldCloseTime
-            easing.type: Easing.OutCubic
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.emphasizedAccelerateCurve
         }
     }
 
@@ -207,14 +211,16 @@ Surface {
         id: appearAnim
 
         PauseAnimation {
-            duration: Math.max(0, Math.min((root.index >= 0 ? root.index : 0) * 50, 300))
+            duration: Math.max(0, Math.min((root.index >= 0 ? root.index : 0)
+                * Motion.durationShort1, Motion.durationMedium2))
         }
         NumberAnimation {
             target: root
             property: "appear"
             to: 1
             duration: Motion.listEnter
-            easing.type: Easing.OutCubic
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.emphasizedDecelerateCurve
         }
     }
 
@@ -226,7 +232,8 @@ Surface {
         from: 0
         to: 1
         duration: Motion.listExit
-        easing.type: Easing.OutCubic
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedAccelerateCurve
     }
 
     Component.onCompleted: appearAnim.start()
@@ -340,7 +347,13 @@ Surface {
                         ? Colors.stateLayer(Colors.onSurface, 0.08)
                         : "transparent"
 
-                    Behavior on color { ColorAnimation { duration: Motion.fade } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
 
                 Row {

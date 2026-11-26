@@ -166,7 +166,13 @@ Item {
                         : Typography.weight.medium
                     elide: Text.ElideRight
 
-                    Behavior on color { ColorAnimation { duration: Motion.hover } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
 
                 Item {

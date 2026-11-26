@@ -35,7 +35,13 @@ Rectangle {
         ? Colors.withAlpha(Colors.primary, 0.35)
         : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-    Behavior on border.color { ColorAnimation { duration: 140 } }
+    Behavior on border.color {
+        ColorAnimation {
+            duration: Motion.color
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
+    }
 
     ColumnLayout {
         id: scheduleColumn
@@ -250,8 +256,31 @@ Rectangle {
             ? Colors.withAlpha(Colors.primary, 0.7)
             : Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-        Behavior on color { ColorAnimation { duration: 120 } }
-        Behavior on border.color { ColorAnimation { duration: 120 } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
+
+        // Same Material 3 spatial spring as the temperature presets, so the
+        // whole sheet speaks one motion language.
+        scale: modeChip.active ? 1.02 : 1.0
+        Behavior on scale {
+            SpringAnimation {
+                spring: Motion.spatialSpring
+                damping: Motion.spatialSpringDamping
+                epsilon: Motion.springScaleEpsilon
+            }
+        }
 
         StateLayer {
             shown: modeChip.hovered && !modeChip.active

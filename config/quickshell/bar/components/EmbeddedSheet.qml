@@ -38,6 +38,14 @@ Item {
     property real reveal: 0
     // Height of the visible panel, bound by the subclass.
     property real panelHeight: 0
+    // Standard content opening scale: cards grow out of the sheet's anchor
+    // corner as the content starts to appear. 0.96 is the optical start; a
+    // subclass can set 1 to opt out.
+    property real contentScaleStart: 0.96
+    property real contentScale: 1
+    readonly property int contentOrigin: root.floating
+        ? Item.Top
+        : (root.mirror ? Item.TopRight : Item.TopLeft)
     // Exposed for the bar input mask and the chip highlight.
     readonly property bool modal: opened || reveal > 0.001
 
@@ -168,11 +176,13 @@ Item {
             return;
 
         revealAnim.stop();
+        contentScaleAnim.stop();
+        root.contentScale = 1;
         root.opened = true;
         if (root.reveal <= 0.001)
             root.reveal = 0;
         root.forceActiveFocus();
-        root.animateReveal(1, Motion.sheetEnter, [0.2, 0, 0, 1]);
+        root.animateReveal(1, Motion.sheetEnter, Motion.emphasizedDecelerateCurve);
     }
 
     function revealClose() {
@@ -188,7 +198,7 @@ Item {
             return;
         }
 
-        root.animateReveal(0, Motion.sheetExit, [0.3, 0, 1, 1]);
+        root.animateReveal(0, Motion.sheetExit, Motion.emphasizedAccelerateCurve);
     }
 
     function animateReveal(to, duration, curve) {
@@ -209,7 +219,7 @@ Item {
         property: "reveal"
         duration: Motion.sheetEnter
         easing.type: Easing.Bezier
-        easing.bezierCurve: [0.2, 0, 0, 1]
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
 
         onFinished: {
             if (root.opened)
@@ -218,6 +228,28 @@ Item {
             root.reveal = 0;
             root.didClose();
         }
+    }
+
+    // Content settles after the panel has poured. Starting the scale when the
+    // content actually becomes visible (contentReveal > 0) keeps the effect
+    // readable instead of spending it behind a fully transparent card.
+    onContentRevealChanged: {
+        if (!root.opened || root.contentScaleStart >= 1 || root.contentReveal <= 0)
+            return;
+        if (!contentScaleAnim.running)
+            contentScaleAnim.restart();
+    }
+
+    NumberAnimation {
+        id: contentScaleAnim
+
+        target: root
+        property: "contentScale"
+        from: root.contentScaleStart
+        to: 1
+        duration: Motion.durationMedium2
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
     }
 
     // Modal scrim over the desktop below the bar strip. It fades in with the
@@ -334,6 +366,8 @@ Item {
                 }
                 z: 1
                 opacity: root.contentReveal
+                scale: root.contentScale
+                transformOrigin: root.contentOrigin
                 transform: Translate { y: (1.0 - root.contentReveal) * -10 }
             }
         }

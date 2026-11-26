@@ -58,7 +58,11 @@ Item {
             font.weight: Typography.weight.medium
 
             Behavior on color {
-                ColorAnimation { duration: Motion.hover; easing.type: Easing.OutCubic }
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             // Hover target: a pill larger than the label so the date reads as
@@ -76,7 +80,8 @@ Item {
                 Behavior on opacity {
                     NumberAnimation {
                         duration: Motion.hover
-                        easing.type: Easing.OutCubic
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.standardDecelerateCurve
                     }
                 }
             }

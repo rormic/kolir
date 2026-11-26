@@ -162,7 +162,11 @@ Surface {
             opacity: root.specialOpen ? 1 : 0
 
             Behavior on opacity {
-                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: Motion.fade
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Rectangle {
@@ -170,7 +174,7 @@ Surface {
                 color: Colors.surfaceContainerLow
 
                 Behavior on color {
-                    ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                    ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
                 }
             }
 
@@ -224,7 +228,11 @@ Surface {
     }
 
     Behavior on trail {
-        NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+        NumberAnimation {
+            duration: Motion.durationShort2
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
     }
 
     onFocusedIndexChanged: {
@@ -359,8 +367,6 @@ Surface {
                 anchors.fill: parent
                 radius: height / 2
                 color: Colors.withAlpha(Colors.primaryContainer, 0.85)
-                border.width: 1
-                border.color: Colors.withAlpha(Colors.primary, 0.7)
             }
         }
 
@@ -427,7 +433,11 @@ Surface {
                         visible: opacity > 0
 
                         Behavior on opacity {
-                            NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                            NumberAnimation {
+                                duration: Motion.fade
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
 
                         Rectangle {
@@ -444,7 +454,11 @@ Surface {
                             color: root.railColor
 
                             Behavior on opacity {
-                                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                                NumberAnimation {
+                                    duration: Motion.fade
+                                    easing.type: Easing.Bezier
+                                    easing.bezierCurve: Motion.standardDecelerateCurve
+                                }
                             }
                         }
 
@@ -457,7 +471,11 @@ Surface {
                             color: root.railColor
 
                             Behavior on opacity {
-                                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                                NumberAnimation {
+                                    duration: Motion.fade
+                                    easing.type: Easing.Bezier
+                                    easing.bezierCurve: Motion.standardDecelerateCurve
+                                }
                             }
                         }
                     }
@@ -486,10 +504,18 @@ Surface {
                         scale: wsItem.underThumb ? 1 : 0.9
 
                         Behavior on opacity {
-                            NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                            NumberAnimation {
+                                duration: Motion.fade
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                         Behavior on scale {
-                            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+                            NumberAnimation {
+                                duration: Motion.move
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                     }
 
@@ -506,10 +532,14 @@ Surface {
                         font.weight: Typography.weight.bold
 
                         Behavior on opacity {
-                            NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                            NumberAnimation {
+                                duration: Motion.fade
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                         Behavior on color {
-                            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
                         }
                     }
 
@@ -526,6 +556,23 @@ Surface {
                 }
             }
         }
+
+        // The active outline is drawn above the row, so an app icon can never
+        // hide the selection. It follows the same animated edges as the fill,
+        // which keeps the lead/trail effect on the whole comet.
+        Rectangle {
+            id: focusRing
+
+            x: thumb.leftEdge - 1
+            y: thumb.y - 1
+            width: thumb.width + 2
+            height: thumb.height + 2
+            radius: height / 2
+            color: "transparent"
+            border.width: 1.5
+            border.color: Colors.primary
+            visible: thumb.visible
+        }
     }
 
     // Motion is declared after the cells so `thumb` already exists. The leading
@@ -537,7 +584,9 @@ Surface {
         id: leadAnim
         target: thumb
         property: "rightEdge"
-        easing.type: Easing.OutCubic
+        // Leading edge: content entering, so emphasized decelerate.
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
     }
 
     SequentialAnimation {
@@ -554,7 +603,9 @@ Surface {
             id: trailMove
             target: thumb
             property: "leftEdge"
-            easing.type: Easing.InOutCubic
+            // Trailing edge closes on the emphasized (both ends) curve.
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.emphasizedCurve
         }
     }
 

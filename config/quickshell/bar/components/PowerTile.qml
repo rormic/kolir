@@ -69,7 +69,11 @@ Item {
             color: Colors.withAlpha(root.accent, root.hovered ? 0.22 : 0.12)
 
             Behavior on color {
-                ColorAnimation { duration: Motion.hover }
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Text {
@@ -105,7 +109,11 @@ Item {
             color: Colors.withAlpha(root.accent, root.hovered ? 0.22 : 0.12)
 
             Behavior on color {
-                ColorAnimation { duration: Motion.hover }
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Text {

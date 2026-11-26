@@ -86,7 +86,11 @@ Item {
 
     Behavior on value {
         enabled: root.animated
-        NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: Motion.move
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
     }
 
     // Build the active wave as a polyline. The sine runs at full amplitude
@@ -154,10 +158,18 @@ Item {
         color: root.trackColor
 
         Behavior on width {
-            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: Motion.move
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
         Behavior on x {
-            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: Motion.move
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
     }
 
@@ -173,7 +185,11 @@ Item {
         color: root.indicatorColor
 
         Behavior on width {
-            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: Motion.move
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
     }
 

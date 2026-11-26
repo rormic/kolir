@@ -45,6 +45,9 @@ Scope {
     // ── Current selection (in-memory only, until Enter/Esc) ──────────────
     property var optionIndexes: [0, 1, 0, 0, 0]
     property int selectedRow: 0
+    // Opening progress for the standard panel transform (open only: the panel
+    // must disappear at once when a recording starts).
+    property real reveal: 0
 
     function wrapIndex(index, length, direction) {
         return (index + direction + length) % length;
@@ -71,16 +74,21 @@ Scope {
 
     function open() {
         root.resetOptions();
+        root.reveal = 0;
         win.visible = true;
+        openReveal.restart();
         keyCatcher.forceActiveFocus();
     }
 
     function close() {
+        root.reveal = 0;
         win.visible = false;
     }
 
     function startRecording() {
-        // Hide the panel first so it does not appear in slurp/video.
+        // Hide the panel first so it does not appear in slurp/video. No close
+        // animation here: it would be captured by the recorder.
+        root.reveal = 0;
         win.visible = false;
         launchTimer.restart();
     }
@@ -95,6 +103,17 @@ Scope {
         function close(): void {
             root.close();
         }
+    }
+
+    NumberAnimation {
+        id: openReveal
+
+        target: root
+        property: "reveal"
+        to: 1
+        duration: Motion.popupEnter
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Motion.emphasizedDecelerateCurve
     }
 
     Process {
@@ -144,6 +163,9 @@ Scope {
             surfaceColor: Colors.withAlpha(Colors.surfaceContainerLow, 0.98)
             borderWidth: 2
             borderColor: Colors.primary
+            opacity: root.reveal
+            scale: 0.97 + 0.03 * root.reveal
+            transformOrigin: Item.Center
 
             Item {
                 anchors.fill: parent
@@ -223,7 +245,11 @@ Scope {
                         border.color: Colors.withAlpha(Colors.primary, 0.35)
 
                         Behavior on color {
-                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
 
                         Row {

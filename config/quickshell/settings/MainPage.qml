@@ -93,7 +93,8 @@ Item {
                             property: "appear"
                             to: 1
                             duration: Motion.listEnter
-                            easing.type: Easing.OutCubic
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.emphasizedDecelerateCurve
                         }
                     }
 
@@ -118,7 +119,13 @@ Item {
                             ? Colors.withAlpha(Colors.surfaceContainerHigh, 0.55)
                             : Colors.surfaceContainerHigh
 
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
+                        }
 
                         StateLayer {
                             shown: row.hovered
@@ -139,7 +146,13 @@ Item {
                         radius: Dimensions.radius.small + 2
                         color: Colors.withAlpha(Colors.primary, row.hovered ? 0.2 : 0.11)
 
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Motion.hover
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
+                        }
 
                         Text {
                             anchors.centerIn: parent
@@ -197,7 +210,13 @@ Item {
                         font.family: Typography.iconFont
                         font.pixelSize: Dimensions.icon.medium
 
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Motion.hover
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
+                        }
                     }
 
                     MouseArea {

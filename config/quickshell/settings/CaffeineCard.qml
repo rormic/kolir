@@ -17,7 +17,13 @@ Rectangle {
         ? Colors.withAlpha(Colors.primary, 0.35)
         : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-    Behavior on border.color { ColorAnimation { duration: Motion.hover } }
+    Behavior on border.color {
+        ColorAnimation {
+            duration: Motion.hover
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.standardDecelerateCurve
+        }
+    }
 
     ColumnLayout {
         id: content
@@ -41,7 +47,13 @@ Rectangle {
                     ? Colors.primaryContainer
                     : Colors.surfaceContainerHighest
 
-                Behavior on color { ColorAnimation { duration: Motion.color } }
+                Behavior on color {
+                    ColorAnimation {
+                        duration: Motion.color
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.standardDecelerateCurve
+                    }
+                }
 
                 Text {
                     anchors.centerIn: parent
@@ -126,8 +138,20 @@ Rectangle {
                             ? Colors.withAlpha(Colors.primary, 0.45)
                             : Colors.withAlpha(Colors.outlineVariant, 0.25)
 
-                    Behavior on color { ColorAnimation { duration: Motion.hover } }
-                    Behavior on border.color { ColorAnimation { duration: Motion.hover } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
 
                     StateLayer {
                         shown: chip.selected || chip.hovered

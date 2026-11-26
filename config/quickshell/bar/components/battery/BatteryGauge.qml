@@ -75,8 +75,13 @@ Item {
 
     scale: root.hovered ? 1.04 : 1.0
 
+    // Small interactive control scale: the M3 fast spatial spring.
     Behavior on scale {
-        NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+        SpringAnimation {
+            spring: Motion.spatialSpringFast
+            damping: Motion.spatialSpringFastDamping
+            epsilon: Motion.springScaleEpsilon
+        }
     }
 
     Surface {
@@ -89,7 +94,11 @@ Item {
         borderColor: root.borderColor
 
         Behavior on borderColor {
-            ColorAnimation { duration: Motion.hover }
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
 
         // The level: a full-size capsule revealed by a rectangular clip. The
@@ -104,7 +113,11 @@ Item {
             clip: true
 
             Behavior on width {
-                NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: Motion.move
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Rectangle {

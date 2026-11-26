@@ -149,11 +149,11 @@ Pill {
             bottomRightRadius: parent.height / 2
 
             Behavior on color {
-                ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
             }
 
             Behavior on border.color {
-                ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing; easing.bezierCurve: Motion.themeCurve }
             }
         }
 
@@ -167,6 +167,7 @@ Pill {
             }
             spacing: 8
             opacity: root.headerContent
+            transform: Translate { y: (1 - root.headerContent) * 4 }
 
             Text {
                 Layout.alignment: Qt.AlignVCenter

@@ -63,7 +63,8 @@ StatusItem {
                 property: "opacity"
                 to: 0
                 duration: Motion.listExit
-                easing.type: Easing.OutCubic
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.emphasizedAccelerateCurve
             }
 
             NumberAnimation {
@@ -71,7 +72,8 @@ StatusItem {
                 property: "scale"
                 to: 0.9
                 duration: Motion.listExit
-                easing.type: Easing.OutCubic
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.emphasizedAccelerateCurve
             }
         }
 

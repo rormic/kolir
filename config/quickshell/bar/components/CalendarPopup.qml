@@ -137,7 +137,11 @@ EmbeddedSheet {
     // The form and the list swap inside the same card, so the sheet grows and
     // shrinks instead of jumping between two heights.
     Behavior on panelHeight {
-        NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: Motion.move
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Motion.emphasizedCurve
+        }
     }
 
     // Monday-first, because the grid always starts on a Monday.
@@ -619,7 +623,11 @@ EmbeddedSheet {
                                     : Colors.withAlpha(Colors.primary, 0.55)
 
                                 Behavior on color {
-                                    ColorAnimation { duration: Motion.hover }
+                                    ColorAnimation {
+                                        duration: Motion.hover
+                                        easing.type: Easing.Bezier
+                                        easing.bezierCurve: Motion.standardDecelerateCurve
+                                    }
                                 }
                             }
 
@@ -796,7 +804,11 @@ EmbeddedSheet {
                                             ? 0.55 : 1
 
                                         Behavior on opacity {
-                                            NumberAnimation { duration: Motion.fade }
+                                            NumberAnimation {
+                                                duration: Motion.fade
+                                                easing.type: Easing.Bezier
+                                                easing.bezierCurve: Motion.standardDecelerateCurve
+                                            }
                                         }
 
                                         StateLayer {

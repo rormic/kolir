@@ -31,8 +31,13 @@ Item {
     readonly property alias iconItem: iconLabel
 
     scale: root.pressed ? 0.88 : root.hovered ? 1.08 : 1.0
+    // Small interactive control scale: the M3 fast spatial spring.
     Behavior on scale {
-        NumberAnimation { duration: Motion.press; easing.type: Easing.OutCubic }
+        SpringAnimation {
+            spring: Motion.spatialSpringFast
+            damping: Motion.spatialSpringFastDamping
+            epsilon: Motion.springScaleEpsilon
+        }
     }
 
     // Background + neon border ring on hover
@@ -49,7 +54,13 @@ Item {
         border.width: root.hovered && !root.active ? 1 : 0
         border.color: Colors.withAlpha(Colors.primary, 0.6)
 
-        Behavior on color { ColorAnimation { duration: Motion.press; easing.type: Easing.OutCubic } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.press
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     Text {
@@ -62,7 +73,13 @@ Item {
         font.family: Typography.iconFont
         font.pixelSize: root.iconSize
         font.weight: Font.Normal
-        Behavior on color { ColorAnimation { duration: Motion.press } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.press
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     MouseArea {

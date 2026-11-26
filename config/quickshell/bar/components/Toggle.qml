@@ -29,8 +29,20 @@ Item {
             ? Colors.withAlpha(Colors.primary, 0.8)
             : Colors.withAlpha(Colors.outlineVariant, 0.35)
 
-        Behavior on color { ColorAnimation { duration: 140 } }
-        Behavior on border.color { ColorAnimation { duration: 140 } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.color
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: Motion.color
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     Rectangle {
@@ -43,8 +55,21 @@ Item {
         x: root.checked ? root.width - width - 2 : 2
         color: root.checked ? Colors.primary : Colors.onSurfaceVariant
 
-        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-        Behavior on color { ColorAnimation { duration: 140 } }
+        // The switch knob is a tracked value: the M3 fast spatial spring.
+        Behavior on x {
+            SpringAnimation {
+                spring: Motion.spatialSpringFast
+                damping: Motion.spatialSpringFastDamping
+                epsilon: Motion.springPositionEpsilon
+            }
+        }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.color
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     MouseArea {

@@ -134,7 +134,13 @@ ColumnLayout {
             ? Colors.withAlpha(Colors.error, 0.35)
             : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
-        Behavior on border.color { ColorAnimation { duration: Motion.hover } }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
 
         ColumnLayout {
             id: hero
@@ -160,7 +166,13 @@ ColumnLayout {
                     font.pixelSize: 36
                     font.weight: Typography.weight.bold
 
-                    Behavior on color { ColorAnimation { duration: Motion.color } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.color
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
 
                 Text {

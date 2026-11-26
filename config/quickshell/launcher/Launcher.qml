@@ -379,13 +379,25 @@ Scope {
 
             Behavior on height {
                 enabled: win.visible
-                NumberAnimation { duration: 450; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: Motion.durationMedium2
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.emphasizedDecelerateCurve
+                }
             }
             Behavior on opacity {
-                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: Motion.durationShort4
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.emphasizedDecelerateCurve
+                }
             }
             Behavior on scale {
-                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    duration: Motion.durationShort4
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.emphasizedDecelerateCurve
+                }
             }
 
             // Поглинаємо кліки всередині картки, щоб вони не закривали лаунчер
@@ -436,7 +448,11 @@ Scope {
                             font.weight: Font.Normal
 
                             Behavior on color {
-                                ColorAnimation { duration: 140 }
+                                ColorAnimation {
+                                    duration: Motion.color
+                                    easing.type: Easing.Bezier
+                                    easing.bezierCurve: Motion.standardDecelerateCurve
+                                }
                             }
                         }
 
@@ -607,10 +623,18 @@ Scope {
                             : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
                         Behavior on color {
-                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                         Behavior on border.color {
-                            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
 
                         Row {
@@ -683,10 +707,18 @@ Scope {
                                 : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
                         Behavior on color {
-                            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
                         Behavior on border.color {
-                            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            ColorAnimation {
+                                duration: Motion.color
+                                easing.type: Easing.Bezier
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
                         }
 
                         Text {

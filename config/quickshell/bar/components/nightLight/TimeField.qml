@@ -62,7 +62,13 @@ Item {
             font.family: Typography.iconFont
             font.pixelSize: Dimensions.icon.large
 
-            Behavior on color { ColorAnimation { duration: 100 } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Motion.fade
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
+            }
         }
 
         MouseArea {
@@ -137,7 +143,13 @@ Item {
             ? Colors.withAlpha(Colors.primary, 0.35)
             : Colors.withAlpha(Colors.outlineVariant, 0.3)
 
-        Behavior on border.color { ColorAnimation { duration: 120 } }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: Motion.hover
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     HoverHandler {

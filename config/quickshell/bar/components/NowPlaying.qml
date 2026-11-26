@@ -148,13 +148,16 @@ Item {
 
     onTargetExpandProgressChanged: expandProgress = targetExpandProgress
 
-    // Island morph: popout-speed, driven by one progress value so the notch,
-    // radius and content fades stay in sync.
+    // Island morph: one progress value drives the notch, radius and content
+    // fades in sync. Opening uses the popup enter token, closing the shorter
+    // exit token with the accelerating curve.
     Behavior on expandProgress {
         NumberAnimation {
-            duration: Motion.popupEnter
+            duration: root.expanded ? Motion.durationMedium2 : Motion.durationShort4
             easing.type: Easing.Bezier
-            easing.bezierCurve: [0.2, 0, 0, 1]
+            easing.bezierCurve: root.expanded
+                ? Motion.emphasizedDecelerateCurve
+                : Motion.emphasizedAccelerateCurve
         }
     }
 
@@ -344,7 +347,11 @@ Item {
         z: 6
 
         Behavior on opacity {
-            NumberAnimation { duration: Motion.fade }
+            NumberAnimation {
+                duration: Motion.fade
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
 
         Row {
@@ -389,7 +396,11 @@ Item {
         z: 8
 
         Behavior on opacity {
-            NumberAnimation { duration: Motion.fade }
+            NumberAnimation {
+                duration: Motion.fade
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
 
         HoverHandler {
@@ -810,7 +821,11 @@ Item {
                         scale: playMouseArea.containsMouse ? 1.08 : 1.0
 
                         Behavior on scale {
-                            NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+                            SpringAnimation {
+                                spring: Motion.spatialSpringFast
+                                damping: Motion.spatialSpringFastDamping
+                                epsilon: Motion.springScaleEpsilon
+                            }
                         }
 
                         Text {

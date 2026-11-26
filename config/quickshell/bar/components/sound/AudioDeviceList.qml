@@ -84,7 +84,13 @@ ColumnLayout {
                     border.width: deviceRow.active ? 1 : 0
                     border.color: Colors.withAlpha(Colors.primary, 0.45)
 
-                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Motion.hover
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.standardDecelerateCurve
+                        }
+                    }
                 }
 
                 Text {

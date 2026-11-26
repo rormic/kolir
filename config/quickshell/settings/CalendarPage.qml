@@ -234,7 +234,7 @@ Item {
                     target: actionIcon
                     from: 0
                     to: 360
-                    duration: 1000
+                    duration: Motion.spin
                     loops: Animation.Infinite
                     running: action.busy
                 }
@@ -353,7 +353,11 @@ Item {
                     : Colors.withAlpha(Colors.outlineVariant, 0.22)
 
                 Behavior on border.color {
-                    ColorAnimation { duration: Motion.hover }
+                    ColorAnimation {
+                        duration: Motion.hover
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.standardDecelerateCurve
+                    }
                 }
 
                 ColumnLayout {

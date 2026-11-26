@@ -162,7 +162,11 @@ PanelWindow {
                 }
 
                 Behavior on rotation {
-                    NumberAnimation { duration: Motion.rotate; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: Motion.rotate
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Motion.emphasizedCurve
+                    }
                 }
             }
 

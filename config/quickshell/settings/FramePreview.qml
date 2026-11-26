@@ -53,8 +53,20 @@ Item {
                 ? Colors.withAlpha(Colors.primary, 0.45)
                 : Colors.withAlpha(Colors.outlineVariant, 0.28)
 
-        Behavior on color { ColorAnimation { duration: Motion.fade } }
-        Behavior on border.color { ColorAnimation { duration: Motion.fade } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Motion.fade
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: Motion.fade
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
     }
 
     ColumnLayout {

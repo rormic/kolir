@@ -113,7 +113,13 @@ Rectangle {
                     color: Colors.onSurfaceVariant
                     font.family: Typography.iconFont
                     font.pixelSize: Dimensions.icon.medium
-                    Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                    Behavior on rotation {
+                        NumberAnimation {
+                            duration: Motion.rotate
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Motion.emphasizedCurve
+                        }
+                    }
                 }
 
                 Toggle {
@@ -183,7 +189,13 @@ Rectangle {
                                 color: exitRow.selected ? Colors.primary : Colors.onSurfaceVariant
                                 font.family: Typography.iconFont
                                 font.pixelSize: Dimensions.icon.medium
-                                Behavior on color { ColorAnimation { duration: Motion.color } }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: Motion.color
+                                        easing.type: Easing.Bezier
+                                        easing.bezierCurve: Motion.standardDecelerateCurve
+                                    }
+                                }
                             }
                             Text {
                                 Layout.fillWidth: true

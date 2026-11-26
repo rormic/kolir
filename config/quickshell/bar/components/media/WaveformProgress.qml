@@ -163,10 +163,18 @@ Item {
         z: 10
 
         Behavior on width {
-            NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+            SpringAnimation {
+                spring: Motion.spatialSpringFast
+                damping: Motion.spatialSpringFastDamping
+                epsilon: Motion.springPositionEpsilon
+            }
         }
         Behavior on height {
-            NumberAnimation { duration: Motion.scale; easing.type: Easing.OutCubic }
+            SpringAnimation {
+                spring: Motion.spatialSpringFast
+                damping: Motion.spatialSpringFastDamping
+                epsilon: Motion.springPositionEpsilon
+            }
         }
     }
 

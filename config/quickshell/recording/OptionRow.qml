@@ -31,7 +31,11 @@ Item {
         border.color: Colors.withAlpha(Colors.primary, 0.35)
 
         Behavior on color {
-            ColorAnimation { duration: 140; easing.type: Easing.OutCubic }
+            ColorAnimation {
+                duration: Motion.color
+                easing.type: Easing.Bezier
+                easing.bezierCurve: Motion.standardDecelerateCurve
+            }
         }
     }
 
@@ -85,7 +89,11 @@ Item {
             border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
 
             Behavior on color {
-                ColorAnimation { duration: 120 }
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Text {
@@ -120,7 +128,11 @@ Item {
             border.color: Colors.withAlpha(Colors.outlineVariant, 0.30)
 
             Behavior on color {
-                ColorAnimation { duration: 120 }
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Text {
@@ -159,7 +171,11 @@ Item {
             border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
 
             Behavior on color {
-                ColorAnimation { duration: 120 }
+                ColorAnimation {
+                    duration: Motion.hover
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardDecelerateCurve
+                }
             }
 
             Text {

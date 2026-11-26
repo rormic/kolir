@@ -65,10 +65,28 @@ Surface {
             elide: Text.ElideRight
 
             onTextChanged: fadeAnim.restart()
+            // Title change: the old label dips out on the leaving curve, the new
+            // one settles in on the entering curve.
             SequentialAnimation {
                 id: fadeAnim
-                NumberAnimation { target: titleText; property: "opacity"; to: 0.3; duration: 70 }
-                NumberAnimation { target: titleText; property: "opacity"; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+
+                NumberAnimation {
+                    target: titleText
+                    property: "opacity"
+                    to: 0.3
+                    duration: Motion.durationShort2
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.standardAccelerateCurve
+                }
+
+                NumberAnimation {
+                    target: titleText
+                    property: "opacity"
+                    to: 1.0
+                    duration: Motion.durationShort4
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Motion.emphasizedDecelerateCurve
+                }
             }
         }
     }
