@@ -7,8 +7,8 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import "../../theme"
 
-// Workspace switcher: one neon highlight travels between the cells, so a
-// switch reads as movement instead of ten independent fades.
+// Workspace switcher: occupied cells share a rail and one neon capsule travels
+// between them, so a switch reads as movement instead of ten independent fades.
 Surface {
     id: root
 
@@ -23,6 +23,14 @@ Surface {
     }
     readonly property int pillWidth: cellWidth - 2
     readonly property int pillHeight: cellHeight - 4
+    readonly property int pillInset: (cellWidth - pillWidth) / 2
+    // Occupied cells share one continuous rail: each cell paints its own slice
+    // and squares off the corners that meet an occupied neighbour, so adjacent
+    // workspaces read as a single capsule instead of touching pills with a
+    // pinch at every boundary.
+    readonly property int railHeight: 16
+    readonly property int railRadius: railHeight / 2
+    readonly property color railColor: Colors.withAlpha(Colors.onSurface, 0.07)
 
     // One lookup table for all ten cells. Each delegate used to run its own
     // find() over a freshly materialised workspace array, so the ten cells
@@ -52,10 +60,6 @@ Surface {
     // Glow lag behind the highlight while it travels, in pixels. Negative is
     // left of the highlight, which is where the light trails a rightward move.
     property real trail: 0
-    // Cell whose numeral is tinted. -1 while the highlight travels, so the
-    // destination label lights up when the highlight lands instead of glowing
-    // on the far side of the bar during the move.
-    property int litIndex: 0
 
     // Special workspace (the SUPER+S scratchpad) is not represented by
     // `focusedWorkspace`: Hyprland keeps the normal workspace focused and
@@ -84,6 +88,10 @@ Surface {
     function toRoman(n) {
         const r = ["I","II","III","IV","V","VI","VII","VIII","IX","X"]
         return r[n - 1] ?? String(n)
+    }
+
+    function hasWindows(ws) {
+        return ws ? (ws.toplevels ? ws.toplevels.values.length > 0 : false) : false
     }
 
     implicitHeight: Dimensions.control.height
@@ -221,13 +229,14 @@ Surface {
         if (focusedIndex < 0)
             return
 
-        const targetCenter = focusedIndex * root.cellWidth + root.cellWidth / 2
+        const targetLeft = focusedIndex * root.cellWidth + root.pillInset
+        const targetRight = targetLeft + root.pillWidth
 
         if (!settledOnce) {
             settledOnce = true
             lastIndex = focusedIndex
-            litIndex = focusedIndex
-            thumb.centerX = targetCenter
+            thumb.leftEdge = targetLeft
+            thumb.rightEdge = targetRight
             return
         }
 
@@ -235,28 +244,31 @@ Surface {
             return
 
         const distance = Math.abs(focusedIndex - lastIndex)
-        const direction = focusedIndex > lastIndex ? 1 : -1
-        const duration = Math.min(340, Motion.workspace + (distance - 1) * 20)
+        const movingRight = focusedIndex > lastIndex
+        const duration = Math.min(400, Motion.workspace + (distance - 1) * 24)
+        const leadDuration = Math.max(90, Math.round(duration * 0.55))
+        const trailDelay = Math.round(duration * 0.12)
 
-        // Travel: distance-aware so a neighbouring workspace stays snappy and a
-        // far jump gets enough time to read as motion instead of a teleport.
-        travel.stop()
-        travel.duration = duration
-        travel.to = targetCenter
-        travel.start()
+        // The edge that leads the switch crosses the gap first; the trailing
+        // edge follows after a short hold and a gentler curve. The capsule
+        // stretches between them and then closes onto the destination cell, so
+        // a jump reads as one travelling light instead of a sliding chip.
+        leadAnim.stop()
+        trailAnim.stop()
 
-        // Squash and stretch along the motion: the highlight grows wider and
-        // flatter while it moves, then settles back to the cell shape.
-        stretchW.to = root.pillWidth + Math.min(7, 3 + distance * 0.6)
-        stretchH.to = root.pillHeight - Math.min(3, 1 + distance * 0.35)
-        stretchW.duration = Math.round(duration * 0.4)
-        stretchH.duration = stretchW.duration
-        settleW.duration = duration - stretchW.duration
-        settleH.duration = settleW.duration
-        travelFx.restart()
+        leadAnim.property = movingRight ? "rightEdge" : "leftEdge"
+        leadAnim.to = movingRight ? targetRight : targetLeft
+        leadAnim.duration = leadDuration
 
-        root.trail = -direction * 5
-        root.litIndex = -1
+        trailMove.property = movingRight ? "leftEdge" : "rightEdge"
+        trailMove.to = movingRight ? targetLeft : targetRight
+        trailMove.duration = Math.max(80, duration - trailDelay)
+        trailPause.duration = trailDelay
+
+        leadAnim.start()
+        trailAnim.start()
+
+        root.trail = movingRight ? -5 : 5
         lastIndex = focusedIndex
     }
 
@@ -267,8 +279,8 @@ Surface {
         if (focusedIndex >= 0) {
             settledOnce = true
             lastIndex = focusedIndex
-            litIndex = focusedIndex
-            thumb.centerX = lastIndex * root.cellWidth + root.cellWidth / 2
+            thumb.leftEdge = lastIndex * root.cellWidth + root.pillInset
+            thumb.rightEdge = thumb.leftEdge + root.pillWidth
         }
     }
 
@@ -298,13 +310,21 @@ Surface {
         Item {
             id: thumb
 
-            // Animated travel coordinate; x follows so the pill stretches
-            // around its centre instead of one edge.
-            property real centerX: root.cellWidth / 2
+            // The capsule is defined by its two edges rather than a centre and
+            // a fixed width: the leading edge runs ahead of the trailing one,
+            // so a switch stretches the pill across the gap and then closes it
+            // onto the destination cell.
+            property real leftEdge: root.pillInset
+            property real rightEdge: root.pillInset + root.pillWidth
 
-            x: centerX - width / 2
+            readonly property real stretch: Math.max(0, width - root.pillWidth)
+            // A comet that spans several cells thins its halo, so a long jump
+            // does not paint a solid beam over the whole row.
+            readonly property real glowFade: 1 - Math.min(0.45, stretch * 0.0025)
+
+            x: leftEdge
             y: (cells.height - height) / 2
-            width: root.pillWidth
+            width: rightEdge - leftEdge
             height: root.pillHeight
             visible: root.focusedIndex >= 0
 
@@ -317,6 +337,7 @@ Surface {
                 height: thumb.height + 3
                 radius: height / 2
                 color: Colors.withAlpha(Colors.primary, 0.07)
+                opacity: thumb.glowFade
             }
 
             // Neon glow layer 2
@@ -328,6 +349,7 @@ Surface {
                 height: thumb.height + 1
                 radius: height / 2
                 color: Colors.withAlpha(Colors.primary, 0.13)
+                opacity: thumb.glowFade
             }
 
             // Main indicator
@@ -355,8 +377,18 @@ Surface {
 
                     readonly property int wsId: index + 1
                     readonly property var ws: root.workspaceById[wsId]
-                    readonly property bool hasWindow: ws ? (ws.toplevels ? ws.toplevels.values.length > 0 : false) : false
+                    readonly property bool hasWindow: root.hasWindows(ws)
+                    readonly property bool leftOccupied: root.hasWindows(root.workspaceById[wsId - 1])
+                    readonly property bool rightOccupied: root.hasWindows(root.workspaceById[wsId + 1])
                     readonly property bool isFocused: Hyprland.focusedWorkspace?.id === wsId
+                    // True while the travelling capsule covers this cell's
+                    // centre, so a numeral flips to the on-primary ink as the
+                    // light passes over it instead of lighting up only at the
+                    // destination.
+                    readonly property bool underThumb: {
+                        const center = (wsItem.index + 0.5) * root.cellWidth
+                        return center >= thumb.leftEdge && center <= thumb.rightEdge
+                    }
 
                     readonly property var topApp: {
                         if (!ws || !ws.toplevels) return null;
@@ -366,9 +398,67 @@ Surface {
                     readonly property string appClass: topApp
                         ? (topApp.wayland?.appId ?? topApp.lastIpcObject?.class ?? "")
                         : ""
+                    readonly property bool iconShown: hasWindow && appIcon.ready
+                    // Keep the last resolved class while a closing window
+                    // fades its icon out, so the cell never blanks before the
+                    // numeral has faded in.
+                    property string lastAppClass: ""
+                    onAppClassChanged: {
+                        if (appClass.length > 0)
+                            lastAppClass = appClass
+                    }
 
                     implicitWidth: root.cellWidth
                     implicitHeight: root.cellHeight
+
+                    // Occupied rail. Each cell paints its own slice; the two
+                    // caps below square off the corners that touch an occupied
+                    // neighbour, so a run of occupied workspaces reads as one
+                    // capsule with rounded outer ends.
+                    Item {
+                        id: rail
+
+                        anchors.centerIn: parent
+                        width: root.cellWidth + 1
+                        height: root.railHeight
+                        opacity: wsItem.hasWindow ? 1 : 0
+                        visible: opacity > 0
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: root.railRadius
+                            color: root.railColor
+                        }
+
+                        Rectangle {
+                            visible: wsItem.hasWindow && (wsItem.leftOccupied || opacity > 0)
+                            opacity: wsItem.leftOccupied ? 1 : 0
+                            width: root.railRadius
+                            height: parent.height
+                            color: root.railColor
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                            }
+                        }
+
+                        Rectangle {
+                            visible: wsItem.hasWindow && (wsItem.rightOccupied || opacity > 0)
+                            opacity: wsItem.rightOccupied ? 1 : 0
+                            anchors.right: parent.right
+                            width: root.railRadius
+                            height: parent.height
+                            color: root.railColor
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                            }
+                        }
+                    }
 
                     // Hover tint of the cell itself, independent of the
                     // travelling highlight.
@@ -387,29 +477,38 @@ Surface {
                     AppIcon {
                         id: appIcon
                         anchors.centerIn: parent
-                        appClass: wsItem.hasWindow ? wsItem.appClass : ""
+                        appClass: wsItem.hasWindow ? wsItem.appClass : wsItem.lastAppClass
                         iconSize: Dimensions.icon.medium
-                        visible: wsItem.hasWindow && ready
+                        opacity: wsItem.iconShown ? 1 : 0
+                        visible: opacity > 0
+                        scale: wsItem.underThumb ? 1 : 0.9
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on scale {
+                            NumberAnimation { duration: Motion.move; easing.type: Easing.OutCubic }
+                        }
                     }
 
                     Text {
                         anchors.centerIn: parent
-                        visible: !wsItem.hasWindow || !appIcon.visible
                         text: root.toRoman(wsItem.wsId)
-                        color: root.litIndex === wsItem.wsId - 1 ? Colors.primary : Colors.withAlpha(Colors.onSurfaceVariant, 0.7)
+                        opacity: wsItem.iconShown ? 0 : 1
+                        visible: opacity > 0
+                        color: wsItem.underThumb
+                            ? Colors.onPrimaryContainer
+                            : Colors.withAlpha(Colors.onSurfaceVariant, 0.7)
                         font.family: Typography.barFont
                         font.pixelSize: wsItem.wsId === 8 ? 8 : 9
                         font.weight: Typography.weight.bold
-                    }
 
-                    // Window presence dot
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 2
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        visible: wsItem.hasWindow && appIcon.visible
-                        width: 3; height: 3; radius: 1.5
-                        color: root.litIndex === wsItem.wsId - 1 ? Colors.primary : Colors.withAlpha(Colors.outline, 0.6)
+                        Behavior on opacity {
+                            NumberAnimation { duration: Motion.fade; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on color {
+                            ColorAnimation { duration: Motion.color; easing.type: Motion.themeEasing }
+                        }
                     }
 
                     MouseArea {
@@ -427,16 +526,33 @@ Surface {
         }
     }
 
-    // Travel is declared after the cells so `thumb` already exists when the
-    // animation resolves its target.
+    // Motion is declared after the cells so `thumb` already exists. The leading
+    // edge runs first; the trailing edge holds the capsule stretched for a beat
+    // and then closes it onto the destination. A new switch stops both and
+    // retargets from the current values, so quick workspace hopping never jumps
+    // back to a stale edge.
     NumberAnimation {
-        id: travel
+        id: leadAnim
         target: thumb
-        property: "centerX"
+        property: "rightEdge"
         easing.type: Easing.OutCubic
-        onFinished: {
-            root.trail = 0
-            root.litIndex = root.lastIndex
+    }
+
+    SequentialAnimation {
+        id: trailAnim
+
+        // `SequentialAnimation` is the animation that actually completes last;
+        // a child NumberAnimation inside it does not deliver its own
+        // `onFinished` here, so the trail is cleared on the sequence.
+        onFinished: root.trail = 0
+
+        PauseAnimation { id: trailPause }
+
+        NumberAnimation {
+            id: trailMove
+            target: thumb
+            property: "leftEdge"
+            easing.type: Easing.InOutCubic
         }
     }
 
@@ -451,20 +567,6 @@ Surface {
         running: root.specialOpen
         onTriggered: {
             specialWash.phase = (specialWash.phase + interval / root.specialWashCycle) % 1
-        }
-    }
-
-    SequentialAnimation {
-        id: travelFx
-
-        ParallelAnimation {
-            NumberAnimation { id: stretchW; target: thumb; property: "width"; easing.type: Easing.OutQuad }
-            NumberAnimation { id: stretchH; target: thumb; property: "height"; easing.type: Easing.OutQuad }
-        }
-
-        ParallelAnimation {
-            NumberAnimation { id: settleW; target: thumb; property: "width"; to: root.pillWidth; easing.type: Easing.OutCubic }
-            NumberAnimation { id: settleH; target: thumb; property: "height"; to: root.pillHeight; easing.type: Easing.OutCubic }
         }
     }
 }
