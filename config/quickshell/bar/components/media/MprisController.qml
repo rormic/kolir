@@ -241,6 +241,14 @@ Scope {
     property real frozenSince: -1
     property real frozenAnchorPosition: -1
     readonly property real frozenMovementLimit: 1
+    // Zen reports a stream pinned at the live edge as Position 0, whatever the
+    // stream's elapsed uptime is. A frozen value anywhere else is not the live
+    // edge: an ordinary video's raw Position also stops moving while its tab is
+    // in the background (or when the browser caches the sample), and latching on
+    // any frozen value made such a video turn LIVE after a few minutes.
+    readonly property real frozenLiveEdgeLimit: 1
+    readonly property bool rawPositionAtLiveEdge: root.rawMprisPosition >= 0
+        && root.rawMprisPosition < root.frozenLiveEdgeLimit
     readonly property int frozenConfirmMs: 10000
 
     // Quickshell extrapolates player.position from the last D-Bus sample
@@ -378,12 +386,12 @@ Scope {
     }
 
     // Markerless YouTube live: the player exposes a normal track with no
-    // duration and a raw MPRIS Position that does not advance, because it sits
-    // at the live edge (0 s or a non-zero edge offset). Quickshell's
-    // player.position cannot be used here because it extrapolates from the
-    // last D-Bus sample. A normal video's raw position moves by at least
-    // frozenMovementLimit, which cancels the probe; a duration that appears
-    // cancels it too. This path is deliberately separate from the sentinel so
+    // duration and a raw MPRIS Position pinned at the live edge (Zen reports
+    // 0). Quickshell's player.position cannot be used here because it
+    // extrapolates from the last D-Bus sample. A normal video reports its own
+    // playback position, which is not the live edge even when the raw sample
+    // stops updating in a background tab; a duration that appears cancels the
+    // probe too. This path is deliberately separate from the sentinel so
     // Twitch's broadcast badge is never cleared here.
     function sampleFrozenLive() {
         if (root.rawMprisPosition < 0) {
@@ -398,7 +406,8 @@ Scope {
         // position movement can clear it. The raw probe keeps sampling while
         // frozenLive is true for exactly this reason.
         if (root.frozenLive) {
-            if (moved || root.hasLength || root.sawLengthForTrack) {
+            if (moved || root.hasLength || root.sawLengthForTrack
+                    || !root.rawPositionAtLiveEdge) {
                 clearFrozenLive();
                 root.frozenSince = -1;
                 root.frozenAnchorPosition = -1;
@@ -412,10 +421,10 @@ Scope {
             root.frozenAnchorPosition = -1;
             return;
         }
-        if (moved) {
-            // The position is moving; start the 10 s window over instead of
-            // permanently rejecting the track (a live edge can jump once and
-            // then stay put).
+        if (moved || !root.rawPositionAtLiveEdge) {
+            // The position is moving, or it is frozen somewhere in the middle
+            // of a media timeline (an ordinary video in a background tab):
+            // start the 10 s window over at the next live-edge sample.
             root.frozenSince = -1;
             root.frozenAnchorPosition = -1;
             return;
@@ -692,8 +701,16 @@ Scope {
                 if (root.rawPositionQueryGeneration !== root.rawPositionGeneration)
                     return;
                 const match = /^\s*x\s+(-?\d+)/.exec(text);
-                if (!match)
+                if (!match) {
+                    // An unreadable answer must not leave the previous sample
+                    // in place: a constant stale value looked exactly like a
+                    // frozen live edge and raised a false LIVE on a normal
+                    // video.
+                    root.rawMprisPosition = -1;
+                    root.frozenSince = -1;
+                    root.frozenAnchorPosition = -1;
                     return;
+                }
                 root.rawMprisPosition = Number(match[1]) / 1000000;
                 root.sampleFrozenLive();
             }
