@@ -10,14 +10,24 @@ import "nightLight"
 // frame edge and the shoulder on its left); this file owns the controls. Left
 // click opens it, Escape or an outside click closes it. The hyprsunset IPC
 // stays on HyprsunsetService.
-//
-// There is no title block here: the brightness pill stretches into this
-// sheet's header (see Brightness.qml), so the sheet only carries the cards.
 EmbeddedSheet {
     id: root
 
     mirror: true
-    panelHeight: 478
+    panelHeight: 540
+
+    readonly property string statusText: {
+        if (!HyprsunsetService.available)
+            return "hyprsunset is not running";
+
+        const state = HyprsunsetService.enabled ? "On" : "Off";
+        let text = state + " · " + HyprsunsetService.temperature + " K";
+
+        if (HyprsunsetService.scheduleActive && HyprsunsetService.scheduleLabel !== "")
+            text += " · " + HyprsunsetService.scheduleLabel;
+
+        return text;
+    }
 
     // Staged entrance: the cards settle one after another while the sheet
     // pours open, so the panel does not arrive as one block. 0 = displaced,
@@ -138,12 +148,21 @@ EmbeddedSheet {
     ColumnLayout {
         anchors {
             fill: parent
-            topMargin: root.contentTopInset + 8
+            topMargin: root.contentTopInset + 14
             leftMargin: 14
             rightMargin: 14
             bottomMargin: 14
         }
         spacing: 10
+
+        PopupHeader {
+            Layout.fillWidth: true
+            title: "Night Light"
+            subtitle: root.statusText
+            subtitleColor: HyprsunsetService.available
+                ? Colors.onSurfaceVariant
+                : Colors.error
+        }
 
         // Blue-light filter row, styled like the settings rows.
         Rectangle {

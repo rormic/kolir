@@ -85,9 +85,6 @@ Item {
         ? Math.max(popupWidth / 2,
             Math.min(width - popupWidth / 2, anchorCenterX))
         : 0
-    readonly property real panelLeft: floating
-        ? panelCenter - popupWidth / 2
-        : (mirror ? width - popupWidth : 0)
 
     // The panel grows out of the bar corner: width first, then height, so it
     // does not appear as a full-width blind dropping from the strip.

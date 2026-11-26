@@ -4,10 +4,14 @@ import "../../services"
 
 // Brightness chip: neon icon, progress accent bar. The night-light sheet is
 // owned by Bar (it lives in the bar surface), so the chip only reports left
-// clicks through `activated`. While that sheet is open the chip stretches over
-// its width and becomes its header (see HeaderPill).
-HeaderPill {
+// clicks through `activated`.
+Pill {
     id: root
+
+    signal activated()
+
+    // Bound by Bar to the embedded popup's modal state.
+    property bool popupActive: false
 
     // Bound by Bar to the other embedded sheets. The pill tooltip is drawn
     // below the bar strip, so it must not float over an open sheet while the
@@ -17,25 +21,11 @@ HeaderPill {
     readonly property bool nightLightOn: HyprsunsetService.enabled
         && HyprsunsetService.available
 
-    // The sheet's title block lives here now, so the chip owns its status line.
-    readonly property string nightLightStatus: {
-        if (!HyprsunsetService.available)
-            return "hyprsunset is not running";
-
-        const state = HyprsunsetService.enabled ? "On" : "Off";
-        let text = state + " · " + HyprsunsetService.temperature + " K";
-
-        if (HyprsunsetService.scheduleActive && HyprsunsetService.scheduleLabel !== "")
-            text += " · " + HyprsunsetService.scheduleLabel;
-
-        return text;
-    }
-
     implicitWidth: 68
-    // A machine without a brightness backend hides the chip, but the sheet can
-    // still be opened over IPC and must keep its header.
-    visible: BrightnessService.available || root.headerMode
-    interactive: BrightnessService.available
+    visible: BrightnessService.available
+    // The night-light tooltip hangs below the pill, so the surface itself must
+    // not clip its children.
+    clip: false
 
     icon: BrightnessService.value < 34
         ? Icons.brightnessLow
@@ -48,18 +38,7 @@ HeaderPill {
     textColor: Colors.onSurface
     surfaceColor: Colors.surfaceContainerHigh
     spacing: 4
-
-    progressValue: BrightnessService.value
-    progressColor: Colors.primary
-
-    adjust: step => BrightnessService.adjust(step * 5)
-
-    headerIcon: Icons.nightlight
-    headerTitle: "Night Light"
-    headerStatus: root.nightLightStatus
-    headerStatusColor: HyprsunsetService.available
-        ? Colors.onSurfaceVariant
-        : Colors.error
+    active: root.popupActive
 
     // A tertiary ring while the blue-light filter is active. It stays put on
     // hover (the pill still scales and the tooltip appears) so the colour
@@ -81,6 +60,34 @@ HeaderPill {
             easing.type: Easing.Bezier
             easing.bezierCurve: Motion.standardDecelerateCurve
         }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.activated()
+        onWheel: wheel => {
+            if (wheel.angleDelta.y > 0) BrightnessService.adjust(5);
+            else if (wheel.angleDelta.y < 0) BrightnessService.adjust(-5);
+        }
+    }
+
+    // Material 3 linear progress indicator along the bottom edge.
+    ProgressIndicator {
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            leftMargin: 6
+            rightMargin: 6
+            bottomMargin: 2
+        }
+        height: implicitHeight
+        value: BrightnessService.value
+        indicatorColor: Colors.primary
+        trackColor: Colors.withAlpha(Colors.surfaceContainerHighest, 0.7)
     }
 
     // Active-outline hint. The swatch repeats the pill's tertiary stroke, so

@@ -31,11 +31,6 @@ Surface {
     // Persistent accent state for a pill whose popup is open.
     property bool active: false
 
-    // Fade for the chip's own face (icon, label, trailing glyph). A chip that
-    // morphs into a sheet header fades its content out over the morph instead
-    // of letting the header cover it in one frame.
-    property real contentOpacity: 1
-
     readonly property bool hovered: _hover.hovered
 
     implicitHeight: Dimensions.control.height
@@ -57,8 +52,8 @@ Surface {
     }
 
     scale: hovered ? 1.04 : 1.0
-    // Timed rather than sprung: HeaderPill stretches this chip into a sheet
-    // header, and a spring would keep scaling the band through that reveal.
+    // Small interactive scale: keep it timed so a chip that opens a sheet does
+    // not bounce while the sheet animates in.
     Behavior on scale {
         NumberAnimation {
             duration: Motion.scale
@@ -71,7 +66,6 @@ Surface {
         id: row
         anchors.centerIn: parent
         spacing: root.spacing
-        opacity: root.contentOpacity
 
         Text {
             id: iconLabel

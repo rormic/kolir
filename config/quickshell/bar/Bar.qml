@@ -208,10 +208,6 @@ PanelWindow {
                 anchors.rightMargin: Dimensions.padding.barContent
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Dimensions.spacing.small
-                // The brightness and volume chips stretch into their sheet
-                // headers, which must paint above the status zone declared
-                // after this row; raising the row lifts the whole header.
-                z: (brightnessPopup.modal || volumePopup.modal) ? 1 : 0
 
                 Tray {
                     id: tray
@@ -245,18 +241,6 @@ PanelWindow {
                     overlayOpen: settingsMenu.modal || volumePopup.modal
                         || batteryPopup.modal || notificationCenter.modal
                         || calendarPopup.modal || powerPopup.modal
-                    // The chip stretches into the night-light sheet's header:
-                    // its own slot and the sheet body's edges, both in bar
-                    // coordinates (the sheet fills this surface).
-                    barX: rightRow.x + brightnessChip.x
-                    headerReveal: brightnessPopup.reveal
-                    headerX: brightnessPopup.panelLeft
-                    headerWidth: brightnessPopup.popupWidth
-                    headerInset: brightnessPopup.contentLeftInset
-                    // Opening the sound sheet closes this one; the volume
-                    // header owns the strip, so this band must not collapse
-                    // across it.
-                    headerBlocked: volumePopup.opened
                     onActivated: {
                         settingsMenu.close();
                         volumePopup.close();
@@ -270,14 +254,6 @@ PanelWindow {
 
                     anchors.verticalCenter: parent.verticalCenter
                     popupActive: volumePopup.modal
-                    // Like the brightness chip: the sound sheet has no title
-                    // block, the chip stretches into its header.
-                    barX: rightRow.x + volumeChip.x
-                    headerReveal: volumePopup.reveal
-                    headerX: volumePopup.panelLeft
-                    headerWidth: volumePopup.popupWidth
-                    headerInset: volumePopup.contentLeftInset
-                    headerBlocked: brightnessPopup.opened
                     onActivated: {
                         settingsMenu.close();
                         brightnessPopup.close();
