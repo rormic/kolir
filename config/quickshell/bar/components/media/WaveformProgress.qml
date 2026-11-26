@@ -4,8 +4,9 @@ import "../../../theme"
 
 // Material 3 wavy progress bar for Now Playing media controls.
 // Features an animated sine wave on the played section (or a flat segment when
-// paused), a dim full-width base track behind it, a Material 3 vertical pill
-// scrubber thumb and interactive seeking with drag feedback.
+// paused), a dim base track that starts after the scrubber thumb and covers only
+// the unplayed remainder, a Material 3 vertical pill scrubber thumb and
+// interactive seeking with drag feedback.
 Item {
     id: root
 
@@ -37,6 +38,9 @@ Item {
     readonly property real amplitude: 3.5
     readonly property int wavelength: 28
     readonly property real thickness: 3.0
+    // Space between the end of the played segment and the start of the
+    // unplayed track, so the track does not touch the scrubber thumb.
+    readonly property real trackGap: 4
 
     property real phase: 0
     property var wavePoints: []
@@ -80,15 +84,27 @@ Item {
     onWidthChanged: rebuildWave()
     Component.onCompleted: rebuildWave()
 
-    // --- Base track: full width behind the played segment ---
+    // --- Base track: only the unplayed remainder, starting past the thumb ---
+    // The played part is drawn by the wave (or the flat segment while paused),
+    // so a full-width track would show a straight line under the wave. The
+    // track therefore starts after the scrubber thumb, leaving the wavy part
+    // on a clean background.
     Rectangle {
         id: baseTrack
+
+        readonly property real trackStart: root.isLive
+            ? root.width
+            : root.effectiveProgress <= 0
+                ? 0
+                : Math.min(root.width, root.width * root.effectiveProgress + root.trackGap)
 
         anchors {
             left: parent.left
             right: parent.right
             verticalCenter: parent.verticalCenter
+            leftMargin: root.isLive ? 0 : Math.min(root.width, trackStart)
         }
+        visible: !root.isLive && width > 0
         height: root.thickness
         radius: root.thickness / 2
         color: root.trackColor
