@@ -30,7 +30,9 @@ Surface {
     // pinch at every boundary.
     readonly property int railHeight: 16
     readonly property int railRadius: railHeight / 2
-    readonly property color railColor: Colors.withAlpha(Colors.onSurface, 0.07)
+    // Opaque on purpose: the per-cell slices and their corner caps overlap at
+    // a junction, so a translucent tint would paint a lighter seam there.
+    readonly property color railColor: Colors.surfaceContainerHighest
 
     // One lookup table for all ten cells. Each delegate used to run its own
     // find() over a freshly materialised workspace array, so the ten cells
