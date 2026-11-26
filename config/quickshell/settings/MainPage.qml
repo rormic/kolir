@@ -13,7 +13,7 @@ Item {
     property int topInset: 0
 
     implicitWidth: 388
-    implicitHeight: 394
+    implicitHeight: 460
 
     readonly property var entries: [
         {
@@ -36,6 +36,13 @@ Item {
             subtitle: "Palette & theme mode",
             soon: false,
             page: "appearance",
+        },
+        {
+            icon: Icons.calendar,
+            title: "Calendar",
+            subtitle: "Google Calendar sync",
+            soon: false,
+            page: "calendar",
         },
     ]
 

@@ -112,10 +112,18 @@ EmbeddedSheet {
     readonly property int listBodyHeight: root.dayEvents.length === 0
         ? root.detailsEmptyHeight
         : Math.min(root.detailsMaxRows, root.dayEvents.length) * root.eventRowHeight
+    // Google events arrive read-only; a failed sync/insert is reported through
+    // CalendarService.lastError and shown under the day header.
+    readonly property string syncError: CalendarService.lastError
+    readonly property bool syncErrorVisible: root.syncError !== ""
+        && !root.formOpen
+
     readonly property int detailsBodyHeight: root.formOpen
         ? root.formBodyHeight : root.listBodyHeight
     readonly property int detailsCardHeight: root.cardPadding * 2
         + root.detailsHeaderHeight + root.detailsSpacing + root.detailsBodyHeight
+        + (root.syncErrorVisible
+            ? root.detailsSpacing + root.formErrorHeight : 0)
     readonly property int detailsBodyWidth: root.popupWidth
         - root.contentLeftInset - root.contentRightInset
         - 2 * root.contentColumnMargins - root.cardPadding * 2
@@ -213,6 +221,15 @@ EmbeddedSheet {
             root.viewYear = cell.year;
             root.viewMonth = cell.month;
         }
+    }
+
+    // Row accent: Google supplies the calendar's own colour, which is what
+    // makes a merged multi-calendar day readable. Local events stay primary.
+    function accentColor(event) {
+        const value = event && event.calendarColor;
+        if (typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value))
+            return value;
+        return Colors.primary;
     }
 
     // ── Add form ───────────────────────────────────────────────────────────
@@ -316,6 +333,11 @@ EmbeddedSheet {
         root.formError = "";
         root.formErrorField = "";
         root.revealOpen();
+
+        // A cached snapshot paints immediately; a connected Google account
+        // also starts a background refetch (the backend coalesces it with the
+        // five-minute timer and the manual refresh).
+        CalendarService.refresh();
     }
 
     function close() {
@@ -383,6 +405,11 @@ EmbeddedSheet {
             return CalendarService.removeEvent(uid);
         }
 
+        // Force a refetch of the connected Google account (no-op locally).
+        function sync(): void {
+            CalendarService.refresh(true);
+        }
+
         function eventList(day: string): string {
             return JSON.stringify(CalendarService.eventsOn(
                 Number.parseInt(day, 10)));
@@ -398,6 +425,16 @@ EmbeddedSheet {
                 selected: root.selectedKey,
                 count: CalendarService.events.length,
                 provider: CalendarService.provider,
+                google: {
+                    configured: CalendarService.googleConfigured,
+                    connected: CalendarService.googleConnected,
+                    syncing: CalendarService.googleSyncing,
+                    needsReauth: CalendarService.googleNeedsReauth,
+                    account: CalendarService.googleAccount,
+                    calendars: CalendarService.googleCalendarCount,
+                    lastSync: CalendarService.googleLastSync,
+                },
+                error: CalendarService.lastError,
             });
         }
     }
@@ -753,6 +790,15 @@ EmbeddedSheet {
                                         width: listColumn.width
                                         height: root.eventRowHeight
 
+                                        // A row waiting on Google's insert
+                                        // answer reads as in-flight, not saved.
+                                        opacity: eventRow.modelData.pending === true
+                                            ? 0.55 : 1
+
+                                        Behavior on opacity {
+                                            NumberAnimation { duration: Motion.fade }
+                                        }
+
                                         StateLayer {
                                             shown: eventRow.hovered
                                             strength: 0.08
@@ -783,7 +829,10 @@ EmbeddedSheet {
                                                 Layout.preferredWidth: 3
                                                 Layout.preferredHeight: 16
                                                 radius: 1.5
-                                                color: Colors.primary
+                                                // The source calendar's own
+                                                // colour, so the merged
+                                                // calendars stay tellable apart.
+                                                color: root.accentColor(eventRow.modelData)
                                             }
 
                                             Text {
@@ -798,8 +847,8 @@ EmbeddedSheet {
                                             }
 
                                             Text {
-                                                Layout.fillWidth: true
                                                 Layout.alignment: Qt.AlignVCenter
+                                                Layout.fillWidth: true
                                                 text: eventRow.modelData.summary
                                                 color: Colors.onSurface
                                                 font.family: Typography.barFont
@@ -807,10 +856,28 @@ EmbeddedSheet {
                                                 elide: Text.ElideRight
                                             }
 
+                                            // Source calendar, only for merged
+                                            // Google events; local rows have
+                                            // none and keep the full width.
+                                            Text {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                Layout.maximumWidth: 88
+                                                visible: text !== ""
+                                                text: eventRow.modelData.calendarSummary || ""
+                                                color: Colors.onSurfaceVariant
+                                                font.family: Typography.barFont
+                                                font.pixelSize: Typography.size.labelSmall
+                                                elide: Text.ElideRight
+                                            }
+
+                                            // Google Calendar is read-plus-add:
+                                            // the row carries no destructive
+                                            // action at all.
                                             IconButton {
                                                 Layout.alignment: Qt.AlignVCenter
                                                 Layout.preferredWidth: 22
                                                 Layout.preferredHeight: 22
+                                                visible: eventRow.modelData.readOnly !== true
                                                 icon: Icons.trash
                                                 iconSize: Dimensions.icon.small
                                                 iconColor: Colors.onSurfaceVariant
@@ -1047,6 +1114,20 @@ EmbeddedSheet {
                             }
                         }
                     }
+                }
+
+                // Background failure (Google rejected the insert, the token
+                // expired, the network is down). The add form has its own
+                // error line; this one survives the form closing.
+                Text {
+                    width: parent.width
+                    height: root.formErrorHeight
+                    visible: root.syncErrorVisible
+                    text: root.syncError
+                    color: Colors.error
+                    font.family: Typography.barFont
+                    font.pixelSize: Typography.size.labelSmall
+                    elide: Text.ElideRight
                 }
             }
         }

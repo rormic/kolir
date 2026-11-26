@@ -2114,6 +2114,10 @@ Scope {
                                     clip: true
                                     selectByMouse: true
 
+                                    HoverHandler {
+                                        cursorShape: Qt.IBeamCursor
+                                    }
+
                                     onTextChanged: {
                                         if (!root.editingPath)
                                             return;
@@ -2391,6 +2395,10 @@ Scope {
                                 clip: true
                                 selectByMouse: true
 
+                                HoverHandler {
+                                    cursorShape: Qt.IBeamCursor
+                                }
+
                                 onTextChanged: {
                                     if (!root.searching)
                                         return;
@@ -2599,6 +2607,10 @@ Scope {
                                 font.pixelSize: Typography.size.labelMedium
                                 clip: true
                                 selectByMouse: true
+
+                                HoverHandler {
+                                    cursorShape: Qt.IBeamCursor
+                                }
 
                                 onTextEdited: root.folderError = ""
 

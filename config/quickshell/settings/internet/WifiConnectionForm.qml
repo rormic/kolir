@@ -72,6 +72,10 @@ Rectangle {
                 font.pixelSize: Typography.size.bodyMedium
                 clip: true
                 selectByMouse: true
+
+                HoverHandler {
+                    cursorShape: Qt.IBeamCursor
+                }
                 verticalAlignment: TextInput.AlignVCenter
                 onTextChanged: root.ssidEdited(text)
 

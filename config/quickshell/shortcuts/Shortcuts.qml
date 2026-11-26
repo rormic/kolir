@@ -406,6 +406,10 @@ Scope {
                         font.pixelSize: Typography.size.bodyMedium
                         clip: true
 
+                        HoverHandler {
+                            cursorShape: Qt.IBeamCursor
+                        }
+
                         onTextChanged: {
                             root.rebuild();
                             contentFlick.contentY = 0;

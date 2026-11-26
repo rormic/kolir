@@ -45,6 +45,10 @@ Rectangle {
             Keys.onEnterPressed: root.submitRequested()
             Keys.onEscapePressed: root.cancelRequested()
 
+            HoverHandler {
+                cursorShape: Qt.IBeamCursor
+            }
+
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.placeholder !== "" && !parent.text && !parent.activeFocus

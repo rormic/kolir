@@ -33,6 +33,14 @@ QtObject {
     // Calendar events owned by CalendarService (local backend for now).
     readonly property string calendarState: quickshellCache + "/calendar.json"
 
+    // Google Calendar helper (OAuth loopback flow, sync and event insert).
+    // The helper is the only writer of its state file; the shell reads it
+    // through the helper's `status`/`sync` JSON.
+    readonly property string googleCalendarScript: Quickshell.shellPath(
+        "scripts/google-calendar/main.py")
+    readonly property string googleCalendarState: quickshellCache
+        + "/google-calendar.json"
+
     // Event sound helper bundled with the shell. EventSoundService runs it for
     // notification, USB and low-battery chimes; the event name selects the
     // freedesktop sound and the optional second argument overrides the file.

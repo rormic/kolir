@@ -118,6 +118,11 @@ QtObject {
     readonly property string logout: "logout"
     readonly property string suspend: "bedtime"
 
+    // Calendar sheet and Google Calendar sync (Settings → Calendar).
+    readonly property string calendar: "calendar_month"
+    readonly property string cloudDone: "cloud_done"
+    readonly property string linkOff: "link_off"
+
     // File picker: generic file types, the save action and folder creation.
     readonly property string file: "description"
     readonly property string save: "save"

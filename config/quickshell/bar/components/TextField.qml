@@ -68,6 +68,13 @@ Rectangle {
             event.accepted = true;
         }
 
+        // TextInput never sets a cursor shape of its own (Qt only paints the
+        // caret), so hovering would keep the arrow. The handler shows the
+        // I-beam without touching click or selection delivery.
+        HoverHandler {
+            cursorShape: Qt.IBeamCursor
+        }
+
         Text {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.placeholder !== "" && !input.text && !input.activeFocus

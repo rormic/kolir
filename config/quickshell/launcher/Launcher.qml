@@ -455,6 +455,10 @@ Scope {
                             font.weight: Typography.weight.semibold
                             clip: true
 
+                            HoverHandler {
+                                cursorShape: Qt.IBeamCursor
+                            }
+
                             Keys.onEscapePressed: win.visible = false
                             Keys.onDownPressed: list.incrementCurrentIndex()
                             Keys.onUpPressed: list.decrementCurrentIndex()

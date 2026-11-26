@@ -27,13 +27,17 @@ EmbeddedSheet {
     // Height of the visible panel, morphed between pages while they slide.
     panelHeight: mainHeight
 
-    readonly property int mainHeight: 394
+    readonly property int mainHeight: 460
     readonly property int bluetoothHeight: 520
     // Tall enough for the Internet page's resting content, so it does not open
     // with a sliver of scroll (mirrors InternetPage.implicitHeight).
     readonly property int internetHeight: 546
     // Mirrors AppearancePage.implicitHeight.
     readonly property int appearanceHeight: 1016
+    // Mirrors CalendarPage.implicitHeight (629). Constant for both account
+    // states — the OAuth card stays visible — so connecting never resizes the
+    // sheet, and the resting page needs no scroll.
+    readonly property int calendarHeight: 630
 
     // Distance a page travels during a navigation transition. Local optical
     // offset, not a shared metric.
@@ -53,6 +57,8 @@ EmbeddedSheet {
             return internetHeight;
         if (name === "appearance")
             return appearanceHeight;
+        if (name === "calendar")
+            return calendarHeight;
         return mainHeight;
     }
 
@@ -274,6 +280,10 @@ EmbeddedSheet {
             root.open("appearance");
         }
 
+        function openCalendar(): void {
+            root.open("calendar");
+        }
+
         function close(): void {
             root.close();
         }
@@ -336,6 +346,17 @@ EmbeddedSheet {
             active: root.opened
             visible: root.pageVisible("appearance")
             opacity: root.pageOpacity("appearance")
+            onBack: root.navigate("main")
+        }
+
+        CalendarPage {
+            x: root.pageX("calendar")
+            y: 0
+            width: parent.width
+            height: root.heightForPage("calendar")
+            topInset: root.contentTopInset
+            visible: root.pageVisible("calendar")
+            opacity: root.pageOpacity("calendar")
             onBack: root.navigate("main")
         }
     }

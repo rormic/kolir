@@ -9,24 +9,29 @@ import "calendar/CalendarModel.js" as Model
 // Calendar events: the persisted model behind CalendarPopup's day list and
 // presence dots.
 //
-// Storage is deliberately behind a backend object (default: the local JSON
-// file CalendarLocalBackend writes to ~/.cache/quickshell/calendar.json).
-// Assigning a CalDAV/Google backend that implements the same contract —
-// `load()`, `create()`, `update()`, `remove()` and the
-// `loaded`/`changed`/`failed` signals — switches storage without touching the
-// UI or this API.
+// Storage is deliberately behind a backend object. The default is
+// calendar/CalendarGoogleBackend.qml, a hybrid backend: the local JSON file
+// (calendar/CalendarLocalBackend.qml → ~/.cache/quickshell/calendar.json keeps
+// the events created without an account, while the Google helper adds the
+// connected account's calendars to the same snapshot. When no account is
+// connected the backend behaves exactly like the local one. Assigning another
+// backend that implements the same contract — `load()`, `create()`, `update()`,
+// `remove()` and the `loaded`/`changed`/`failed` signals — switches storage
+// without touching the UI or this API.
 //
 // Events keep the Google Calendar / iCalendar shape described in
 // calendar/CalendarModel.js: uid, summary, description, location, start, end,
 // allDay, timeZone and calendarId, plus any remote metadata the backend adds.
 // `timeZone` is the machine's IANA zone, resolved once at startup, so a sync
 // backend can turn the wall-clock start into an absolute instant.
+//
+// Google events arrive with `readOnly: true`; updateEvent/removeEvent refuse
+// them here as well as in the backend, because the sync is read-plus-add.
 QtObject {
     id: root
 
-    // Swappable persistence. See calendar/CalendarLocalBackend.qml for the
-    // contract a CalDAV/Google backend has to implement.
-    property var backend: CalendarLocalBackend {}
+    // Swappable persistence. See calendar/CalendarGoogleBackend.qml.
+    property var backend: CalendarGoogleBackend {}
 
     property var events: []
     property bool ready: false
@@ -36,6 +41,31 @@ QtObject {
     readonly property string provider: root.backend && root.backend.provider
         ? root.backend.provider : "unknown"
 
+    // Google sync state, forwarded for the settings page and the calendar
+    // sheet. A backend without these properties reports the "local" defaults
+    // (the local file backend has no account and never syncs).
+    readonly property bool googleConfigured: root.backend
+        && root.backend.configured === true
+    readonly property bool googleHasSecret: root.backend
+        && root.backend.hasSecret === true
+    readonly property bool googleConnected: root.backend
+        && root.backend.connected === true
+    readonly property bool googleSyncing: root.backend
+        && root.backend.syncing === true
+    readonly property bool googleNeedsReauth: root.backend
+        && root.backend.needsReauth === true
+    readonly property string googleAccount: root.backend
+        && typeof root.backend.account === "string"
+        ? root.backend.account : ""
+    readonly property string googleClientId: root.backend
+        && typeof root.backend.clientId === "string"
+        ? root.backend.clientId : ""
+    readonly property real googleLastSync: root.backend
+        && Number(root.backend.lastSync) ? Number(root.backend.lastSync) : 0
+    readonly property int googleCalendarCount: root.backend
+        && Number(root.backend.calendarCount)
+        ? Number(root.backend.calendarCount) : 0
+
     // { "yyyymmdd": count } for the grid's presence dots. Rebuilt only when
     // `events` changes, so 42 cells do not rescan the list on every repaint.
     readonly property var dayCounts: Model.dayCounts(root.events)
@@ -44,6 +74,22 @@ QtObject {
     function load() {
         if (root.backend && typeof root.backend.load === "function")
             root.backend.load();
+    }
+
+    // Re-read the cached snapshot and, when a Google account is connected,
+    // refetch the account's calendars. CalendarPopup calls this on open (the
+    // backend throttles that to one network attempt a minute); the settings
+    // page and the `calendar sync` IPC pass `force` for an explicit refresh.
+    function refresh(force) {
+        if (root.backend && typeof root.backend.refresh === "function")
+            root.backend.refresh(force === true);
+    }
+
+    function disconnectGoogle() {
+        if (root.backend && typeof root.backend.disconnect === "function")
+            root.backend.disconnect();
+        else
+            root.reportError("This calendar backend has no account to disconnect");
     }
 
     function applyEvents(list) {
@@ -104,6 +150,9 @@ QtObject {
     // ── Writes ─────────────────────────────────────────────────────────────
     // fields: { summary, dayKey, allDay, startMinutes, endMinutes,
     //           description?, location?, timeZone? }
+    // Returns the new event immediately. With a connected Google account the
+    // backend first returns it as an optimistic `pending` row; Google's insert
+    // answer then replaces it, and the final uid is Google's iCalUID.
     function addEvent(fields) {
         if (!root.backend || typeof root.backend.create !== "function") {
             root.reportError("Calendar backend cannot create events");
@@ -126,6 +175,11 @@ QtObject {
         if (!existing)
             return null;
 
+        if (existing.readOnly === true) {
+            root.reportError("Google Calendar events are read-only");
+            return null;
+        }
+
         if (!root.backend || typeof root.backend.update !== "function") {
             root.reportError("Calendar backend cannot update events");
             return null;
@@ -143,6 +197,12 @@ QtObject {
     }
 
     function removeEvent(uid) {
+        const existing = root.event(uid);
+        if (existing && existing.readOnly === true) {
+            root.reportError("Google Calendar events are read-only");
+            return false;
+        }
+
         if (!root.backend || typeof root.backend.remove !== "function") {
             root.reportError("Calendar backend cannot remove events");
             return false;
