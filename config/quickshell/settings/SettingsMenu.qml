@@ -34,7 +34,7 @@ EmbeddedSheet {
     // with a sliver of scroll (mirrors InternetPage.implicitHeight).
     readonly property int internetHeight: 616
     // Mirrors AppearancePage.implicitHeight.
-    readonly property int appearanceHeight: 1016
+    readonly property int appearanceHeight: 1178
     // Mirrors CalendarPage.implicitHeight (629). Constant for both account
     // states — the OAuth card stays visible — so connecting never resizes the
     // sheet, and the resting page needs no scroll.

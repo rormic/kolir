@@ -86,6 +86,52 @@ QtObject {
         ? root.formatDate(root.sunTimes.sunset)
         : "—"
 
+    // The day dial needs the same events as angles around a 24-hour clock.
+    // Minutes are fractional so a solar time with seconds still lands on the
+    // correct point of the rim; -1 means "no usable time for today".
+    readonly property real sunriseMinutes: {
+        const sunrise = root.sunTimes.sunrise;
+        if (!sunrise)
+            return -1;
+        return sunrise.getHours() * 60 + sunrise.getMinutes()
+            + sunrise.getSeconds() / 60;
+    }
+    readonly property real sunsetMinutes: {
+        const sunset = root.sunTimes.sunset;
+        if (!sunset)
+            return -1;
+        return sunset.getHours() * 60 + sunset.getMinutes()
+            + sunset.getSeconds() / 60;
+    }
+    readonly property int dayLengthMinutes: {
+        const times = root.sunTimes;
+        if (!times.sunrise || !times.sunset)
+            return -1;
+        return Math.max(0,
+            Math.round((times.sunset.getTime() - times.sunrise.getTime()) / 60000));
+    }
+    readonly property string dayLengthLabel: {
+        if (root.dayLengthMinutes < 0)
+            return "—";
+
+        const hours = Math.floor(root.dayLengthMinutes / 60);
+        const minutes = root.dayLengthMinutes % 60;
+        return hours + " h " + root.pad2(minutes) + " m";
+    }
+    readonly property int nightLengthMinutes: {
+        if (root.dayLengthMinutes < 0)
+            return -1;
+        return Math.max(0, 1440 - root.dayLengthMinutes);
+    }
+    readonly property string nightLengthLabel: {
+        if (root.nightLengthMinutes < 0)
+            return "—";
+
+        const hours = Math.floor(root.nightLengthMinutes / 60);
+        const minutes = root.nightLengthMinutes % 60;
+        return hours + " h " + root.pad2(minutes) + " m";
+    }
+
     readonly property string locationLabel: {
         if (root.locationRefreshing)
             return "Detecting location…";

@@ -6,6 +6,7 @@ import QtQuick.Shapes
 import "../theme"
 import "../services"
 import "../bar/components"
+import "../bar/components/nightLight"
 
 // Matugen appearance page: scheme type, contrast and light/dark/auto mode.
 // Choices are persisted and applied by AppearanceService, which reruns
@@ -24,7 +25,7 @@ Item {
     implicitWidth: 380
     // Mirrors `appearanceHeight` in SettingsMenu.qml. Tall enough for the
     // resting cards so the page does not open with a sliver of scroll.
-    implicitHeight: 1016
+    implicitHeight: 1178
 
     // Local slider position while dragging or after a wheel change, so the
     // handle follows the pointer without waiting for a regeneration.
@@ -575,73 +576,26 @@ Item {
                     }
 
                     // Auto follows the same location and solar times as the
-                    // night-light schedule, so the switch is visible before it
-                    // happens instead of being an unexplained toggle.
-                    RowLayout {
+                    // night-light schedule. The dial is shared with that sheet:
+                    // the sectors and moving sun show where the day is, while
+                    // the circle keeps the city, day length and both times
+                    // visible before the theme switches.
+                    SunDial {
                         Layout.fillWidth: true
-                        spacing: 6
+                        Layout.topMargin: 2
+                        Layout.bottomMargin: 2
 
-                        Text {
-                            Layout.alignment: Qt.AlignVCenter
-                            text: Icons.place
-                            color: Colors.primary
-                            font.family: Typography.iconFont
-                            font.pixelSize: Dimensions.icon.medium
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 0
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "Location"
-                                color: Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                font.weight: Typography.weight.medium
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: HyprsunsetService.locationLabel
-                                color: HyprsunsetService.locationAvailable
-                                    ? Colors.onSurface
-                                    : Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelMedium
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        IconButton {
-                            Layout.alignment: Qt.AlignVCenter
-                            icon: Icons.refresh
-                            iconSize: Dimensions.icon.small + 2
-                            enabled: !HyprsunsetService.locationRefreshing
-                            opacity: HyprsunsetService.locationRefreshing ? 0.5 : 1.0
-                            onClicked: HyprsunsetService.refreshLocation(true)
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        SunTimeCard {
-                            Layout.fillWidth: true
-                            icon: Icons.lightMode
-                            caption: "Sunrise"
-                            value: HyprsunsetService.sunriseLabel
-                        }
-
-                        SunTimeCard {
-                            Layout.fillWidth: true
-                            icon: Icons.darkMode
-                            caption: "Sunset"
-                            value: HyprsunsetService.sunsetLabel
-                        }
+                        city: HyprsunsetService.locationCity
+                        country: HyprsunsetService.locationCountry
+                        fallback: HyprsunsetService.locationLabel
+                        dayLength: HyprsunsetService.dayLengthLabel
+                        nightLength: HyprsunsetService.nightLengthLabel
+                        sunrise: HyprsunsetService.sunriseLabel
+                        sunset: HyprsunsetService.sunsetLabel
+                        sunriseMinutes: HyprsunsetService.sunriseMinutes
+                        sunsetMinutes: HyprsunsetService.sunsetMinutes
+                        refreshing: HyprsunsetService.locationRefreshing
+                        onRefreshRequested: HyprsunsetService.refreshLocation(true)
                     }
 
                     Text {
@@ -689,6 +643,43 @@ Item {
                             Layout.alignment: Qt.AlignVCenter
                             checked: AppearanceService.crossfade
                             onToggled: value => AppearanceService.setCrossfade(value)
+                        }
+                    }
+
+                    // Cursor variant. The machine's cursor theme comes from
+                    // user.lua (XCURSOR_THEME); apply-cursor.sh swaps its
+                    // light/dark token so the pointer matches the palette.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Cursor follows theme"
+                                color: Colors.onSurface
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.bodyMedium
+                                font.weight: Typography.weight.medium
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Use the light or dark cursor variant"
+                                color: Colors.onSurfaceVariant
+                                font.family: Typography.barFont
+                                font.pixelSize: Typography.size.labelSmall
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Toggle {
+                            Layout.alignment: Qt.AlignVCenter
+                            checked: AppearanceService.cursorFollowsTheme
+                            onToggled: value => AppearanceService.setCursorFollowsTheme(value)
                         }
                     }
                 }

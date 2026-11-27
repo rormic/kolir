@@ -18,7 +18,9 @@ import "."
 // generate-colors.sh, which writes colors.json in place; Colors.qml watches
 // that file, so the shell crossfades to the new palette without a restart.
 // `crossfade` is the only non-Matugen choice here: it lets Colors.qml apply
-// the palette instantly on slow machines.
+// the palette instantly on slow machines. `cursor` pairs the machine's cursor
+// theme with the resolved light/dark mode through apply-cursor.sh; it is a
+// helper-script choice too, so toggling it never rasterises a new palette.
 QtObject {
     id: root
 
@@ -48,6 +50,14 @@ QtObject {
     // turning it off keeps every generated color but applies it instantly,
     // which is the escape hatch for slow machines.
     property bool crossfade: true
+    // Pair the cursor theme with the resolved light/dark mode. The cursor name
+    // is machine-specific (XCURSOR_THEME in user.lua), so apply-cursor.sh
+    // swaps only its light/dark token and leaves single-variant themes alone.
+    // Off by default: the pointer stays exactly as user.lua configured it.
+    property bool cursorFollowsTheme: false
+    // Applies the saved cursor once per shell start, after both the switch and
+    // the resolved theme are known.
+    property bool cursorPrimed: false
 
     readonly property string schemeLabel: root.labelFor(root.schemeType)
 
@@ -279,6 +289,53 @@ QtObject {
         root.saveTimer.restart();
     }
 
+    // Cursor pairing is applied by the Hyprland helper, not by Matugen: switch
+    // it immediately for the current theme, then persist. Turning it off
+    // leaves the pointer where it is; the next theme change simply stops
+    // moving it.
+    function setCursorFollowsTheme(value) {
+        if (root.cursorFollowsTheme === value)
+            return;
+
+        root.cursorFollowsTheme = value;
+        root.saveTimer.restart();
+
+        if (!value)
+            return;
+
+        // The theme file normally loads before the page is usable. If it has
+        // not, applySavedCursor() picks the switch up as soon as it does.
+        if (root.themeLoaded) {
+            root.cursorPrimed = true;
+            root.applyCursor(root.effectiveMode(), true);
+        }
+    }
+
+    // `force` ignores the helper's applied-variant cache. Startup and the
+    // switch itself force it because a compositor restart puts the live cursor
+    // back on the XCURSOR_THEME value from user.lua.
+    function applyCursor(mode, force) {
+        if (mode !== "light" && mode !== "dark")
+            return;
+
+        const command = ["sh", ShellPaths.hyprScripts + "/apply-cursor.sh", mode];
+        if (force)
+            command.push("--force");
+
+        root.cursorProcess.command = command;
+        root.cursorProcess.running = true;
+    }
+
+    // Called when the switch and the resolved theme are both available, so a
+    // saved choice is live after login without waiting for a theme change.
+    function applySavedCursor() {
+        if (root.cursorPrimed || !root.cursorFollowsTheme || !root.themeLoaded)
+            return;
+
+        root.cursorPrimed = true;
+        root.applyCursor(root.effectiveMode(), true);
+    }
+
     function commit() {
         root.hasSavedMode = true;
         root.now = new Date();
@@ -311,10 +368,15 @@ QtObject {
 
                 if (typeof parsed.crossfade === "boolean")
                     root.crossfade = parsed.crossfade;
+
+                if (typeof parsed.cursor === "boolean")
+                    root.cursorFollowsTheme = parsed.cursor;
             } catch (error) {
                 console.warn("AppearanceService: invalid state file:", error);
             }
         }
+
+        root.applySavedCursor();
     }
 
     function writeState() {
@@ -328,6 +390,7 @@ QtObject {
             contrast: Number(root.contrast.toFixed(2)),
             mode: root.mode,
             crossfade: root.crossfade,
+            cursor: root.cursorFollowsTheme,
         }));
     }
 
@@ -398,6 +461,10 @@ QtObject {
                 root.mode = theme;
             else if (root.autoActive)
                 root.syncAutoMode();
+
+            // The state file may have loaded before the resolved theme; prime
+            // the saved cursor as soon as both are known.
+            root.applySavedCursor();
         }
     }
 
@@ -495,6 +562,20 @@ QtObject {
         }
     }
 
+    // Applies the light/dark cursor variant. Kept separate from the palette
+    // regeneration so the switch is instant and never rasterises Matugen.
+    property Process cursorProcess: Process {
+        running: false
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const output = text.trim();
+                if (output !== "")
+                    console.warn("AppearanceService: cursor: " + output);
+            }
+        }
+    }
+
     property Process regenerateProcess: Process {
         command: ["zsh", ShellPaths.hyprScripts + "/generate-colors.sh"]
         running: false
@@ -540,6 +621,10 @@ QtObject {
             root.setCrossfade(value === "true" || value === "on" || value === "1");
         }
 
+        function setCursor(value: string): void {
+            root.setCursorFollowsTheme(value === "true" || value === "on" || value === "1");
+        }
+
         function regenerate(): void {
             root.regenerateTimer.stop();
             root.regenerate();
@@ -552,6 +637,7 @@ QtObject {
                 mode: root.mode,
                 resolved: root.effectiveMode(),
                 crossfade: root.crossfade,
+                cursor: root.cursorFollowsTheme,
                 auto: root.autoActive,
                 autoPaused: root.autoPaused,
                 autoStatus: root.autoStatusText,
