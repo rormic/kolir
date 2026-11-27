@@ -132,6 +132,12 @@ QtObject {
     readonly property string cliphistWatch: Quickshell.shellPath("scripts/cliphist-watch.sh")
     readonly property string cliphistPreviews: Quickshell.shellPath("scripts/cliphist-previews.py")
 
+    // Real pointer preview for the Appearance cursor row. The helper parses
+    // the installed Xcursor theme and renders its default arrow as a PNG, so
+    // the row shows the image the switch actually changes.
+    readonly property string cursorPreviewScript: Quickshell.shellPath("scripts/cursor-preview.py")
+    readonly property string cursorPreviewDir: quickshellCache + "/cursor-previews"
+
     // Per-scheme palette previews for the Appearance page.
     readonly property string palettePreviews: Quickshell.shellPath("scripts/palette-previews.sh")
     readonly property string palettePreviewsCache: quickshellCache + "/palette-previews.json"

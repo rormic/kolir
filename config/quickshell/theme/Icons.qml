@@ -86,6 +86,7 @@ QtObject {
     readonly property string headphones: "headphones"
     readonly property string keyboard: "keyboard"
     readonly property string mouse: "mouse"
+    readonly property string pointer: "arrow_selector_tool"
     readonly property string smartphone: "smartphone"
     readonly property string laptop: "laptop"
     readonly property string watch: "watch"
@@ -100,6 +101,7 @@ QtObject {
     readonly property string swap: "swap_horiz"
 
     readonly property string arrowBack: "arrow_back"
+    readonly property string arrowForward: "arrow_forward"
     readonly property string refresh: "refresh"
     readonly property string trash: "delete"
     readonly property string batteryMissing: "battery_alert"

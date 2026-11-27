@@ -58,6 +58,9 @@ QtObject {
     // Applies the saved cursor once per shell start, after both the switch and
     // the resolved theme are known.
     property bool cursorPrimed: false
+    // Emitted after apply-cursor.sh finishes, so the Appearance row can
+    // re-render the pointer that is now live instead of the previous one.
+    signal cursorApplied()
 
     readonly property string schemeLabel: root.labelFor(root.schemeType)
 
@@ -573,6 +576,15 @@ QtObject {
                 if (output !== "")
                     console.warn("AppearanceService: cursor: " + output);
             }
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                console.warn("AppearanceService: apply-cursor.sh exited with",
+                    exitCode);
+                return;
+            }
+            root.cursorApplied();
         }
     }
 

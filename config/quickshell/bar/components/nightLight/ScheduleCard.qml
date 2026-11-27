@@ -157,26 +157,56 @@ Rectangle {
             spacing: 8
             visible: HyprsunsetService.scheduleMode === "sun"
 
-            // A single 24-hour dial replaces the old location row and the two
-            // sunrise/sunset cards: the city, the day length, both times and
-            // the refresh action live inside its circle, while the sectors
-            // and the moving sun show the current moment.
-            SunDial {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: 2
-                Layout.bottomMargin: 2
+                spacing: 6
 
-                city: HyprsunsetService.locationCity
-                country: HyprsunsetService.locationCountry
-                fallback: HyprsunsetService.locationLabel
-                dayLength: HyprsunsetService.dayLengthLabel
-                nightLength: HyprsunsetService.nightLengthLabel
-                sunrise: HyprsunsetService.sunriseLabel
-                sunset: HyprsunsetService.sunsetLabel
-                sunriseMinutes: HyprsunsetService.sunriseMinutes
-                sunsetMinutes: HyprsunsetService.sunsetMinutes
-                refreshing: HyprsunsetService.locationRefreshing
-                onRefreshRequested: HyprsunsetService.refreshLocation(true)
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: Icons.place
+                    color: Colors.primary
+                    font.family: Typography.iconFont
+                    font.pixelSize: Dimensions.icon.medium
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                    text: HyprsunsetService.locationLabel
+                    color: HyprsunsetService.locationAvailable
+                        ? Colors.onSurface
+                        : Colors.onSurfaceVariant
+                    font.family: Typography.barFont
+                    font.pixelSize: Typography.size.labelMedium
+                    font.weight: Typography.weight.medium
+                    elide: Text.ElideRight
+                }
+
+                IconButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    icon: Icons.refresh
+                    iconSize: Dimensions.icon.small + 2
+                    enabled: !HyprsunsetService.locationRefreshing
+                    opacity: HyprsunsetService.locationRefreshing ? 0.5 : 1.0
+                    onClicked: HyprsunsetService.refreshLocation(true)
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                SunTimeCard {
+                    Layout.fillWidth: true
+                    icon: Icons.lightMode
+                    value: HyprsunsetService.sunriseLabel
+                }
+
+                SunTimeCard {
+                    Layout.fillWidth: true
+                    icon: Icons.darkMode
+                    value: HyprsunsetService.sunsetLabel
+                }
             }
         }
 

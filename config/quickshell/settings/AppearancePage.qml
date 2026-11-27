@@ -3,10 +3,10 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
+import Quickshell.Io
 import "../theme"
 import "../services"
 import "../bar/components"
-import "../bar/components/nightLight"
 
 // Matugen appearance page: scheme type, contrast and light/dark/auto mode.
 // Choices are persisted and applied by AppearanceService, which reruns
@@ -25,7 +25,7 @@ Item {
     implicitWidth: 380
     // Mirrors `appearanceHeight` in SettingsMenu.qml. Tall enough for the
     // resting cards so the page does not open with a sliver of scroll.
-    implicitHeight: 1178
+    implicitHeight: 1002
 
     // Local slider position while dragging or after a wheel change, so the
     // handle follows the pointer without waiting for a regeneration.
@@ -83,12 +83,16 @@ Item {
         if (!root.visible)
             root.hoveredScheme = "";
         root.updatePreviewsVisibility();
+        if (root.visible && root.active)
+            cursorPreviewTimer.restart();
     }
 
     onActiveChanged: {
         if (!root.active)
             root.hoveredScheme = "";
         root.updatePreviewsVisibility();
+        if (root.visible && root.active)
+            cursorPreviewTimer.restart();
     }
 
     onDraggingChanged: {
@@ -97,6 +101,84 @@ Item {
     }
 
     Component.onCompleted: root.syncContrastSlider()
+
+    // ── Cursor preview ─────────────────────────────────────────────────────
+    // The cursor row shows the pointer the machine actually has installed, so
+    // the switch is not an anonymous glyph. The helper renders the theme's
+    // default arrow, and the row re-reads it after every apply.
+    property string cursorPreviewLight: ""
+    property string cursorPreviewDark: ""
+    property bool cursorPreviewPaired: false
+
+    function updateCursorPreview() {
+        if (!root.visible || !root.active)
+            return;
+        if (cursorPreview.running)
+            cursorPreview.running = false;
+        cursorPreview.running = true;
+    }
+
+    function applyCursorPreview(text) {
+        let parsed = null;
+        try {
+            parsed = JSON.parse(text);
+        } catch (error) {
+            parsed = null;
+        }
+
+        if (!parsed || !parsed.ok || !parsed.light || !parsed.dark) {
+            root.cursorPreviewLight = "";
+            root.cursorPreviewDark = "";
+            root.cursorPreviewPaired = false;
+            return;
+        }
+
+        root.cursorPreviewPaired = parsed.paired === true;
+        root.cursorPreviewLight = "file://" + parsed.light.path;
+        root.cursorPreviewDark = "file://" + parsed.dark.path;
+    }
+
+    Timer {
+        id: cursorPreviewTimer
+
+        interval: 350
+        repeat: false
+        onTriggered: root.updateCursorPreview()
+    }
+
+    Process {
+        id: cursorPreview
+
+        running: false
+        command: ["python3", ShellPaths.cursorPreviewScript, "--pair",
+            "--pair-script", ShellPaths.hyprScripts + "/apply-cursor.sh",
+            "--dir", ShellPaths.cursorPreviewDir, "--size", "64"]
+
+        stdout: StdioCollector {
+            onStreamFinished: root.applyCursorPreview(text)
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const output = text.trim();
+                if (output !== "")
+                    console.warn("AppearancePage: cursor preview: " + output);
+            }
+        }
+    }
+
+    Connections {
+        target: AppearanceService
+
+        function onCursorApplied() {
+            cursorPreviewTimer.restart();
+        }
+
+        function onRegeneratingChanged() {
+            if (!AppearanceService.regenerating)
+                cursorPreviewTimer.restart();
+        }
+    }
 
     Timer {
         id: contrastSettleTimer
@@ -576,26 +658,58 @@ Item {
                     }
 
                     // Auto follows the same location and solar times as the
-                    // night-light schedule. The dial is shared with that sheet:
-                    // the sectors and moving sun show where the day is, while
-                    // the circle keeps the city, day length and both times
-                    // visible before the theme switches.
-                    SunDial {
+                    // night-light schedule, so the switch is visible before it
+                    // happens instead of being an unexplained toggle.
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 2
-                        Layout.bottomMargin: 2
+                        spacing: 6
 
-                        city: HyprsunsetService.locationCity
-                        country: HyprsunsetService.locationCountry
-                        fallback: HyprsunsetService.locationLabel
-                        dayLength: HyprsunsetService.dayLengthLabel
-                        nightLength: HyprsunsetService.nightLengthLabel
-                        sunrise: HyprsunsetService.sunriseLabel
-                        sunset: HyprsunsetService.sunsetLabel
-                        sunriseMinutes: HyprsunsetService.sunriseMinutes
-                        sunsetMinutes: HyprsunsetService.sunsetMinutes
-                        refreshing: HyprsunsetService.locationRefreshing
-                        onRefreshRequested: HyprsunsetService.refreshLocation(true)
+                        Text {
+                            Layout.alignment: Qt.AlignVCenter
+                            text: Icons.place
+                            color: Colors.primary
+                            font.family: Typography.iconFont
+                            font.pixelSize: Dimensions.icon.medium
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            text: HyprsunsetService.locationLabel
+                            color: HyprsunsetService.locationAvailable
+                                ? Colors.onSurface
+                                : Colors.onSurfaceVariant
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.labelMedium
+                            font.weight: Typography.weight.medium
+                            elide: Text.ElideRight
+                        }
+
+                        IconButton {
+                            Layout.alignment: Qt.AlignVCenter
+                            icon: Icons.refresh
+                            iconSize: Dimensions.icon.small + 2
+                            enabled: !HyprsunsetService.locationRefreshing
+                            opacity: HyprsunsetService.locationRefreshing ? 0.5 : 1.0
+                            onClicked: HyprsunsetService.refreshLocation(true)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        SunTimeCard {
+                            Layout.fillWidth: true
+                            icon: Icons.lightMode
+                            value: HyprsunsetService.sunriseLabel
+                        }
+
+                        SunTimeCard {
+                            Layout.fillWidth: true
+                            icon: Icons.darkMode
+                            value: HyprsunsetService.sunsetLabel
+                        }
                     }
 
                     Text {
@@ -648,31 +762,88 @@ Item {
 
                     // Cursor variant. The machine's cursor theme comes from
                     // user.lua (XCURSOR_THEME); apply-cursor.sh swaps its
-                    // light/dark token so the pointer matches the palette.
+                    // light/dark token so the pointer matches the palette. The
+                    // row paints both real pointers of that pair with an arrow
+                    // between them, so the switch shows exactly what changes.
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: 10
 
-                        ColumnLayout {
+                        Text {
                             Layout.fillWidth: true
-                            spacing: 1
+                            Layout.alignment: Qt.AlignVCenter
+                            text: "Cursor theme"
+                            color: Colors.onSurface
+                            font.family: Typography.barFont
+                            font.pixelSize: Typography.size.bodyMedium
+                            font.weight: Typography.weight.medium
+                        }
 
-                            Text {
-                                Layout.fillWidth: true
-                                text: "Cursor follows theme"
-                                color: Colors.onSurface
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.bodyMedium
-                                font.weight: Typography.weight.medium
+                        // Light pointer, then the dark one: both read from the
+                        // installed theme by cursor-preview.py.
+                        Rectangle {
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredHeight: 34
+                            Layout.preferredWidth: cursorPair.implicitWidth + 16
+                            radius: Dimensions.radius.small + 2
+                            color: Colors.surfaceContainerHighest
+                            border.width: 1
+                            border.color: Colors.withAlpha(Colors.outlineVariant, 0.35)
+
+                            Row {
+                                id: cursorPair
+
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Image {
+                                    id: lightCursorImage
+
+                                    width: 24
+                                    height: 24
+                                    source: root.cursorPreviewLight
+                                    sourceSize.width: 60
+                                    sourceSize.height: 60
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    mipmap: true
+                                    visible: status === Image.Ready
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: root.cursorPreviewPaired
+                                    text: Icons.arrowForward
+                                    color: Colors.onSurfaceVariant
+                                    font.family: Typography.iconFont
+                                    font.pixelSize: Dimensions.icon.small + 2
+                                }
+
+                                Image {
+                                    id: darkCursorImage
+
+                                    width: 24
+                                    height: 24
+                                    source: root.cursorPreviewDark
+                                    sourceSize.width: 60
+                                    sourceSize.height: 60
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    mipmap: true
+                                    visible: root.cursorPreviewPaired
+                                        && status === Image.Ready
+                                }
                             }
 
+                            // Shown until the helper answers, or when the theme
+                            // ships a pointer this build cannot read.
                             Text {
-                                Layout.fillWidth: true
-                                text: "Use the light or dark cursor variant"
+                                anchors.centerIn: parent
+                                visible: lightCursorImage.status !== Image.Ready
+                                text: Icons.pointer
                                 color: Colors.onSurfaceVariant
-                                font.family: Typography.barFont
-                                font.pixelSize: Typography.size.labelSmall
-                                elide: Text.ElideRight
+                                font.family: Typography.iconFont
+                                font.pixelSize: Dimensions.icon.extraLarge
                             }
                         }
 

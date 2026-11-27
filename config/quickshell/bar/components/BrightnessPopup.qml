@@ -14,26 +14,7 @@ EmbeddedSheet {
     id: root
 
     mirror: true
-
-    // The dial made the schedule card taller than the old fixed 540 px, so
-    // the sheet follows its content instead of clipping the bottom. Clamp it
-    // to the screen the same way the sound sheet does.
-    readonly property int maxPanelHeight: Math.max(
-        320, root.height - Dimensions.bar.height - 8)
-    panelHeight: Math.min(root.maxPanelHeight,
-        root.contentTopInset + 28 + contentColumn.implicitHeight)
-
-    // Switching between fixed times and sunrise/sunset grows or shrinks the
-    // schedule block; animate the panel height instead of jumping.
-    Behavior on panelHeight {
-        enabled: root.opened
-
-        NumberAnimation {
-            duration: Motion.move
-            easing.type: Easing.Bezier
-            easing.bezierCurve: Motion.emphasizedCurve
-        }
-    }
+    panelHeight: 540
 
     readonly property string statusText: {
         if (!HyprsunsetService.available)
@@ -165,8 +146,6 @@ EmbeddedSheet {
     }
 
     ColumnLayout {
-        id: contentColumn
-
         anchors {
             fill: parent
             topMargin: root.contentTopInset + 14

@@ -34,7 +34,7 @@ EmbeddedSheet {
     // with a sliver of scroll (mirrors InternetPage.implicitHeight).
     readonly property int internetHeight: 616
     // Mirrors AppearancePage.implicitHeight.
-    readonly property int appearanceHeight: 1178
+    readonly property int appearanceHeight: 1002
     // Mirrors FontsPage.implicitHeight. The font list scrolls inside the page,
     // so the sheet only needs room for the two font cards and Obsidian card.
     readonly property int fontsHeight: 560
