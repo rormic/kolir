@@ -21,9 +21,6 @@ Surface {
         const id = Hyprland.focusedWorkspace?.id ?? 0
         return id >= 1 && id <= root.visibleWorkspaces ? id - 1 : -1
     }
-    readonly property int pillWidth: cellWidth - 2
-    readonly property int pillHeight: cellHeight - 4
-    readonly property int pillInset: (cellWidth - pillWidth) / 2
     // Occupied cells share one continuous rail: each cell paints its own slice
     // and squares off the corners that meet an occupied neighbour, so adjacent
     // workspaces read as a single capsule instead of touching pills with a
@@ -33,6 +30,14 @@ Surface {
     // Opaque on purpose: the per-cell slices and their corner caps overlap at
     // a junction, so a translucent tint would paint a lighter seam there.
     readonly property color railColor: Colors.surfaceContainerHighest
+
+    // The highlight is exactly as tall as the rail and inset two pixels from
+    // the cell edges, so it rides on the rail instead of spilling past it.
+    // The outline ring then sits one pixel outside the fill, which is also the
+    // smallest size that clears the focused app icon.
+    readonly property int pillWidth: cellWidth - 4
+    readonly property int pillHeight: railHeight
+    readonly property int pillInset: (cellWidth - pillWidth) / 2
 
     // One lookup table for all ten cells. Each delegate used to run its own
     // find() over a freshly materialised workspace array, so the ten cells
@@ -498,21 +503,18 @@ Surface {
                         id: appIcon
                         anchors.centerIn: parent
                         appClass: wsItem.hasWindow ? wsItem.appClass : wsItem.lastAppClass
-                        iconSize: Dimensions.icon.medium
+                        // 14 px lands on whole pixels inside the 20×22 cell
+                        // (3 px and 4 px insets), so circular logos such as
+                        // Zen's stay crisp and concentric with the focus ring;
+                        // an odd 15 px icon sat on half pixels and read as a
+                        // smeared, off-centre glyph.
+                        iconSize: 14
                         opacity: wsItem.iconShown ? 1 : 0
                         visible: opacity > 0
-                        scale: wsItem.underThumb ? 1 : 0.9
 
                         Behavior on opacity {
                             NumberAnimation {
                                 duration: Motion.fade
-                                easing.type: Easing.Bezier
-                                easing.bezierCurve: Motion.standardDecelerateCurve
-                            }
-                        }
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: Motion.move
                                 easing.type: Easing.Bezier
                                 easing.bezierCurve: Motion.standardDecelerateCurve
                             }
