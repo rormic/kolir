@@ -135,6 +135,18 @@ if [[ -n $CONTRAST ]] \
 fi
 CONTRAST=${CONTRAST:-0}
 
+# Source-color index shared by the one-shot extraction and the fallback image
+# runs. `--show-source-colors` lists candidates in extraction order, so the
+# index selects a line from that list (it cannot be passed to the listing).
+SOURCE_INDEX=${KOLIR_MATUGEN_SOURCE_INDEX:-0}
+case $SOURCE_INDEX in
+    0 | 1 | 2 | 3 | 4) ;;
+    *)
+        warn "ignoring source color index '$SOURCE_INDEX' (expected 0..4); using 0"
+        SOURCE_INDEX=0
+        ;;
+esac
+
 case $MODE_INTENT in
     auto | light | dark) ;;
     "")
@@ -204,6 +216,74 @@ if isinstance(templates, dict):
 for name, path in missing:
     print(f"{name}\t{path}")
 sys.exit(1 if missing else 0)
+PY
+}
+
+# Exit 0 = the config needs a real image source (a template or hook uses
+# `base16` or the `{{ image }}` keyword), 1 = it only needs M3 colors,
+# 2 = undetermined (missing python3/tomllib, unreadable input).
+#
+# `matugen color hex <source>` reproduces the image run's M3 `colors` exactly,
+# but it derives `base16` from the source color instead of the image and has
+# no `{{ image }}` keyword, so a config that uses either must keep the full
+# `matugen image` run. Anything undetermined is treated as "needs the image"
+# so the optimization can never silently change those values.
+matugen_needs_image_source() {
+    KOLIR_MATUGEN_CONFIG_FILE=$1 python3 - <<'PY'
+import os
+import re
+import sys
+import tomllib
+
+config = os.environ["KOLIR_MATUGEN_CONFIG_FILE"]
+try:
+    with open(config, "rb") as handle:
+        data = tomllib.load(handle)
+except Exception:
+    sys.exit(2)
+
+base = os.path.dirname(os.path.abspath(config))
+pattern = re.compile(r"base16\.|\{\{\s*image\b")
+templates = data.get("templates", {})
+if not isinstance(templates, dict):
+    sys.exit(1)
+
+for template in templates.values():
+    if not isinstance(template, dict):
+        continue
+    if template.get("enabled") is False:
+        continue
+
+    snippets = []
+    for key in ("pre_hook", "post_hook"):
+        value = template.get(key)
+        if isinstance(value, str):
+            snippets.append(value)
+
+    inputs = []
+    value = template.get("input_path")
+    if isinstance(value, str) and value.strip():
+        inputs.append(value)
+    modes = template.get("input_path_modes")
+    if isinstance(modes, dict):
+        inputs.extend(v for v in modes.values() if isinstance(v, str))
+
+    for value in inputs:
+        path = os.path.expanduser(value)
+        if not os.path.isabs(path):
+            path = os.path.join(base, path)
+        try:
+            with open(os.path.normpath(path), encoding="utf-8") as handle:
+                snippets.append(handle.read())
+        except OSError:
+            # A missing input is reported by matugen_missing_inputs; here it
+            # must not turn into a false "safe to use color".
+            sys.exit(2)
+
+    if any(pattern.search(text) for text in snippets):
+        sys.exit(0)
+
+sys.exit(1)
 PY
 }
 
@@ -298,6 +378,44 @@ run_matugen() {
     fi
 }
 
+# --- Source color -----------------------------------------------------------
+# The image decode + quantization is the expensive part of `matugen image`
+# and it is identical for the desktop and lock palettes. When neither config
+# needs an image-only value (base16 or {{ image }}), extract the source once
+# and render both palettes with `matugen color hex`, which produces the same
+# M3 colors. The pre-validation above already guarantees the inputs exist;
+# an undetermined case keeps the image path.
+MAIN_USES_IMAGE=true
+LOCK_USES_IMAGE=true
+if [[ $VALIDATE_INPUTS == true ]]; then
+    matugen_needs_image_source "$MAIN_CONFIG"
+    case $? in
+        1) MAIN_USES_IMAGE=false ;;
+        *) MAIN_USES_IMAGE=true ;;
+    esac
+
+    if [[ $LOCK_READY == true ]]; then
+        matugen_needs_image_source "$LOCK_CONFIG"
+        case $? in
+            1) LOCK_USES_IMAGE=false ;;
+            *) LOCK_USES_IMAGE=true ;;
+        esac
+    fi
+fi
+
+SOURCE=""
+if [[ $MAIN_USES_IMAGE == false || $LOCK_USES_IMAGE == false ]]; then
+    SOURCE=$(run_matugen image "$IMAGE_PATH" --show-source-colors \
+        -c "$MAIN_CONFIG" 2>/dev/null \
+        | grep -E '^#[0-9A-Fa-f]{6}$' \
+        | sed -n "$((SOURCE_INDEX + 1))p")
+    if [[ -z $SOURCE ]]; then
+        warn "could not extract a source color from '$IMAGE_PATH'; falling back to the full image runs"
+        MAIN_USES_IMAGE=true
+        LOCK_USES_IMAGE=true
+    fi
+fi
+
 # --- Lock background --------------------------------------------------------
 # hyprlock reads a pre-blurred, vignetted wallpaper so the lock starts fast
 # and the edges stay darker than the center.
@@ -378,11 +496,25 @@ else
 fi
 
 # --- Generation -------------------------------------------------------------
-if ! run_matugen image "$IMAGE_PATH" --source-color-index 0 \
-    --mode "$MATUGEN_MODE" --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
-    -c "$MAIN_CONFIG"; then
-    warn "matugen failed while generating the desktop palette from '$IMAGE_PATH' with $MAIN_CONFIG"
-    exit 1
+# `matugen color hex` reproduces the image run's M3 `colors`, but its
+# `base16` palette is derived from the source color and `{{ image }}` is
+# absent; matugen_needs_image_source() above keeps those configs on the full
+# image run. The source is extracted once, so the common case decodes the
+# wallpaper once instead of twice.
+if [[ $MAIN_USES_IMAGE == true ]]; then
+    if ! run_matugen image "$IMAGE_PATH" --source-color-index "$SOURCE_INDEX" \
+        --mode "$MATUGEN_MODE" --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
+        -c "$MAIN_CONFIG"; then
+        warn "matugen failed while generating the desktop palette from '$IMAGE_PATH' with $MAIN_CONFIG"
+        exit 1
+    fi
+else
+    if ! run_matugen color hex "$SOURCE" \
+        --mode "$MATUGEN_MODE" --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
+        -c "$MAIN_CONFIG"; then
+        warn "matugen failed while generating the desktop palette from source color $SOURCE with $MAIN_CONFIG"
+        exit 1
+    fi
 fi
 
 # The lock screen always uses a dark palette so white typography stays
@@ -391,9 +523,17 @@ fi
 # to the same family. The lock palette is optional: a failed lock run must not
 # turn an otherwise successful wallpaper/theme change into a reported failure.
 if [[ $LOCK_READY == true ]]; then
-    if ! run_matugen image "$IMAGE_PATH" --source-color-index 0 \
-        --mode dark --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
-        -c "$LOCK_CONFIG"; then
-        warn "matugen failed while generating the lock palette from '$IMAGE_PATH' with $LOCK_CONFIG; desktop colors were generated, continuing"
+    if [[ $LOCK_USES_IMAGE == true ]]; then
+        if ! run_matugen image "$IMAGE_PATH" --source-color-index "$SOURCE_INDEX" \
+            --mode dark --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
+            -c "$LOCK_CONFIG"; then
+            warn "matugen failed while generating the lock palette from '$IMAGE_PATH' with $LOCK_CONFIG; desktop colors were generated, continuing"
+        fi
+    else
+        if ! run_matugen color hex "$SOURCE" \
+            --mode dark --type "$SCHEME_TYPE" --contrast "$CONTRAST" \
+            -c "$LOCK_CONFIG"; then
+            warn "matugen failed while generating the lock palette from source color $SOURCE with $LOCK_CONFIG; desktop colors were generated, continuing"
+        fi
     fi
 fi

@@ -8,14 +8,26 @@
 Друкує JSON:
     {"key": "...", "palettes": {"scheme-content": {"primary": "#...", ...}}}
 
-Кожна схема генерується окремим `matugen --dry-run --json`, запуски йдуть
-паралельно. Кеш ключується шляхом, mtime шпалери, режимом і контрастом, тож
+Джерело кольору витягується один раз (`matugen image --show-source-colors`),
+а кожна схема далі рендериться з `matugen color hex <source>`. Так десять
+прев'ю коштують одне декодування шпалери, а не десять: квантування
+зображення і є дорогою частиною, генерація схем — сота частки секунди.
+
+`matugen color` дає ті самі M3 `colors`, що й `matugen image` (перевірено на
+всіх десяти схемах, light і dark), але його `base16` інший (Matugen будує
+base16 із зображення, а не з source color) і `{{ image }}` відсутній. Для
+прев'ю це нешкідливо, бо вони читають лише M3-ролі; `generate-colors.sh`
+свідомо лишається на `image`, коли якийсь шаблон використовує base16 або
+`{{ image }}`.
+
+Кеш ключується шляхом, mtime шпалери, режимом, контрастом і конфігом, тож
 повторне відкриття панелі не перераховує ті самі палітри.
 """
 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -37,23 +49,95 @@ SCHEMES = [
 # Ролі, які показує плитка вибору схеми.
 ROLES = ("primary", "secondary", "tertiary", "error", "surface_container_high")
 
-CACHE_VERSION = 1
+# Має збігатися з `--source-color-index`, який передає generate-colors.sh
+# (той самий KOLIR_MATUGEN_SOURCE_INDEX). `--show-source-colors` віддає
+# кандидатів у порядку витягу й не враховує `--prefer`, тому індекс тут
+# вибирається вручну зі списку.
+def _source_index():
+    try:
+        value = int(os.environ.get("KOLIR_MATUGEN_SOURCE_INDEX", "0"))
+    except ValueError:
+        return 0
+    return value if 0 <= value <= 4 else 0
 
 
-def palette_for(wallpaper, mode, contrast, scheme, config):
-    command = [
-        "matugen",
-        "image",
-        wallpaper,
-        "--source-color-index",
-        "0",
-        "--mode",
-        mode,
-        "--type",
-        scheme,
-        "--contrast",
-        str(contrast),
+SOURCE_INDEX = _source_index()
+SOURCE_TIMEOUT = 60
+SOURCE_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+CACHE_VERSION = 2
+
+
+def source_color(wallpaper, config):
+    """Один раз витягнути source color зі шпалери.
+
+    Повертає hex або None, коли Matugen не зміг перелічити кандидатів; у
+    такому разі palette_for() відкотиться на повний `matugen image`.
+    `-c` потрібен, щоб `[config] fallback_color` діяв і тут.
+    """
+    command = ["matugen", "image", wallpaper, "--show-source-colors"]
+    if config:
+        command += ["-c", config]
+
+    try:
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=SOURCE_TIMEOUT
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"palette-previews.py: source color: {error}", file=sys.stderr)
+        return None
+
+    if result.returncode != 0:
+        message = result.stderr.strip() or f"exit {result.returncode}"
+        print(f"palette-previews.py: source color: {message}",
+              file=sys.stderr)
+        return None
+
+    candidates = [
+        line.strip() for line in result.stdout.splitlines()
+        if SOURCE_HEX.match(line.strip())
     ]
+    if not candidates:
+        print("palette-previews.py: source color: no candidates",
+              file=sys.stderr)
+        return None
+
+    # An unchanged wallpaper can expose fewer candidates than the requested
+    # index (a grayscale image has one); Matugen errors on the same case, so
+    # clamp to the last candidate instead of losing every preview.
+    return candidates[min(SOURCE_INDEX, len(candidates) - 1)]
+
+
+def palette_for(wallpaper, source, mode, contrast, scheme, config):
+    if source:
+        # M3 colors are identical to the image run for the same source; see
+        # the module docstring for the base16 and `{{ image }}` difference.
+        command = [
+            "matugen",
+            "color",
+            "hex",
+            source,
+            "--mode",
+            mode,
+            "--type",
+            scheme,
+            "--contrast",
+            str(contrast),
+        ]
+    else:
+        command = [
+            "matugen",
+            "image",
+            wallpaper,
+            "--source-color-index",
+            str(SOURCE_INDEX),
+            "--mode",
+            mode,
+            "--type",
+            scheme,
+            "--contrast",
+            str(contrast),
+        ]
     if config:
         command += ["-c", config]
     command += ["--dry-run", "--json", "hex"]
@@ -105,8 +189,8 @@ def cache_key(wallpaper, mode, contrast, config):
 
     return "|".join(
         [str(CACHE_VERSION), os.path.realpath(wallpaper), str(mtime), mode,
-         str(contrast), os.path.realpath(config) if config else "",
-         str(config_mtime)]
+         str(contrast), str(SOURCE_INDEX),
+         os.path.realpath(config) if config else "", str(config_mtime)]
     )
 
 
@@ -179,12 +263,16 @@ def main():
                   separators=(",", ":"))
         return 0
 
+    # One image decode for all ten schemes. If the extraction fails, every
+    # scheme falls back to its own `matugen image` run (the old, slower path).
+    source = source_color(args.wallpaper, args.config)
+
     palettes = {}
     workers = min(8, len(SCHEMES))
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(palette_for, args.wallpaper, args.mode, args.contrast,
-                        scheme, args.config): scheme
+            pool.submit(palette_for, args.wallpaper, source, args.mode,
+                        args.contrast, scheme, args.config): scheme
             for scheme in SCHEMES
         }
         for future in futures:
