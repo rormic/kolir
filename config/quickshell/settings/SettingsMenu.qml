@@ -27,7 +27,7 @@ EmbeddedSheet {
     // Height of the visible panel, morphed between pages while they slide.
     panelHeight: mainHeight
 
-    readonly property int mainHeight: 460
+    readonly property int mainHeight: 530
     readonly property int bluetoothHeight: 520
     // Tall enough for the Internet page's resting content (Ethernet + Wi-Fi +
     // actions + network list + the collapsed VPN card), so it does not open
@@ -35,6 +35,9 @@ EmbeddedSheet {
     readonly property int internetHeight: 616
     // Mirrors AppearancePage.implicitHeight.
     readonly property int appearanceHeight: 1178
+    // Mirrors FontsPage.implicitHeight. The font list scrolls inside the page,
+    // so the sheet only needs room for the two font cards and Obsidian card.
+    readonly property int fontsHeight: 560
     // Mirrors CalendarPage.implicitHeight (629). Constant for both account
     // states — the OAuth card stays visible — so connecting never resizes the
     // sheet, and the resting page needs no scroll.
@@ -58,6 +61,8 @@ EmbeddedSheet {
             return internetHeight;
         if (name === "appearance")
             return appearanceHeight;
+        if (name === "fonts")
+            return fontsHeight;
         if (name === "calendar")
             return calendarHeight;
         return mainHeight;
@@ -294,6 +299,10 @@ EmbeddedSheet {
             root.open("appearance");
         }
 
+        function openFonts(): void {
+            root.open("fonts");
+        }
+
         function openCalendar(): void {
             root.open("calendar");
         }
@@ -360,6 +369,17 @@ EmbeddedSheet {
             active: root.opened
             visible: root.pageVisible("appearance")
             opacity: root.pageOpacity("appearance")
+            onBack: root.navigate("main")
+        }
+
+        FontsPage {
+            x: root.pageX("fonts")
+            y: 0
+            width: parent.width
+            height: root.heightForPage("fonts")
+            topInset: root.contentTopInset
+            visible: root.pageVisible("fonts")
+            opacity: root.pageOpacity("fonts")
             onBack: root.navigate("main")
         }
 

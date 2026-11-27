@@ -13,7 +13,7 @@ Item {
     property int topInset: 0
 
     implicitWidth: 388
-    implicitHeight: 460
+    implicitHeight: 530
 
     readonly property var entries: [
         {
@@ -36,6 +36,13 @@ Item {
             subtitle: "Palette & theme mode",
             soon: false,
             page: "appearance",
+        },
+        {
+            icon: Icons.fontDownload,
+            title: "Fonts",
+            subtitle: "Interface, terminal & Obsidian",
+            soon: false,
+            page: "fonts",
         },
         {
             icon: Icons.calendar,

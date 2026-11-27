@@ -1,10 +1,21 @@
 pragma Singleton
 import QtQuick
+import "../services"
 
 QtObject {
-    readonly property string barFont: "Google Sans"
-    readonly property string launcherFont: "Google Sans Flex"
+    readonly property string defaultBarFont: "Google Sans"
+    readonly property string defaultLauncherFont: "Google Sans Flex"
     readonly property string iconFont: "Material Symbols Rounded"
+
+    // Settings → Fonts stores one interface family. An untouched choice keeps
+    // the two original faces; a chosen family replaces both so the bar and the
+    // launcher agree (hyprlock keeps Google Sans Flex for its clock).
+    readonly property string barFont: FontService.interfaceFont !== ""
+        ? FontService.interfaceFont
+        : defaultBarFont
+    readonly property string launcherFont: FontService.interfaceFont !== ""
+        ? FontService.interfaceFont
+        : defaultLauncherFont
 
     // Material 3 type scale (desktop sizes).
     readonly property QtObject size: QtObject {

@@ -61,6 +61,14 @@ QtObject {
     // Matugen scheme type, contrast and mode owned by AppearanceService.
     readonly property string appearanceState: quickshellCache + "/appearance.json"
 
+    // Interface/terminal font choice owned by FontService. Rendered into Foot
+    // and the Obsidian snippet by the one-shot helper below.
+    readonly property string fontState: quickshellCache + "/fonts.json"
+
+    // Font choice renderer. It writes the Foot include and the Obsidian
+    // snippet, then reports what it changed.
+    readonly property string fontSyncScript: Quickshell.shellPath("scripts/font-sync.py")
+
     // Screen frame style owned by FrameService.
     readonly property string frameState: quickshellCache + "/frame.json"
 

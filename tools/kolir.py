@@ -38,6 +38,9 @@ ROOT_MARKER = Path("config/hypr/hyprland.lua")
 MATUGEN_CONFIG_REL = Path("config/matugen/config.toml")
 MATUGEN_TEMPLATES_REL = Path("config/matugen/templates")
 FOOT_LOADER_MARKER = "# Managed by kolir setup"
+FOOT_FONT_STUB = (
+    "# Managed by kolir Fonts; edit through Settings → Fonts.\n"
+)
 GTK_STUB = '@import url("colors.css");\n'
 DEFAULT_THEME = "dark\n"
 VERSION_FILE = ".version"
@@ -277,6 +280,7 @@ def foot_loader_text(root: Path) -> str:
         f"{FOOT_LOADER_MARKER}; rerun it to refresh after the root changes.\n"
         f"include={root}/config/foot/foot.ini\n"
         f"include={home_dir()}/.config/foot/colors.ini\n"
+        f"include={home_dir()}/.config/foot/font.ini\n"
     )
 
 
@@ -1068,6 +1072,7 @@ def setup_hyprland(deploy: Deployer, root: Path) -> None:
 def setup_foot(deploy: Deployer, root: Path) -> None:
     foot = config_home() / "foot"
     deploy.ensure_file(foot / "foot.ini", foot_loader_text(root))
+    deploy.ensure_file_if_absent(foot / "font.ini", FOOT_FONT_STUB)
 
     colors = foot / "colors.ini"
     if colors.is_dir() and not colors.is_symlink():

@@ -27,7 +27,9 @@ directory.
   `nautilus`,
   `playerctl` (media keys), the `mocu-xcursor` theme, and KDE Connect.
 - Fonts/icons used by the bar: Google Sans Code Nerd, DejaVu, Material Symbols,
-  and Papirus.
+  and Papirus. Settings → Fonts can replace the interface and terminal families
+  (the bar, launcher, Foot and Obsidian; the lock screen deliberately keeps
+  Google Sans Flex), and `fc-list` from fontconfig supplies the installed list.
 
 `kolir doctor` reports missing required tools as errors and missing optional
 tools as warnings. `kolir setup` offers to install the optional packages (and
@@ -75,7 +77,8 @@ What it creates:
   `~/.config/quickshell/colors.json`, `~/.config/gtk-3.0/gtk.css`,
   `~/.config/gtk-4.0/gtk.css`, and `~/.cache/current_theme` (`dark`).
 - A stable `~/.config/foot/foot.ini` loader plus an empty
-  `~/.config/foot/colors.ini` (Matugen's output).
+  `~/.config/foot/colors.ini` (Matugen's output) and a comment-only
+  `~/.config/foot/font.ini` (Settings → Fonts).
 - `<root>/.version`, used by `kolir version` and the auto-reload unit.
 - `~/Pictures/wallpaper`, the folder the wallpaper picker opens first.
 - A user-level XDG Desktop Portal FileChooser backend:

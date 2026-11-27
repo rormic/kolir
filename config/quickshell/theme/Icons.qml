@@ -9,6 +9,7 @@ QtObject {
     readonly property string darkMode: "dark_mode"
     readonly property string brightnessAuto: "brightness_auto"
     readonly property string palette: "palette"
+    readonly property string fontDownload: "font_download"
     readonly property string cropFree: "crop_free"
     readonly property string wallpaper: "wallpaper"
     readonly property string shuffle: "shuffle"
