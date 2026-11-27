@@ -452,11 +452,42 @@ Item {
                         }
 
                         Text {
+                            id: contrastValueLabel
+
                             text: root.contrastLabel
                             color: Colors.primary
                             font.family: Typography.barFont
                             font.pixelSize: Typography.size.labelMedium
                             font.weight: Typography.weight.bold
+
+                            // Same M3 pulse as the night-light temperature
+                            // value: the label leaves on duration-short1 with
+                            // the emphasized accelerate curve and returns on
+                            // duration-short2 with emphasized decelerate.
+                            onTextChanged: if (!root.dragging)
+                                contrastPulse.restart()
+
+                            SequentialAnimation {
+                                id: contrastPulse
+
+                                NumberAnimation {
+                                    target: contrastValueLabel
+                                    property: "scale"
+                                    to: 0.95
+                                    duration: Motion.durationShort1
+                                    easing.type: Easing.Bezier
+                                    easing.bezierCurve: Motion.emphasizedAccelerateCurve
+                                }
+
+                                NumberAnimation {
+                                    target: contrastValueLabel
+                                    property: "scale"
+                                    to: 1.0
+                                    duration: Motion.durationShort2
+                                    easing.type: Easing.Bezier
+                                    easing.bezierCurve: Motion.emphasizedDecelerateCurve
+                                }
+                            }
                         }
                     }
 
@@ -464,6 +495,7 @@ Item {
                         id: contrastSlider
 
                         Layout.fillWidth: true
+                        springValue: true
                         onDragStarted: value => {
                             contrastSettleTimer.stop();
                             root.dragging = true;
@@ -890,16 +922,27 @@ Item {
 
         Behavior on color {
             ColorAnimation {
-                duration: Motion.fade
+                duration: Motion.hover
                 easing.type: Easing.Bezier
                 easing.bezierCurve: Motion.standardDecelerateCurve
             }
         }
         Behavior on border.color {
             ColorAnimation {
-                duration: Motion.fade
+                duration: Motion.hover
                 easing.type: Easing.Bezier
                 easing.bezierCurve: Motion.standardDecelerateCurve
+            }
+        }
+
+        // Material 3 Expressive spatial spring for the selected preset, the
+        // same lift the night-light temperature presets use.
+        scale: preset.active ? 1.02 : 1.0
+        Behavior on scale {
+            SpringAnimation {
+                spring: Motion.spatialSpring
+                damping: Motion.spatialSpringDamping
+                epsilon: Motion.springScaleEpsilon
             }
         }
 
